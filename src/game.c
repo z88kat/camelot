@@ -110,17 +110,31 @@ static Direction key_to_direction(int key) {
     }
 }
 
-/* Advance game clock by 1 turn (1 minute) */
-static void advance_time(GameState *gs) {
+/* Advance game clock by the given number of minutes */
+static void advance_time(GameState *gs, int minutes) {
     gs->turn++;
-    gs->minute++;
-    if (gs->minute >= 60) {
-        gs->minute = 0;
+    gs->minute += minutes;
+    while (gs->minute >= 60) {
+        gs->minute -= 60;
         gs->hour++;
         if (gs->hour >= 24) {
             gs->hour = 0;
             gs->day++;
         }
+    }
+}
+
+/* Get travel time in minutes for stepping onto an overworld tile */
+static int overworld_travel_time(TileType type) {
+    switch (type) {
+    case TILE_ROAD:    return 5;   /* fast travel */
+    case TILE_BRIDGE:  return 5;   /* same as road */
+    case TILE_GRASS:   return 10;  /* normal */
+    case TILE_FOREST:  return 20;  /* slow, dense undergrowth */
+    case TILE_HILLS:   return 25;  /* steep climbs */
+    case TILE_MARSH:   return 30;  /* boggy, treacherous */
+    case TILE_SWAMP:   return 35;  /* worst terrain, exhausting */
+    default:           return 10;
     }
 }
 
@@ -168,7 +182,9 @@ static void handle_overworld_input(GameState *gs, int key) {
 
         gs->player_pos.x = nx;
         gs->player_pos.y = ny;
-        advance_time(gs);
+        TileType stepped_on = gs->overworld->map[ny][nx].type;
+        int travel_mins = overworld_travel_time(stepped_on);
+        advance_time(gs, travel_mins);
 
         /* Check for a location at the new position */
         Location *loc = overworld_location_at(gs->overworld, nx, ny);
@@ -282,7 +298,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
             if (target->passable) {
                 gs->player_pos.x = nx;
                 gs->player_pos.y = ny;
-                advance_time(gs);
+                advance_time(gs, 1);  /* 1 minute per dungeon step */
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
             }
@@ -303,7 +319,8 @@ void game_handle_input(GameState *gs, int key) {
 
     /* Wait */
     if (key == '.' || key == '5') {
-        advance_time(gs);
+        int wait_mins = (gs->mode == MODE_OVERWORLD) ? 10 : 1;
+        advance_time(gs, wait_mins);
         log_add(&gs->log, gs->turn, CP_WHITE, "You wait...");
         return;
     }

@@ -85,18 +85,19 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 ## Terrain Guide
 
 ### Overworld Terrain
-| Symbol | Colour | Terrain | Passable | Notes |
-|--------|--------|---------|----------|-------|
-| `"` | Green | Grassland | Yes | Normal speed |
-| `.` | Yellow | Road | Yes | Fast travel, safest route |
-| `T` | Bright green | Forest | Yes | Slow, nature encounters, reduced visibility |
-| `^` | White | Hills | Yes | Slow, increased encounter chance |
-| `A` | Bright white | Mountains | **No** | Impassable -- go around or find a pass |
-| `,` | Green | Marsh | Yes | Very slow, chance of getting stuck |
-| `%` | Green | Swamp | Yes | Very slow, poison damage risk |
-| `~` | Blue | Sea | **No** | Impassable |
-| `=` | Blue | River | **No** | Impassable -- find a bridge (`H`) to cross |
-| `o` | Blue | Lake | **No** | Impassable -- use boat (`B`) or Walk on Water |
+| Symbol | Colour | Terrain | Passable | Travel Time | Notes |
+|--------|--------|---------|----------|-------------|-------|
+| `.` | Yellow | Road | Yes | 5 min | Fast travel, safest route |
+| `H` | Brown | Bridge | Yes | 5 min | Road speed, only way to cross rivers |
+| `"` | Green | Grassland | Yes | 10 min | Normal open ground |
+| `T` | Bright green | Forest | Yes | 20 min | Dense undergrowth, nature encounters |
+| `^` | White | Hills | Yes | 25 min | Steep climbs, increased encounter chance |
+| `,` | Green | Marsh | Yes | 30 min | Boggy, chance of getting stuck |
+| `%` | Green | Swamp | Yes | 35 min | Exhausting, poison damage risk |
+| `A` | Bright white | Mountains | **No** | -- | Impassable -- go around or find a pass |
+| `~` | Blue | Sea | **No** | -- | Impassable |
+| `=` | Blue | River | **No** | -- | Impassable -- find a bridge (`H`) to cross |
+| `o` | Blue | Lake | **No** | -- | Impassable -- use boat (`B`) or Walk on Water |
 | `H` | Brown | Bridge | Yes | Road speed, the only way to cross rivers |
 | `B` | Brown | Boat | Yes | Step on to sail to an island |
 
@@ -169,6 +170,14 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 1. **Create your character**: choose class, gender, name, appearance, and roll your stats. Press `r` to re-roll stats until you're happy, then Enter to accept. Press `C` for cheat options (score will be 0).
 2. **Visit King Arthur**: your first task is to find Arthur in Camelot Castle's throne room. He'll grant you the quest for the Holy Grail and make you a knight.
 3. **Explore Camelot**: visit the shops to buy starting gear, the inn for food and quests, and the church for blessings. Don't forget to check your home for items left by previous characters!
+
+### Time & Travel
+- Time passes with every action. Each step you take advances the game clock.
+- **Dungeon movement**: 1 minute per step -- corridors are short.
+- **Overworld movement**: varies by terrain. Roads are fast (5 min/step), grassland is normal (10 min), and swamps are exhausting (35 min/step). Plan your route!
+- **Stick to roads** when possible -- they are 7x faster than swamps and have fewer encounters.
+- **Day/night cycle**: the clock drives day and night. Shops close at night, different enemies appear, and visibility drops. Watch the time on your status bar.
+- **30-day lunar cycle**: special events happen on specific days (feasts, tournaments, full moon werewolves). The current day is shown on the status bar.
 
 ### Survival Tips
 - **Eat regularly**: hunger drains your stats and eventually kills you. Buy food, pick apples from trees, and cook raw meat at campfires (you'll need a tinderbox).
