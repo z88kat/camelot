@@ -46,4 +46,8 @@ void ui_refresh(void);
 /* Get a keypress (blocking). */
 int ui_getkey(void);
 
+/* Render a full-screen minimap of the overworld. Press any key to close. */
+void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
+                       const char *locations_info);
+
 #endif /* UI_H */

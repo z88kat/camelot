@@ -124,6 +124,17 @@ static void advance_time(GameState *gs, int minutes) {
     }
 }
 
+/* Get descriptive name for the time of day */
+static const char *time_of_day_name(int hour) {
+    if (hour >= 5 && hour < 7)   return "[Dawn]";
+    if (hour >= 7 && hour < 12)  return "[Morning]";
+    if (hour >= 12 && hour < 14) return "[Midday]";
+    if (hour >= 14 && hour < 17) return "[Afternoon]";
+    if (hour >= 17 && hour < 19) return "[Dusk]";
+    if (hour >= 19 && hour < 22) return "[Evening]";
+    return "[Night]";
+}
+
 /* Get travel time in minutes for stepping onto an overworld tile */
 static int overworld_travel_time(TileType type) {
     switch (type) {
@@ -221,6 +232,31 @@ static void handle_overworld_input(GameState *gs, int key) {
                 break;
             }
         }
+        return;
+    }
+
+    /* Minimap */
+    if (key == 'M') {
+        /* Build location summary string */
+        char loc_info[256];
+        Location *loc = overworld_location_at(gs->overworld,
+                                               gs->player_pos.x, gs->player_pos.y);
+        if (loc) {
+            snprintf(loc_info, sizeof(loc_info),
+                     "You are at: %s  |  Day %d %02d:%02d %s",
+                     loc->name, gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour));
+        } else {
+            snprintf(loc_info, sizeof(loc_info),
+                     "Exploring %s  |  Day %d %02d:%02d %s",
+                     terrain_name(gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type),
+                     gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour));
+        }
+
+        ui_render_minimap((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
+                          gs->player_pos, loc_info);
+        ui_getkey();  /* wait for any key to close */
         return;
     }
 
@@ -443,17 +479,20 @@ static void game_render(GameState *gs) {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc) {
-            snprintf(status, sizeof(status), "Overworld: %s | %s | Turn %d | Day %d %02d:%02d",
+            snprintf(status, sizeof(status), "Overworld: %s | %s | Turn %d | Day %d %02d:%02d %s",
                      loc->name, terrain_name(t->type),
-                     gs->turn, gs->day, gs->hour, gs->minute);
+                     gs->turn, gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour));
         } else {
-            snprintf(status, sizeof(status), "Overworld: %s | Turn %d | Day %d %02d:%02d",
+            snprintf(status, sizeof(status), "Overworld: %s | Turn %d | Day %d %02d:%02d %s",
                      terrain_name(t->type),
-                     gs->turn, gs->day, gs->hour, gs->minute);
+                     gs->turn, gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour));
         }
     } else {
-        snprintf(status, sizeof(status), "Dungeon | Turn %d | Day %d %02d:%02d",
-                 gs->turn, gs->day, gs->hour, gs->minute);
+        snprintf(status, sizeof(status), "Dungeon | Turn %d | Day %d %02d:%02d %s",
+                 gs->turn, gs->day, gs->hour, gs->minute,
+                 time_of_day_name(gs->hour));
     }
 
     ui_render_status_bar(status_row, term_cols, status);

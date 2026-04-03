@@ -162,6 +162,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `@` | Full character sheet |
 | `Ctrl+P` | Message history |
 | `=` | Settings |
+| `M` | Minimap (overworld overview) |
 | `q` | Quit game |
 
 ## Player Guide

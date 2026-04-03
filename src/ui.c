@@ -227,3 +227,93 @@ void ui_refresh(void) {
 int ui_getkey(void) {
     return getch();
 }
+
+void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
+                       const char *locations_info) {
+    int term_rows, term_cols;
+    getmaxyx(stdscr, term_rows, term_cols);
+
+    clear();
+
+    /* Reserve rows: 1 for title, 1 for footer, rest for map */
+    int avail_rows = term_rows - 3;
+    int avail_cols = term_cols - 2;
+    if (avail_rows < 5 || avail_cols < 10) {
+        mvprintw(0, 0, "Terminal too small for minimap");
+        refresh();
+        return;
+    }
+
+    /* Calculate scale: how many map tiles per screen cell */
+    int scale_x = (map_w + avail_cols - 1) / avail_cols;
+    int scale_y = (map_h + avail_rows - 1) / avail_rows;
+    if (scale_x < 1) scale_x = 1;
+    if (scale_y < 1) scale_y = 1;
+
+    int mini_w = map_w / scale_x;
+    int mini_h = map_h / scale_y;
+    if (mini_w > avail_cols) mini_w = avail_cols;
+    if (mini_h > avail_rows) mini_h = avail_rows;
+
+    /* Center the minimap */
+    int off_x = (term_cols - mini_w) / 2;
+    int off_y = 1 + (avail_rows - mini_h) / 2;
+
+    /* Title */
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    const char *title = "-- Map of England -- (press any key to close)";
+    mvprintw(0, (term_cols - (int)strlen(title)) / 2, "%s", title);
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+    /* Render scaled map */
+    for (int sy = 0; sy < mini_h; sy++) {
+        for (int sx = 0; sx < mini_w; sx++) {
+            /* Sample the center tile of this scaled block */
+            int mx = sx * scale_x + scale_x / 2;
+            int my = sy * scale_y + scale_y / 2;
+            if (mx >= map_w) mx = map_w - 1;
+            if (my >= map_h) my = map_h - 1;
+
+            Tile *t = &map[my * map_w + mx];
+
+            /* Determine what to draw: prioritise locations */
+            char ch = t->glyph;
+            short cp = t->color_pair;
+
+            /* Check if any special glyph is in this block */
+            for (int by = sy * scale_y; by < (sy + 1) * scale_y && by < map_h; by++) {
+                for (int bx = sx * scale_x; bx < (sx + 1) * scale_x && bx < map_w; bx++) {
+                    Tile *bt = &map[by * map_w + bx];
+                    /* Prioritise location markers over terrain */
+                    if (bt->glyph == '*' || bt->glyph == '#' || bt->glyph == '+'
+                        || bt->glyph == '>' || bt->glyph == 'V' || bt->glyph == 'B') {
+                        ch = bt->glyph;
+                        cp = bt->color_pair;
+                    }
+                }
+            }
+
+            attron(COLOR_PAIR(cp));
+            mvaddch(off_y + sy, off_x + sx, ch);
+            attroff(COLOR_PAIR(cp));
+        }
+    }
+
+    /* Draw player position */
+    int px = player_pos.x / scale_x;
+    int py = player_pos.y / scale_y;
+    if (px >= 0 && px < mini_w && py >= 0 && py < mini_h) {
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+        mvaddch(off_y + py, off_x + px, '@');
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+    }
+
+    /* Footer with location info */
+    if (locations_info) {
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(term_rows - 1, 1, "%.*s", term_cols - 2, locations_info);
+        attroff(COLOR_PAIR(CP_WHITE));
+    }
+
+    refresh();
+}
