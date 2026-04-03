@@ -3,9 +3,9 @@
 
 #include "common.h"
 
-/* Overworld map dimensions -- 5x larger than original */
-#define OW_WIDTH   400
-#define OW_HEIGHT  200
+/* Overworld map dimensions -- ~6.25x original (25% larger than previous) */
+#define OW_WIDTH   500
+#define OW_HEIGHT  250
 
 /* Location types on the overworld */
 typedef enum {

@@ -57,59 +57,59 @@ static void build_coastline(Span spans[OW_HEIGHT]) {
     typedef struct { int y, lx, rx; } CP;
     CP pts[] = {
         /* Northern Scotland - narrow, rugged */
-        {  10,  140, 195 },
-        {  15,  125, 210 },
-        {  20,  110, 230 },
-        {  25,  105, 240 },
+        {  12,  175, 244 },
+        {  19,  156, 262 },
+        {  25,  138, 288 },
+        {  31,  131, 300 },
         /* Scottish Highlands - wider */
-        {  30,  100, 250 },
-        {  35,   95, 255 },
-        {  40,  100, 250 },
+        {  38,  125, 312 },
+        {  44,  119, 319 },
+        {  50,  125, 312 },
         /* Scottish Lowlands */
-        {  45,  105, 260 },
-        {  50,  110, 265 },
+        {  56,  131, 325 },
+        {  62,  138, 331 },
         /* Border region - narrower (Solway/Tyne) */
-        {  55,  115, 270 },
-        {  60,  110, 275 },
+        {  69,  144, 338 },
+        {  75,  138, 344 },
         /* Northern England - Lake District west, Yorkshire east */
-        {  65,  105, 285 },
-        {  70,  100, 290 },
-        {  75,  100, 295 },
+        {  81,  131, 356 },
+        {  88,  125, 362 },
+        {  94,  125, 369 },
         /* Lancashire / Yorkshire */
-        {  80,   95, 295 },
-        {  85,   95, 298 },
+        { 100,  119, 369 },
+        { 106,  119, 372 },
         /* Wales begins - bulge west */
-        {  90,   80, 300 },
-        {  95,   70, 300 },
-        { 100,   65, 305 },
+        { 112,  100, 375 },
+        { 119,   88, 375 },
+        { 125,   81, 381 },
         /* Mid Wales - widest western extent */
-        { 105,   60, 305 },
-        { 110,   60, 310 },
-        { 115,   65, 310 },
+        { 131,   75, 381 },
+        { 138,   75, 388 },
+        { 144,   81, 388 },
         /* South Wales / Bristol Channel indentation */
-        { 120,   70, 315 },
-        { 125,   85, 315 },  /* Bristol Channel narrows */
+        { 150,   88, 394 },
+        { 156,  106, 394 },  /* Bristol Channel narrows */
         /* Southwest England */
-        { 130,   80, 320 },
-        { 135,   75, 325 },
-        { 140,   70, 330 },
-        { 145,   65, 335 },
+        { 162,  100, 400 },
+        { 169,   94, 406 },
+        { 175,   88, 412 },
+        { 181,   81, 419 },
         /* Devon / Dorset */
-        { 150,   60, 335 },
-        { 155,   55, 340 },
-        { 160,   55, 345 },
+        { 188,   75, 419 },
+        { 194,   69, 425 },
+        { 200,   69, 431 },
         /* South coast / Hampshire / Sussex */
-        { 165,   60, 350 },
-        { 170,   70, 355 },
+        { 206,   75, 438 },
+        { 212,   88, 444 },
         /* Kent bulge southeast + Cornwall peninsula southwest */
-        { 175,   50, 360 },
-        { 180,   40, 365 },
+        { 219,   62, 450 },
+        { 225,   50, 456 },
         /* Cornwall narrows */
-        { 185,   35, 350 },
-        { 188,   30, 300 },
-        { 192,   28, 200 },
+        { 231,   44, 438 },
+        { 235,   38, 375 },
+        { 240,   35, 250 },
         /* Cornwall tip */
-        { 196,   30, 100 },
+        { 245,   38, 125 },
     };
     int npts = sizeof(pts) / sizeof(pts[0]);
 
@@ -155,23 +155,23 @@ static void assign_terrain(Tile *t, int x, int y) {
     double n1 = noise2d(x, y, 12);
     double n2 = noise2d(x + 1000, y + 1000, 20);
 
-    /* Scottish Highlands (y < 50) -- hilly and forested */
-    if (y < 50) {
+    /* Scottish Highlands (y < 62) -- hilly and forested */
+    if (y < 62) {
         if (n1 > 0.65) { set_hills(t); return; }
         if (n1 > 0.45) { set_forest(t); return; }
         set_grass(t);
         return;
     }
 
-    /* Northern England (y 50-85) -- Pennine hills, Lake District */
-    if (y < 85) {
+    /* Northern England (y 62-106) -- Pennine hills, Lake District */
+    if (y < 106) {
         /* Pennines: central spine of hills */
-        int center_x = lerp(190, 200, y - 50, 35);
+        int center_x = lerp(238, 250, y - 62, 44);
         int dist_from_pennines = abs(x - center_x);
-        if (dist_from_pennines < 15 && n1 > 0.35) { set_hills(t); return; }
+        if (dist_from_pennines < 19 && n1 > 0.35) { set_hills(t); return; }
 
-        /* Lake District (west side, y 60-75) */
-        if (y >= 60 && y <= 78 && x >= 105 && x <= 140) {
+        /* Lake District (west side, y 75-97) */
+        if (y >= 75 && y <= 97 && x >= 131 && x <= 175) {
             if (n1 > 0.7) { set_lake(t); return; }
             if (n1 > 0.5) { set_hills(t); return; }
         }
@@ -181,38 +181,38 @@ static void assign_terrain(Tile *t, int x, int y) {
         return;
     }
 
-    /* Wales (y 90-125, x < 140) -- mountainous */
-    if (y >= 88 && y <= 125 && x < 150) {
+    /* Wales (y 110-156, x < 188) -- mountainous */
+    if (y >= 110 && y <= 156 && x < 188) {
         if (n1 > 0.55) { set_hills(t); return; }
         if (n1 > 0.40 && n2 > 0.5) { set_forest(t); return; }
         set_grass(t);
         return;
     }
 
-    /* Sherwood Forest area (y 85-100, x 200-260) */
-    if (y >= 85 && y <= 100 && x >= 200 && x <= 260) {
+    /* Sherwood Forest area (y 106-125, x 250-325) */
+    if (y >= 106 && y <= 125 && x >= 250 && x <= 325) {
         if (n1 > 0.35) { set_forest(t); return; }
     }
 
-    /* The Fens -- marshland (y 100-115, x 260-310) */
-    if (y >= 100 && y <= 118 && x >= 260 && x <= 310) {
+    /* The Fens -- marshland (y 125-147, x 325-388) */
+    if (y >= 125 && y <= 147 && x >= 325 && x <= 388) {
         if (n1 > 0.55) { set_marsh(t); return; }
     }
 
-    /* Somerset Levels -- marsh/swamp (y 130-145, x 100-140) */
-    if (y >= 130 && y <= 148 && x >= 95 && x <= 145) {
+    /* Somerset Levels -- marsh/swamp (y 162-185, x 119-181) */
+    if (y >= 162 && y <= 185 && x >= 119 && x <= 181) {
         if (n1 > 0.6) { set_swamp(t); return; }
         if (n1 > 0.45) { set_marsh(t); return; }
     }
 
-    /* Devon/Cornwall -- moorland (y 155-190, x < 100) */
-    if (y >= 155 && x < 110) {
+    /* Devon/Cornwall -- moorland (y 194+, x < 138) */
+    if (y >= 194 && x < 138) {
         if (n1 > 0.6) { set_hills(t); return; }
         if (n1 > 0.45 && n2 > 0.5) { set_marsh(t); return; }
     }
 
-    /* Southern Downs -- gentle hills (y 155-170, x 200-320) */
-    if (y >= 155 && y <= 172 && x >= 200 && x <= 320) {
+    /* Southern Downs -- gentle hills (y 194-215, x 250-400) */
+    if (y >= 194 && y <= 215 && x >= 250 && x <= 400) {
         if (n1 > 0.6) { set_hills(t); return; }
     }
 
@@ -351,110 +351,98 @@ void overworld_init(Overworld *ow) {
         }
     }
 
-    /* Step 3: Rivers */
-    /* River Thames -- flows east across southern England */
-    draw_river(ow, 180, 155, 3, 0, 60);
-    /* River Severn -- flows south through Wales/west England */
-    draw_river(ow, 130, 95, 0, 2, 25);
-    /* River Trent -- flows northeast through Midlands */
-    draw_river(ow, 210, 100, 2, -1, 30);
-    /* River Humber -- east coast */
-    draw_river(ow, 250, 82, 3, 0, 20);
-    /* River Tyne -- northern England */
-    draw_river(ow, 200, 58, 3, 0, 25);
+    /* Step 3: Rivers (scaled 1.25x) */
+    draw_river(ow, 225, 194, 3, 0, 75);    /* Thames */
+    draw_river(ow, 162, 119, 0, 2, 31);    /* Severn */
+    draw_river(ow, 262, 125, 2, -1, 38);   /* Trent */
+    draw_river(ow, 312, 102, 3, 0, 25);    /* Humber */
+    draw_river(ow, 250, 72, 3, 0, 31);     /* Tyne */
 
-    /* Step 4: Lakes */
-    /* Lake District */
-    draw_lake(ow, 118, 68, 3);
-    draw_lake(ow, 125, 72, 2);
-    draw_lake(ow, 115, 73, 2);
-    /* Scottish Lochs */
-    draw_lake(ow, 145, 22, 4);   /* Loch Ness */
-    draw_lake(ow, 130, 30, 3);   /* Loch Lomond */
-    draw_lake(ow, 165, 18, 2);   /* small highland loch */
-    /* Lake Bala (Wales) */
-    draw_lake(ow, 90, 100, 2);
-    /* Windermere */
-    draw_lake(ow, 120, 65, 3);
-    /* Lady of the Lake */
-    draw_lake(ow, 160, 135, 3);
+    /* Step 4: Lakes (scaled 1.25x, radii +1) */
+    draw_lake(ow, 148, 85, 4);    /* Lake District */
+    draw_lake(ow, 156, 90, 3);
+    draw_lake(ow, 144, 91, 3);
+    draw_lake(ow, 181, 28, 5);    /* Loch Ness */
+    draw_lake(ow, 162, 38, 4);    /* Loch Lomond */
+    draw_lake(ow, 206, 22, 3);    /* Highland loch */
+    draw_lake(ow, 112, 125, 3);   /* Lake Bala (Wales) */
+    draw_lake(ow, 150, 81, 4);    /* Windermere */
+    draw_lake(ow, 200, 169, 4);   /* Lady of the Lake */
 
-    /* Step 5: Roads connecting major locations */
-    /* Main road network */
-    /* Camelot (170, 130) hub */
-    draw_road(ow, 170, 130, 250, 145);   /* Camelot -> London */
-    draw_road(ow, 170, 130, 155, 150);   /* Camelot -> Glastonbury */
-    draw_road(ow, 170, 130, 200, 100);   /* Camelot -> Sherwood */
-    draw_road(ow, 170, 130, 110, 110);   /* Camelot -> Wales */
-    draw_road(ow, 170, 130, 190, 155);   /* Camelot -> Winchester */
-    draw_road(ow, 200, 100, 220, 75);    /* Sherwood -> York */
-    draw_road(ow, 220, 75, 215, 58);     /* York -> north */
-    draw_road(ow, 215, 58, 170, 45);     /* -> Scotland */
-    draw_road(ow, 250, 145, 300, 155);   /* London -> Canterbury */
-    draw_road(ow, 250, 145, 190, 155);   /* London -> Winchester */
-    draw_road(ow, 155, 150, 130, 140);   /* Glastonbury -> Bath */
-    draw_road(ow, 110, 110, 90, 105);    /* Wales -> inner Wales */
-    draw_road(ow, 80, 170, 55, 185);     /* Devon -> Cornwall */
-    draw_road(ow, 155, 150, 80, 170);    /* Glastonbury -> Devon/Cornwall */
-    draw_road(ow, 250, 145, 260, 100);   /* London -> east midlands */
-    draw_road(ow, 220, 75, 260, 72);     /* York -> Whitby */
-    draw_road(ow, 300, 155, 340, 170);   /* Canterbury -> Dover */
+    /* Step 5: Roads (scaled 1.25x) */
+    draw_road(ow, 212, 162, 312, 181);   /* Camelot -> London */
+    draw_road(ow, 212, 162, 194, 188);   /* Camelot -> Glastonbury */
+    draw_road(ow, 212, 162, 250, 125);   /* Camelot -> Sherwood */
+    draw_road(ow, 212, 162, 138, 138);   /* Camelot -> Wales */
+    draw_road(ow, 212, 162, 238, 194);   /* Camelot -> Winchester */
+    draw_road(ow, 250, 125, 275, 94);    /* Sherwood -> York */
+    draw_road(ow, 275, 94, 269, 72);     /* York -> north */
+    draw_road(ow, 269, 72, 212, 56);     /* -> Scotland */
+    draw_road(ow, 312, 181, 375, 194);   /* London -> Canterbury */
+    draw_road(ow, 312, 181, 238, 194);   /* London -> Winchester */
+    draw_road(ow, 194, 188, 162, 175);   /* Glastonbury -> Bath */
+    draw_road(ow, 138, 138, 112, 131);   /* Wales -> inner Wales */
+    draw_road(ow, 100, 212, 69, 231);    /* Devon -> Cornwall */
+    draw_road(ow, 194, 188, 100, 212);   /* Glastonbury -> Devon/Cornwall */
+    draw_road(ow, 312, 181, 325, 125);   /* London -> east midlands */
+    draw_road(ow, 275, 94, 331, 88);     /* York -> Whitby */
+    draw_road(ow, 375, 194, 431, 212);   /* Canterbury -> Dover */
 
-    /* ---- Place Locations ---- */
+    /* ---- Place Locations (scaled 1.25x) ---- */
 
     /* Towns */
-    ow_add_location(ow, "Camelot",      LOC_TOWN, 170, 130, '*', CP_YELLOW_BOLD);
-    ow_add_location(ow, "London",       LOC_TOWN, 250, 145, '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Canterbury",   LOC_TOWN, 300, 155, '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Winchester",   LOC_TOWN, 190, 155, '*', CP_WHITE);
-    ow_add_location(ow, "Glastonbury",  LOC_TOWN, 155, 150, '*', CP_MAGENTA);
-    ow_add_location(ow, "Bath",         LOC_TOWN, 130, 140, '*', CP_CYAN);
-    ow_add_location(ow, "Tintagel",     LOC_TOWN,  75, 155, '*', CP_WHITE);
-    ow_add_location(ow, "Cornwall",     LOC_TOWN,  48, 185, '*', CP_WHITE);
-    ow_add_location(ow, "Sherwood",     LOC_TOWN, 210, 95,  '*', CP_GREEN_BOLD);
-    ow_add_location(ow, "York",         LOC_TOWN, 220, 75,  '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Wales",        LOC_TOWN, 100, 108, '*', CP_RED);
-    ow_add_location(ow, "Whitby",       LOC_TOWN, 265, 70,  '*', CP_GRAY);
-    ow_add_location(ow, "Llanthony",    LOC_TOWN,  95, 118, '*', CP_WHITE);
-    ow_add_location(ow, "Carbonek",     LOC_TOWN, 175, 110, '*', CP_YELLOW);
+    ow_add_location(ow, "Camelot",      LOC_TOWN, 212, 162, '*', CP_YELLOW_BOLD);
+    ow_add_location(ow, "London",       LOC_TOWN, 312, 181, '*', CP_WHITE_BOLD);
+    ow_add_location(ow, "Canterbury",   LOC_TOWN, 375, 194, '*', CP_WHITE_BOLD);
+    ow_add_location(ow, "Winchester",   LOC_TOWN, 238, 194, '*', CP_WHITE);
+    ow_add_location(ow, "Glastonbury",  LOC_TOWN, 194, 188, '*', CP_MAGENTA);
+    ow_add_location(ow, "Bath",         LOC_TOWN, 162, 175, '*', CP_CYAN);
+    ow_add_location(ow, "Tintagel",     LOC_TOWN,  94, 194, '*', CP_WHITE);
+    ow_add_location(ow, "Cornwall",     LOC_TOWN,  60, 231, '*', CP_WHITE);
+    ow_add_location(ow, "Sherwood",     LOC_TOWN, 262, 119, '*', CP_GREEN_BOLD);
+    ow_add_location(ow, "York",         LOC_TOWN, 275, 94,  '*', CP_WHITE_BOLD);
+    ow_add_location(ow, "Wales",        LOC_TOWN, 125, 135, '*', CP_RED);
+    ow_add_location(ow, "Whitby",       LOC_TOWN, 331, 88,  '*', CP_GRAY);
+    ow_add_location(ow, "Llanthony",    LOC_TOWN, 119, 148, '*', CP_WHITE);
+    ow_add_location(ow, "Carbonek",     LOC_TOWN, 219, 138, '*', CP_YELLOW);
 
     /* Active Castles */
-    ow_add_location(ow, "Camelot Castle",   LOC_CASTLE_ACTIVE, 172, 130, '#', CP_YELLOW_BOLD);
-    ow_add_location(ow, "Castle Surluise",  LOC_CASTLE_ACTIVE, 140, 105, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Lothian",   LOC_CASTLE_ACTIVE, 170, 38,  '#', CP_WHITE);
-    ow_add_location(ow, "Castle Northumberland", LOC_CASTLE_ACTIVE, 210, 55, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Gore",      LOC_CASTLE_ACTIVE, 120, 98,  '#', CP_WHITE);
-    ow_add_location(ow, "Castle Strangore", LOC_CASTLE_ACTIVE, 160, 118, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Cradelment",LOC_CASTLE_ACTIVE,  85, 100, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Cornwall",  LOC_CASTLE_ACTIVE,  55, 178, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Listenoise",LOC_CASTLE_ACTIVE, 235, 120, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Benwick",   LOC_CASTLE_ACTIVE, 280, 160, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Carados",   LOC_CASTLE_ACTIVE, 155, 30,  '#', CP_WHITE);
+    ow_add_location(ow, "Camelot Castle",   LOC_CASTLE_ACTIVE, 215, 162, '#', CP_YELLOW_BOLD);
+    ow_add_location(ow, "Castle Surluise",  LOC_CASTLE_ACTIVE, 175, 131, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Lothian",   LOC_CASTLE_ACTIVE, 212, 48,  '#', CP_WHITE);
+    ow_add_location(ow, "Castle Northumberland", LOC_CASTLE_ACTIVE, 262, 69, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Gore",      LOC_CASTLE_ACTIVE, 150, 122, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Strangore", LOC_CASTLE_ACTIVE, 200, 148, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Cradelment",LOC_CASTLE_ACTIVE, 106, 125, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Cornwall",  LOC_CASTLE_ACTIVE,  69, 222, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Listenoise",LOC_CASTLE_ACTIVE, 294, 150, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Benwick",   LOC_CASTLE_ACTIVE, 350, 200, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Carados",   LOC_CASTLE_ACTIVE, 194, 38,  '#', CP_WHITE);
 
     /* Abandoned Castles */
-    ow_add_location(ow, "Castle Dolorous Garde", LOC_CASTLE_ABANDONED, 200, 85, '#', CP_GRAY);
-    ow_add_location(ow, "Castle Perilous",  LOC_CASTLE_ABANDONED, 145, 138, '#', CP_MAGENTA);
-    ow_add_location(ow, "Bamburgh Castle",  LOC_CASTLE_ABANDONED, 225, 48, '#', CP_GRAY);
+    ow_add_location(ow, "Castle Dolorous Garde", LOC_CASTLE_ABANDONED, 250, 106, '#', CP_GRAY);
+    ow_add_location(ow, "Castle Perilous",  LOC_CASTLE_ABANDONED, 181, 172, '#', CP_MAGENTA);
+    ow_add_location(ow, "Bamburgh Castle",  LOC_CASTLE_ABANDONED, 281, 60,  '#', CP_GRAY);
 
     /* Landmarks */
-    ow_add_location(ow, "Stonehenge",       LOC_LANDMARK, 185, 158, '+', CP_YELLOW);
-    ow_add_location(ow, "Hadrian's Wall",   LOC_LANDMARK, 190, 52,  '+', CP_WHITE);
-    ow_add_location(ow, "White Cliffs",     LOC_LANDMARK, 345, 170, '+', CP_WHITE_BOLD);
+    ow_add_location(ow, "Stonehenge",       LOC_LANDMARK, 231, 198, '+', CP_YELLOW);
+    ow_add_location(ow, "Hadrian's Wall",   LOC_LANDMARK, 238, 65,  '+', CP_WHITE);
+    ow_add_location(ow, "White Cliffs",     LOC_LANDMARK, 440, 215, '+', CP_WHITE_BOLD);
 
     /* Dungeon Entrances */
-    ow_add_location(ow, "Camelot Catacombs",LOC_DUNGEON_ENTRANCE, 173, 131, '>', CP_WHITE);
-    ow_add_location(ow, "Tintagel Caves",   LOC_DUNGEON_ENTRANCE,  73, 156, '>', CP_WHITE);
-    ow_add_location(ow, "Sherwood Depths",  LOC_DUNGEON_ENTRANCE, 212, 97,  '>', CP_WHITE);
-    ow_add_location(ow, "Glastonbury Tor",  LOC_DUNGEON_ENTRANCE, 157, 151, '>', CP_WHITE);
-    ow_add_location(ow, "White Cliffs Cave",LOC_DUNGEON_ENTRANCE, 347, 172, '>', CP_CYAN);
-    ow_add_location(ow, "Whitby Abbey",     LOC_DUNGEON_ENTRANCE, 267, 71,  '>', CP_RED);
+    ow_add_location(ow, "Camelot Catacombs",LOC_DUNGEON_ENTRANCE, 216, 164, '>', CP_WHITE);
+    ow_add_location(ow, "Tintagel Caves",   LOC_DUNGEON_ENTRANCE,  91, 195, '>', CP_WHITE);
+    ow_add_location(ow, "Sherwood Depths",  LOC_DUNGEON_ENTRANCE, 265, 121, '>', CP_WHITE);
+    ow_add_location(ow, "Glastonbury Tor",  LOC_DUNGEON_ENTRANCE, 196, 189, '>', CP_WHITE);
+    ow_add_location(ow, "White Cliffs Cave",LOC_DUNGEON_ENTRANCE, 442, 217, '>', CP_CYAN);
+    ow_add_location(ow, "Whitby Abbey",     LOC_DUNGEON_ENTRANCE, 334, 89,  '>', CP_RED);
 
     /* Volcano */
-    ow_add_location(ow, "Mount Draig",      LOC_VOLCANO,  80, 98, 'V', CP_RED_BOLD);
+    ow_add_location(ow, "Mount Draig",      LOC_VOLCANO, 100, 122, 'V', CP_RED_BOLD);
 
     /* Faerie Rings */
-    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 195, 92,  'o', CP_GREEN_BOLD);
-    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 115, 145, 'o', CP_GREEN_BOLD);
+    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 244, 115, 'o', CP_GREEN_BOLD);
+    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 144, 181, 'o', CP_GREEN_BOLD);
 }
 
 Location *overworld_location_at(Overworld *ow, int x, int y) {

@@ -213,8 +213,36 @@ static void handle_overworld_input(GameState *gs, int key) {
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc && (loc->type == LOC_DUNGEON_ENTRANCE || loc->type == LOC_VOLCANO)) {
             gs->ow_player_pos = gs->player_pos;
-            gs->player_pos = (Vec2){ 35, 10 };
             gs->mode = MODE_DUNGEON;
+
+            /* Find the up stairs and place player next to them */
+            bool placed = false;
+            for (int sy = 0; sy < MAP_HEIGHT && !placed; sy++) {
+                for (int sx = 0; sx < MAP_WIDTH && !placed; sx++) {
+                    if (gs->dungeon_map[sy][sx].type == TILE_STAIRS_UP) {
+                        /* Place player on an adjacent floor tile */
+                        for (int d = 0; d < 8 && !placed; d++) {
+                            int px = sx + dir_dx[d];
+                            int py = sy + dir_dy[d];
+                            if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT &&
+                                gs->dungeon_map[py][px].passable &&
+                                gs->dungeon_map[py][px].type == TILE_FLOOR) {
+                                gs->player_pos = (Vec2){ px, py };
+                                placed = true;
+                            }
+                        }
+                        if (!placed) {
+                            /* Fallback: stand on the stairs */
+                            gs->player_pos = (Vec2){ sx, sy };
+                            placed = true;
+                        }
+                    }
+                }
+            }
+            if (!placed) {
+                gs->player_pos = (Vec2){ 35, 10 };  /* ultimate fallback */
+            }
+
             log_add(&gs->log, gs->turn, CP_WHITE,
                      "You descend into %s...", loc->name);
         } else {
@@ -320,8 +348,8 @@ void game_init(GameState *gs) {
     gs->overworld = calloc(1, sizeof(Overworld));
     overworld_init(gs->overworld);
 
-    /* Place player at Camelot */
-    gs->player_pos = (Vec2){ 170, 130 };
+    /* Place player at Camelot (scaled coordinates) */
+    gs->player_pos = (Vec2){ 212, 162 };
     gs->ow_player_pos = gs->player_pos;
 
     /* Initialize dungeon (test map for now) */
