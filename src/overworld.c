@@ -1,5 +1,6 @@
 #include "overworld.h"
 #include "rng.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -223,6 +224,13 @@ static void assign_terrain(Tile *t, int x, int y) {
     /* Southern Downs -- gentle hills (y 194-215, x 250-400) */
     if (y >= 194 && y <= 215 && x >= 250 && x <= 400) {
         if (n1 > 0.6) { set_hills(t); return; }
+    }
+
+    /* Dense woods patches -- impassable without Ranger/axe */
+    if (n1 > 0.82 && n2 > 0.7) {
+        set_tile(t, TILE_DENSE_WOODS, '&', CP_GREEN_BOLD, false);
+        t->blocks_sight = true;
+        return;
     }
 
     /* General scattered forest */
@@ -573,6 +581,15 @@ void overworld_init(Overworld *ow) {
     /* Orkney -- far north Scotland */
     draw_island(ow, 190, 8, 6, 4);
 
+    /* Ireland -- large island to the west */
+    draw_island(ow, 30, 100, 15, 20);
+
+    /* Gaul (France) -- across the channel, southeast */
+    draw_island(ow, 400, 240, 12, 6);
+
+    /* Brittany -- across the channel, south */
+    draw_island(ow, 340, 245, 10, 4);
+
     /* Step 5: Roads (scaled 1.25x) */
     draw_road(ow, 212, 162, 312, 181);   /* Camelot -> London */
     draw_road(ow, 212, 162, 194, 188);   /* Camelot -> Glastonbury */
@@ -630,6 +647,30 @@ void overworld_init(Overworld *ow) {
 
     /* Landmarks */
     ow_add_location(ow, "Stonehenge",       LOC_LANDMARK, 231, 198, '+', CP_YELLOW);
+    /* Hadrian's Wall -- draw a ruined wall east-west across northern England.
+       Mostly impassable stone ruins with gaps (passable) every few tiles. */
+    {
+        int wall_y = 65;
+        int wall_x_start = 140;
+        int wall_x_end = 300;
+        for (int x = wall_x_start; x <= wall_x_end; x++) {
+            if (x < 0 || x >= OW_WIDTH) continue;
+            Tile *t = &ow->map[wall_y][x];
+            /* Skip if water/river/lake */
+            if (t->type == TILE_WATER || t->type == TILE_RIVER || t->type == TILE_LAKE)
+                continue;
+            /* Gaps every 8-12 tiles for passage (ruined sections) */
+            int gap = (hash2d(x, wall_y * 31) & 7);
+            if (gap == 0) {
+                /* Gap -- passable rubble */
+                set_tile(t, TILE_ROAD, '.', CP_GRAY, true);
+            } else {
+                /* Ruined wall segment */
+                set_tile(t, TILE_WALL, '#', CP_GRAY, false);
+                t->blocks_sight = false;  /* low ruined wall, can see over */
+            }
+        }
+    }
     ow_add_location(ow, "Hadrian's Wall",   LOC_LANDMARK, 238, 65,  '+', CP_WHITE);
     ow_add_location(ow, "White Cliffs",     LOC_LANDMARK, 440, 215, '+', CP_WHITE_BOLD);
 
@@ -660,6 +701,49 @@ void overworld_init(Overworld *ow) {
     /* Island dungeon entrances */
     ow_add_location(ow, "Avalon Shrine",    LOC_DUNGEON_ENTRANCE, 42, 200, '>', CP_YELLOW);
     ow_add_location(ow, "Orkney Barrows",   LOC_DUNGEON_ENTRANCE, 192, 9, '>', CP_GRAY);
+
+    /* Overseas castles */
+    ow_add_location(ow, "Castle Ireland",   LOC_CASTLE_ACTIVE, 30, 100, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Gaul",      LOC_CASTLE_ACTIVE, 400, 240, '#', CP_WHITE);
+    ow_add_location(ow, "Castle Brittany",  LOC_CASTLE_ACTIVE, 340, 245, '#', CP_WHITE);
+
+    /* ---- Random cottages (10) scattered on grassland/road near roads ---- */
+    {
+        int placed = 0;
+        int attempts = 0;
+        while (placed < 10 && attempts < 2000) {
+            int rx = rng_range(40, OW_WIDTH - 40);
+            int ry = rng_range(20, OW_HEIGHT - 20);
+            Tile *t = &ow->map[ry][rx];
+            if (t->passable && (t->type == TILE_GRASS || t->type == TILE_ROAD) &&
+                !overworld_location_at(ow, rx, ry)) {
+                char name[MAX_NAME];
+                snprintf(name, MAX_NAME, "Cottage");
+                ow_add_location(ow, name, LOC_COTTAGE, rx, ry, 'n', CP_BROWN);
+                placed++;
+            }
+            attempts++;
+        }
+    }
+
+    /* ---- Random caves (6) in hills/mountains ---- */
+    {
+        int placed = 0;
+        int attempts = 0;
+        while (placed < 6 && attempts < 2000) {
+            int rx = rng_range(40, OW_WIDTH - 40);
+            int ry = rng_range(20, OW_HEIGHT - 20);
+            Tile *t = &ow->map[ry][rx];
+            if (t->passable && (t->type == TILE_HILLS) &&
+                !overworld_location_at(ow, rx, ry)) {
+                char name[MAX_NAME];
+                snprintf(name, MAX_NAME, "Cave");
+                ow_add_location(ow, name, LOC_CAVE, rx, ry, '(', CP_GRAY);
+                placed++;
+            }
+            attempts++;
+        }
+    }
 }
 
 Location *overworld_location_at(Overworld *ow, int x, int y) {

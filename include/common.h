@@ -6,7 +6,7 @@
 
 /* Map dimensions */
 #define MAP_WIDTH    80
-#define MAP_HEIGHT   22
+#define MAP_HEIGHT   26
 
 /* UI layout */
 #define SIDEBAR_WIDTH  18
@@ -14,7 +14,7 @@
 #define MIN_TERM_HEIGHT 30
 #define STATUS_ROW     (MAP_HEIGHT)
 #define LOG_START_ROW  (MAP_HEIGHT + 1)
-#define LOG_LINES      5
+#define LOG_LINES      3
 #define LOG_BUFFER     200
 
 /* Game limits */

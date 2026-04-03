@@ -79,7 +79,7 @@ void game_init_test_map(GameState *gs) {
         tile_set(&gs->dungeon_map[8][x], TILE_FLOOR);
 
     /* Bottom room */
-    for (int y = 17; y < 21; y++)
+    for (int y = 17; y < 25; y++)
         for (int x = 30; x < 45; x++)
             tile_set(&gs->dungeon_map[y][x], TILE_FLOOR);
 
@@ -89,7 +89,7 @@ void game_init_test_map(GameState *gs) {
     /* Door and stairs */
     tile_set(&gs->dungeon_map[11][15], TILE_DOOR_CLOSED);
     tile_set(&gs->dungeon_map[6][22], TILE_STAIRS_UP);
-    tile_set(&gs->dungeon_map[19][42], TILE_STAIRS_DOWN);
+    tile_set(&gs->dungeon_map[23][42], TILE_STAIRS_DOWN);
 }
 
 /* ------------------------------------------------------------------ */
@@ -182,12 +182,36 @@ static void handle_overworld_input(GameState *gs, int key) {
 
         if (!overworld_is_passable(gs->overworld, nx, ny)) {
             TileType tt = gs->overworld->map[ny][nx].type;
-            if (tt == TILE_WATER || tt == TILE_LAKE)
-                log_add(&gs->log, gs->turn, CP_BLUE, "The water blocks your path.");
-            else if (tt == TILE_RIVER)
-                log_add(&gs->log, gs->turn, CP_BLUE, "The river is too deep to cross. Find a bridge.");
-            else
-                log_add(&gs->log, gs->turn, CP_GRAY, "You cannot go that way.");
+            switch (tt) {
+            case TILE_WATER:
+                log_add(&gs->log, gs->turn, CP_BLUE,
+                         "The sea stretches before you. You cannot swim that far.");
+                break;
+            case TILE_LAKE:
+                log_add(&gs->log, gs->turn, CP_BLUE,
+                         "The lake is too deep to wade. Find a boat or learn Walk on Water.");
+                break;
+            case TILE_RIVER:
+                log_add(&gs->log, gs->turn, CP_BLUE,
+                         "The river is too wide and swift to cross. Find a bridge.");
+                break;
+            case TILE_MOUNTAIN:
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "The mountain peak is too steep to climb. Find a way around.");
+                break;
+            case TILE_DENSE_WOODS:
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "The undergrowth is impossibly thick. You need an axe or a Ranger's skill.");
+                break;
+            case TILE_WALL:
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "Ancient stones block your path. The ruins of Hadrian's Wall stand firm here.");
+                break;
+            default:
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "Something blocks your path. You cannot go that way.");
+                break;
+            }
             return;
         }
 
@@ -227,6 +251,14 @@ static void handle_overworld_input(GameState *gs, int key) {
             case LOC_VOLCANO:
                 log_add(&gs->log, gs->turn, CP_RED,
                          "Mount Draig! Smoke rises from the volcano.");
+                break;
+            case LOC_COTTAGE:
+                log_add(&gs->log, gs->turn, CP_BROWN,
+                         "A small cottage sits by the path.");
+                break;
+            case LOC_CAVE:
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "A dark cave entrance in the hillside.");
                 break;
             default:
                 break;
