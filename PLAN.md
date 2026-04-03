@@ -1,5 +1,51 @@
 # Knights of Camelot - Roguelike Game Implementation Plan
 
+## Implementation Checklist
+
+- [ ] **Phase 1** -- Skeleton: Build System, ncurses, Game Loop
+- [ ] **Phase 2** -- Overworld Map of England (terrain, towns, landmarks, castles, cottages, caves)
+- [ ] **Phase 3** -- Day/Night Cycle, Weather, Horses & Overworld Encounters
+- [ ] **Phase 4** -- Towns: Shops, Inns (beer!), Mystics, Churches, Banks, Pawn Shops, Wells
+- [ ] **Phase 5** -- Quest System (10-15 side quests, journal)
+- [ ] **Phase 6** -- Dungeon Generation (BSP, traps, magic circles, multiple dungeons + volcano)
+- [ ] **Phase 7** -- Field of View & Fog of War
+- [ ] **Phase 8** -- Enemies, Combat, Message Log (80+ monsters, werewolves, vampires, mad knights)
+- [ ] **Phase 9** -- Items & Inventory (100+ items, weight system, 50 potions, 22 rings, 12 artifacts, 20 gems, 40 food)
+- [ ] **Phase 10** -- Enemy AI & Pathfinding (A*, FSM, type-specific behaviours)
+- [ ] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
+- [ ] **Phase 12** -- Dungeon Bosses & The Holy Grail (Round Table membership)
+- [ ] **Phase 13** -- Save/Load, Permadeath, Death Screen & High Scores (bank, graveyard, fallen heroes)
+- [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
+
+### Data Files Checklist
+- [ ] `data/monsters.csv`
+- [ ] `data/items.csv`
+- [ ] `data/potions.csv`
+- [ ] `data/food.csv`
+- [ ] `data/spells.csv`
+- [ ] `data/quests.csv`
+- [ ] `data/npcs.csv`
+- [ ] `data/shops.csv`
+- [ ] `data/towns.csv`
+- [ ] `data/castles.csv`
+- [ ] `data/encounters.csv`
+- [ ] `data/classes.csv`
+- [ ] `data/dialogue.csv`
+- [ ] `data/loot_tables.csv`
+- [ ] `data/terrain.csv`
+- [ ] `data/traps.csv`
+- [ ] `data/weather.csv`
+- [ ] `data/witch_tasks.csv`
+- [ ] `data/events.csv`
+- [ ] `data/names.csv`
+- [ ] `data/ammo.csv`
+- [ ] `data/special_rooms.csv`
+- [ ] `data/dungeon_terrain.csv`
+- [ ] `data/time.csv`
+- [ ] `data/monster_abilities.csv`
+- [ ] `data/potions.csv` (if separate from items.csv)
+- [ ] `data/food.csv` (if separate from items.csv)
+
 ## Context
 Building "Knights of Camelot" -- a full-featured terminal ASCII roguelike in C using ncurses. Theme: Knights of Camelot and the Quest for the Holy Grail. Features an overworld map of England with towns/villages, and multiple dungeons. The repo is empty (just README/LICENSE/.gitignore).
 
@@ -98,7 +144,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - Islands may hold hidden treasure, a hermit NPC, a shrine, or a dungeon entrance
     - Reach islands by boat (interact with `B` boat tile on the shore to sail to the island) or Walk on Water spell
     - **Notable lakes with islands:**
-      - **Lake of the Lady** -- the Lady of the Lake's home. Island holds a sacred grove and Excalibur
+      - **Lake of the Lady** -- the Lady of the Lake's home. Island holds a sacred grove (the Lady appears here or at the shore to offer Excalibur -- see Famous Characters)
       - **Lake Bala** (Wales) -- island with a druid hermit who teaches Nature spells
       - **Windermere** (north) -- island with an abandoned watchtower containing loot and a ghost encounter
       - **Loch Ness** (Scotland) -- home of **Nessie** (`N` dark green), a legendary sea monster. Sailing across triggers a boss encounter. Nessie is extremely tough (high HP, powerful water attacks) but defeating her yields a unique scale armor (best water resistance) and massive XP. Alternatively, offering fish from your inventory appeases her and she grants safe passage + a hidden treasure from the loch bed
@@ -142,6 +188,16 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - If you visit the graveyard on your current run, it grants +1 chivalry (paying respects to the fallen)
   - **Llanthony** -- remote priory town in the Welsh hills with a **Shrine of the Virgin Mary**. Pray at the shrine: large Light affinity boost, learn a Light spell, permanent +1 INT. Monks sell rare sacred texts (spell scrolls). Peaceful refuge -- no enemy encounters in town
   - **Carbonek** -- the hidden Grail Castle with the **Shrine of the Holy Grail**. Only accessible after finding clues from Merlin and King Pellam. The shrine holds a vision of the Grail that grants a major blessing (+2 all stats) and reveals the final path to Glastonbury Tor. Guarded by holy knights who test the player's worthiness
+  - **Whitby** -- a gloomy coastal town on the northeast coast. It is **always raining** here (permanent weather override). At night, there is a chance to encounter a **Vampire** (`V` dark red):
+    - Vampire is a powerful undead enemy (high STR, fast, drains HP on hit). Weak to holy weapons, Light spells, and garlic (if carried, reduces vampire STR by 3)
+    - If bitten (10% chance per vampire hit), player contracts **Vampirism**:
+      - **Vampirism effects**: player can only travel at night. During daytime, if outdoors, player takes 3 HP damage per 10 turns from sunlight. Must rest indoors during the day
+      - **Rest options updated**: when resting at an inn or camping, player can choose "Rest until morning" or "Rest until nightfall" (vampires choose nightfall)
+      - **Benefits of vampirism**: no longer need to eat (hunger system disabled), +3 STR, +2 SPD, HP drain on melee attacks (steal 2 HP per hit), can see in the dark (FOV not reduced at night)
+      - **Drawbacks**: sunlight damage, cannot enter churches or pray at shrines (burns on holy ground, -5 HP), -10 chivalry immediately on transformation, NPCs react with fear (some refuse to trade), holy water damages you
+      - **Cure**: visit Merlin (he knows an ancient cure), or find the rare Potion of Cure Disease, or pray at Carbonek shrine (painful but effective -- costs 20 HP but removes vampirism)
+    - Whitby has a ruined abbey (explorable like a small dungeon, 2 floors) with vampire-themed undead and a Vampire Lord boss
+    - Town still has shops and inn, but the innkeeper charges double ("We don't get many visitors...")
   - **Bath** -- Roman ruins, hot springs restore status effects and cure curses
 - **Landmarks** (special locations on the overworld, not full towns):
   - **Stonehenge** -- ancient druid circle. Visit to commune with ancient spirits: grants a permanent +1 to a random stat once per game, or reveals the location of a hidden dungeon. Mystic atmosphere with special encounter chance (druids)
@@ -159,6 +215,14 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - **Castles** (explorable multi-room interiors, shown as `#` on overworld):
   - **Active castles** -- functioning like towns but grander. Have throne rooms, armories, barracks, and dungeons beneath. Each ruled by a king who may be home or travelling (see Kings below):
     - **Camelot Castle** (Logres) -- **King Arthur**'s seat. Grand hall, royal armory (best knight gear), barracks with training NPCs (+1 STR for gold), dungeon entrance to Catacombs below
+    - **Your Home** (Camelot town) -- a small house (`h` white) in Camelot that belongs to the player:
+      - Contains a **storage chest** with **unlimited capacity** (no weight limit). Press `s` to stash items, `t` to take items
+      - Items in the chest **persist across deaths** -- stored in `~/.camelot/home_chest.dat` separately from the save file
+      - When you start a new game, visit your home in Camelot to retrieve items left by previous characters
+      - This makes the game progressively easier the more you play -- stash good weapons, potions, rings for future runs
+      - Combined with the bank (cross-game gold), this creates a meta-progression loop
+      - Home also has a bed (free rest, advances to morning) and a mirror (view full character sheet)
+      - The chest shows whose items they were: "Longsword (left by Sir Galahad, Day 12)"
     - **Castle Surluise** -- **King Galahaut**'s domain. A powerful allied king, offers quests to prove allegiance. Good weapon shop
     - **Castle Lothian** (Scotland) -- **King Lot**'s stronghold. Northern fortress, strong armor and cold-weather gear. Lot is suspicious of outsiders until you prove yourself
     - **Castle Northumberland** -- **King Clarivaus**'s seat. Remote northern castle, sparse but has unique northern weaponry
@@ -227,11 +291,29 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - **Night effects**:
   - Overworld visibility reduced (FOV radius shrinks from full to 5 tiles)
   - Different encounter table: wolves and ghosts more common, bandits less common
+  - **Wandering spirits** (`g` dim cyan) -- ethereal ghosts that drift across the overworld at night. They are non-hostile and cannot be attacked (weapons pass through them). However, passing within 2 tiles of a wandering spirit **drains MP** (3-5 MP per turn in proximity). They drift slowly in random directions and fade at dawn. Best to avoid them. If MP reaches 0 from spirit drain, player feels "a terrible chill" (-1 SPD for 20 turns). Holy items (Amulet of Light, holy water in inventory) reduce drain to 1 MP per turn. Sanctuaries and churches repel them
   - Some shops close at night (equipment shops, potion shops). Inns and mystics stay open
   - Dungeons unaffected (always dark underground)
   - Castle gates close at night -- must wait until dawn or have high chivalry to gain entry
 - **Dawn/dusk**: transitional lighting, brief visual effect
-- **Resting at an inn**: advances time to next morning (6 AM), restores HP/MP
+- **Resting at an inn**: choose "Rest until morning" (advances to 6 AM next day) or "Rest until nightfall" (advances to 7 PM). Restores HP/MP either way. Vampiric players will prefer nightfall
+- **Day counter**: the game tracks the current day number (Day 1, Day 2, etc.) displayed on the status bar alongside the time. Day advances when the clock passes midnight (turn 1440+). Death screen shows "Survived X days". Allows players to track how long their quest has taken
+- **30-day lunar cycle** -- the game runs on a repeating 30-day cycle. The current moon phase is shown on the status bar. Events trigger on specific days each cycle, announced by a herald or message the day before:
+  - **Day 1: New Moon** -- darkest night. Visibility reduced even further at night. Undead are stronger (+2 STR). Ghost ship encounter chance doubled. Good night to stay indoors
+  - **Day 5: Feast Day** -- grand feast at Camelot Castle. Free food (full hunger restore), +2 chivalry for attending, King Arthur gives a speech (quest hints), travelling merchants sell rare items
+  - **Day 8: First Quarter Moon** -- wolves and forest creatures are more active. Rangers get +1 SPD bonus (in tune with nature)
+  - **Day 10: Market Day** -- travelling merchants in Camelot and London. Rare items, 20% lower prices, exotic goods
+  - **Day 12: Druid Gathering** -- all druids converge on Stonehenge for a grand ritual. Visit Stonehenge on this day for: a powerful blessing (+2 to a stat of your choice), free Nature spell teaching, and a vision of a hidden dungeon. Druids will not steal from you on this day. Magic circles across the map glow brighter (guaranteed beneficial)
+  - **Day 15: Full Moon** -- werewolves can appear **anywhere** on the overworld at night, not just moors. Lycanthropic players transform involuntarily. Faerie rings are especially active (double encounter chance, better outcomes). Lady of the Lake is more likely to appear. Moonsilver Dress glows with extra power (+2 all stats on full moon night)
+  - **Day 18: Tournament Day** -- jousting tournament at a random active castle (rotates each cycle). Free entry, unique prizes. Best knights compete
+  - **Day 20: Holy Day** -- pilgrims flock to Canterbury, Glastonbury, and Llanthony. Shrines grant double blessings. Churches donate food. +3 chivalry for attending a service. Undead are weaker (-2 STR)
+  - **Day 22: Witching Hour** -- witch encounters are 3x more frequent this day. The veil between worlds is thin. Dark spells are more powerful (+25% damage). Vampires are more active. Cursed items have double negative effect
+  - **Day 25: King's Court** -- Arthur holds court at Camelot (returns there specifically for this). Special quests available only on this day. Round Table members get a bonus reward. Knights report their progress
+  - **Day 27: Night of Spirits** -- ghosts and undead surge across the overworld. Abandoned castles spawn extra enemies. Graveyards glow. But: rare spectral loot drops and ghosts may reveal hidden treasure. Ghost ship guaranteed to appear if you sail. Canterbury graveyard ghosts of previous characters are especially active
+  - **Day 30: Harvest Moon** -- food is abundant. Apple trees give double yield. Inn meals cost half. Farmers offer free bread. A peaceful day before the cycle restarts
+  - Moon phase affects certain mechanics continuously: werewolf strength scales with moon fullness, some spells are stronger/weaker by phase, faerie encounters vary
+  - Events cycle every 30 days. Player is notified: "Tomorrow is the Full Moon" / "The Druid Gathering at Stonehenge is in 2 days"
+  - All events defined in `data/events.csv` for easy modification
 - **Camping on overworld**: press `c` to camp (only in safe terrain -- grassland, road). Advances time 8 hours. Restores 50% HP/MP. Chance of night ambush (higher off-road)
 - Time of day defined in `data/time.csv` for tweaking encounter modifiers
 
@@ -246,6 +328,12 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Wind** -- ranged attacks affected, sailing on lakes faster in one direction, slower in opposite
 - Weather shown on status bar with icon: `☀` clear, `🌧` rain, `⛈` storm, `🌫` fog, `❄` snow, `💨` wind (or ASCII alternatives: `*` clear, `/` rain, `!` storm, `~` fog, `+` snow, `>` wind)
 - Some spells interact with weather: Lightning is stronger in storms, Fireball weaker in rain, Fog spell creates local fog
+- **Rainbow event**: after rain clears during daytime, there is a 25% chance a rainbow appears on the overworld. A colourful arc (`=` multicolored) is drawn across a section of the map for 30-50 turns before fading:
+  - One end of the rainbow touches a specific overworld tile. If the player reaches that tile before the rainbow fades, they find a **pot of gold** (100-500 gold!) guarded by a Leprechaun (`l` green, passive unless attacked)
+  - The Leprechaun can be: bargained with (take half the gold peacefully), fought for all the gold (easy fight but -2 chivalry for greed), or ignored
+  - If the rainbow fades before you reach it: "The rainbow shimmers and vanishes..." -- gold is gone
+  - Rainbow direction is random. Message: "A rainbow appears in the sky to the [direction]!" -- player must navigate there quickly
+  - Only one rainbow per rain cycle. Rare and rewarding event that encourages exploration
 - Weather defined in `data/weather.csv` with effects on visibility, speed, encounter rates, hazards
 
 **Horses & mounts**:
@@ -257,10 +345,11 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Pony** (50g) -- 1.5x speed, can traverse hills without speed penalty
 - While mounted:
   - Overworld movement is faster (2x tiles per turn)
-  - Cannot enter dungeons while mounted -- horse waits at entrance
-  - Cannot enter buildings -- dismount automatically in towns
+  - Cannot enter dungeons while mounted -- horse waits at the dungeon entrance. There is a small chance (5% per 100 turns inside) the horse wanders off while you're in the dungeon ("Your horse got bored and trotted away...")
+  - Cannot enter buildings (shops, inns, castles) while mounted -- auto-dismount, horse waits outside. If you spend more than 200 turns inside, 10% chance the horse runs away
   - Mounted combat: +2 STR for charge attacks on first encounter turn, but horse can be injured
-- Horse can be **lost**: if player is defeated in overworld combat and flees, horse may bolt (50% chance). If horse takes damage in combat, it can die
+- Horse can be **lost**: if player is defeated in overworld combat and flees, horse may bolt (50% chance). If horse takes damage in combat, it can die. Horse left outside too long may wander off
+- Horses bought at stables in towns (Camelot, London, York, Winchester, and larger castles)
 - Horse shown as `h` following player on overworld, player glyph changes to `±` (mounted) on overworld
 - **Stables in towns**: buy, sell, heal injured horses. Can only own one horse at a time
 - Dismount with `d` on overworld, auto-dismount entering towns/dungeons
@@ -278,6 +367,11 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Entering a town shows a town interior map (small fixed layout per town) OR a menu:
   - **Equipment Shop** (`$`) -- buy/sell weapons and armor, stock varies by town
   - **Potion Shop** (`!`) -- buy healing potions, mana potions, antidotes
+  - **Shop interaction system** (applies to all shops):
+    - **Haggling**: press `h` when buying/selling to negotiate price. Success based on chivalry + INT check. High chivalry (60+): 10-20% discount. Low chivalry: shopkeeper offended, prices increase 10%. Failed haggle: "The shopkeeper frowns at your offer"
+    - **Stealing**: press `t` while in a shop to attempt theft of a displayed item. SPD check to grab and run. Success: free item, but **-8 chivalry**, shopkeeper screams and town guards pursue for 50 turns. Failure: shopkeeper attacks (shopkeepers are tough fighters!), **-5 chivalry**, banned from that shop permanently. Guards alerted
+    - **Reputation per shop**: each shop tracks whether you've stolen from it. Stolen from = banned permanently. Other shops in the same town hear about it (prices +20% in that town)
+    - High chivalry (70+) unlocks "loyal customer" status at frequently visited shops: 15% permanent discount
   - **Church** (`C` white) -- found in most towns. A priest (`p` white) tends the church:
     - **Pray**: restore some HP/MP (less than a shrine, but free and repeatable)
     - **Donate gold**: leave gold at the church altar. +1 chivalry per 20 gold donated. Message: "The priest blesses you for your generosity"
@@ -294,7 +388,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - A small fee (5%) is charged on deposits (the banker needs to eat too)
     - No fee on withdrawals
     - Interest: gold in the bank earns 1% interest per 500 game turns (very slow, but rewards long-term saving)
-    - This is the only cross-game persistence besides high scores and the graveyard -- a way to give future characters a head start
+    - Cross-game persistence systems: bank (gold), home chest (items), Canterbury graveyard (memorial), fallen heroes (records), high scores
     - Bank balance shown when interacting with the banker
   - **Inn** (`I`) -- rest to restore full HP/MP, costs gold, flavor text about beer/food. Also where quest-giving NPCs hang out (see Phase 5).
     - **Beer & drinking**: buy beer at the inn bar (2g per pint). Each beer drunk adds to a **drunkenness counter**:
@@ -329,7 +423,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Merlin** (Glastonbury) -- teaches the player a spell (class-appropriate) or buffs INT/MP. Offers cryptic guidance about dungeon dangers and the Grail's location.
   - **Morgan le Fay** (Cornwall) -- offers a dark bargain: a powerful boon (large stat boost or rare enchanted item) at a cost (permanent HP reduction or cursed debuff). Player can accept or decline.
   - **Queen Guinevere** (Camelot Castle, throne room) -- Arthur's queen. Gives quests related to courtly intrigue and diplomacy. Rewards: royal favour (shop discounts across all towns), a blessed amulet (+2 INT), or key information about castle secrets. If player has high Light affinity, she grants access to the royal vault.
-  - **Sir Lancelot** (Warwick Castle or wandering the overworld) -- the greatest knight. Can be encountered as a sparring partner: defeat him in a duel for a massive XP reward and his respect (+2 STR, +2 DEF). If player has recovered his lost sword from Castle Dolorous Garde, he becomes a temporary ally who fights alongside you for 50 turns. Also offers knightly advice on dungeon bosses.
+  - **Sir Lancelot** (Castle Benwick -- his father King Ban's castle -- or wandering the overworld) -- the greatest knight. Can be encountered as a sparring partner: defeat him in a duel for a massive XP reward and his respect (+2 STR, +2 DEF). If player has recovered his lost sword from Castle Dolorous Garde, he becomes a temporary ally who fights alongside you for 50 turns. Also offers knightly advice on dungeon bosses.
   - **Breunis sans Pitie** (roaming the overworld as a hostile encounter, or lurking in an abandoned castle) -- the merciless knight, a recurring villain. A dangerous enemy who ambushes the player on roads and open terrain. Tough fight (high STR/DEF, aggressive AI, never flees). Defeating him yields a unique dark sword and large gold reward. He can appear multiple times, growing stronger each encounter -- a persistent rival throughout the game.
   - **Mad Knights** -- rare random overworld encounters (`k` red, flashing). Knights who have lost their minds from battle, curses, or failed quests:
     - Appear randomly on roads and near castles (~1 per 400 overworld turns)
@@ -339,7 +433,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - Killing a mad knight: no chivalry penalty (defending yourself) but no bonus either. It's a tragic encounter
     - Rarely (10%), a mad knight is actually a **cursed knight** -- if you have Purify spell or holy water, you can cure them instead of fighting. Cured knight: **+5 chivalry**, gives you their sword in gratitude, and tells you about a hidden treasure or quest. Major reward for mercy
     - Named mad knights (very rare): occasionally encounter a mad version of a famous knight (mad Sir Pellinore, mad Sir Balin) with unique loot
-  - **Lady of the Lake** (found at a specific lake on the overworld) -- a mystical figure who rises from the water when the player steps onto the lake shore tile. She offers **Excalibur**, the legendary sword (highest damage weapon in the game, +Light affinity, bonus damage vs evil). To receive it, player must prove worthy: either have high Light affinity, have completed 5+ quests, or pass a test of virtue (dialogue choice). If unworthy, she tells you to return when you have proven yourself. Excalibur glows (`!` yellow bold) and also grants +2 STR while wielded.
+  - **Lady of the Lake** (found at the Lake of the Lady on the overworld) -- a mystical figure who rises from the water when the player steps onto the lake shore tile. She offers **Excalibur**, the legendary sword (highest damage weapon in the game, +Light affinity, bonus damage vs evil). To receive it, player must prove worthy: chivalry 40+ AND either completed 5+ quests or have high Light affinity (15+). If unworthy, she tells you to return when you have proven yourself. Excalibur glows (`!` yellow bold) and also grants +2 STR while wielded.
 - **Castle cat** -- in any active castle, there's a chance a cat (`c` yellow) is lounging around. Interact to pick it up as a pet:
   - The cat follows you (`c` trailing behind `@`) on the overworld and in dungeons
   - While you have the cat, **no rat encounters** spawn (Giant Rats, rats in wells, etc.)
@@ -387,7 +481,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - **Treasure maps** -- rare items found in dungeons, bought from shady NPCs in inns, or dropped by bandits:
   - Appear in inventory as "Tattered Map" (`&` brown) -- use (`u`) to view the map
   - Map shows a crude ASCII drawing of a section of the overworld with an `X` marking the treasure location
-  - Player must navigate to the spot on the overworld and dig (`d` on the tile) to unearth the treasure
+  - Player must navigate to the spot on the overworld and dig (`x` on the tile) to unearth the treasure
   - **Treasure types** (randomized):
     - Small cache: 50-100 gold + a potion or two
     - Medium cache: 150-300 gold + a decent weapon/armor
@@ -422,20 +516,87 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Quest NPCs shown as `!` in inns, dialogue triggers quest offer (accept/decline)
 - Quest state tracked per quest: NOT_STARTED, ACTIVE, COMPLETE, TURNED_IN
 - Completing quests also grants XP
-- **Result:** Rich side content, reasons to explore all towns and dungeons
+- **Rescue the Princess** -- a special major side quest, the game's **true ending**:
+  - Picked up from an inn NPC or a distraught king in a random active castle: "My daughter has been kidnapped by an Evil Sorcerer! She is locked in a tower!"
+  - The princess belongs to a **random king** (different each playthrough). The tower is a special dungeon location: a standalone tower (`|` white on overworld) that appears after accepting the quest, 3-5 levels tall
+  - **Tower dungeon**: vertical layout (narrow, spiraling stairs), guarded by magical enemies (imps, enchantresses, golems). The Evil Sorcerer is the boss at the top
+  - Defeat the Evil Sorcerer, free the princess. She thanks you and **disappears, returning to her father's castle**
+  - Visit the princess at the castle. She offers to **marry you** (regardless of player gender -- "we are liberal"):
+    - **Accept**: the game **ends**. This is the **one true ending** of the game
+      - Victory screen: "You married Princess [name] and became King/Queen of [kingdom]. Your quest is truly complete."
+      - Title changes from Knight to **King/Queen**
+      - **+10000 score** (the highest possible score bonus)
+      - Canterbury graveyard shows you as a **hero** with a golden tombstone: "[Name], King/Queen of [kingdom], who found love and glory"
+      - Morgue file records the marriage ending
+    - **Decline**: princess is disappointed but understanding. Quest marked as complete. +5 chivalry, +500 gold reward from the king. You continue playing
+  - The quest requires chivalry 50+ to be offered (the king won't trust a dishonourable knight with his daughter)
+  - The princess quest and the Grail quest are independent -- you can complete both, one, or neither
+- **Result:** Rich side content, reasons to explore all towns and dungeons, and a true ending for those who seek it
 
 ### Phase 6 -- Dungeon Generation (BSP Rooms & Corridors)
 - BSP algorithm: recursively split map, carve rooms in leaves, L-shaped corridors between siblings
 - Min leaf 6x6, min room 4x3, depth ~5 -> 8-15 rooms per level
 - Place stairs down `>` and stairs up `<`
 - Glyphs: `#` wall, `.` floor, `+` door, `>` / `<` stairs
-- Multiple dungeons across the overworld (4-5 dungeons), each with different depth:
-  - **Camelot Catacombs** (3 levels, beginner)
-  - **Tintagel Caves** (4 levels, medium)
-  - **Sherwood Depths** (4 levels, medium)
-  - **Mount Draig Volcano** (Wales) -- an active volcano (`V` red on overworld) in the Welsh mountains. 3 dungeon levels descending into the caldera. Lava tiles (`.` red/orange) deal fire damage if stepped on without Fire Resistance. Fire-themed enemies (Fire Drakes, Hellhounds, Imps, lava golems). The **Red Dragon (Y Ddraig Goch)** lairs in the deepest magma chamber. Extreme heat: HP drains slowly without fire resistance potion/ring/spell
-  - **Glastonbury Tor** (5 levels, hardest, Holy Grail at the bottom)
+- **Interactive doors**:
+  - `+` closed door, `/` open door. Press `o` adjacent to open, `c` to close
+  - **Locked doors**: some doors are locked (`+` red). Require a key, Lock Pick item, or force (bash with STR check -- may break the door but makes noise alerting enemies). Knights get +3 to bash, Rangers can pick locks with higher success rate
+  - **Secret doors**: hidden in walls, appear as `#` until found. Press `s` to search adjacent walls (INT check, 20% base chance per search). Rangers: 35% chance. Some secret doors revealed by Map spell or Scroll of Mapping
+  - Doors block FOV when closed. Open doors allow sight through
+  - Enemies can open unlocked doors but not locked ones (except bosses who bash them down)
+- **Special dungeon rooms** -- BSP generator occasionally creates special room types (10-15% chance per room):
+  - **Treasure vault**: walled-off room with locked door, contains a chest with good loot and gold. May be trapped
+  - **Dungeon chests** (`=` brown) -- found in various rooms throughout dungeons (1-3 per dungeon level):
+    - **Unlocked chests**: interact to open, contains 1-3 random items (potions, gold, food, scrolls, gems)
+    - **Locked chests** (`=` red): require one of: Ranger lockpick skill (automatic for Rangers), Lockpick tool item, Unlock spell (Universal, 3 MP), or bashing (STR check, may destroy contents 30% chance). Knights and Wizards without tools/spells must bash and risk losing loot
+    - **Trapped chests**: 20% of chests are trapped. Trap triggers on opening: poison dart, explosion (5 damage + destroys 1 item inside), gas cloud (confusion), or alarm (alerts enemies). Detect Traps spell or Ranger passive reveals chest traps. Can be disarmed with `D` before opening
+    - **Mimic chest** (rare, 5%): the chest is actually a Mimic monster (`=` that attacks when you try to open). Moderate difficulty enemy, drops gold on defeat. A classic roguelike surprise
+    - Chest contents scale with dungeon depth -- deeper chests contain better loot
+  - **Monster lair**: room filled with 3-5 enemies of the same type and their loot hoard
+  - **Underground temple**: an altar in the center. Pray to identify BUC status of all items, or receive a blessing (+1 random stat). Desecrating: -5 chivalry, summons hostile guardian
+  - **Armoury**: weapon racks and armour stands. 3-5 equipment items, some may be cursed
+  - **Library**: bookshelves with 1-3 spell scrolls and lore text (quest hints)
+  - **Crypt**: coffins that may contain undead enemies or treasure. Search coffins for loot but risk waking a Wight or Revenant
+  - **Flooded room**: shallow water tiles (`.` blue), -1 SPD to move through, water creatures may spawn. Some items submerged (search to find)
+  - Special rooms defined in `data/special_rooms.csv`
+- **Dungeon terrain hazards** -- beyond walls and floors:
+  - `~` **shallow water**: -1 SPD, can extinguish fire effects, rusts unprotected iron equipment (10% chance per step)
+  - `~` **deep water** (blue bold): impassable without Levitation or Walk on Water. Items can be thrown in (lost forever)
+  - `^` **lava**: 10 fire damage per step without Fire Resistance. Items dropped in lava are destroyed
+  - `_` **ice**: slippery, 30% chance to slide an extra tile in movement direction. -2 SPD. Can crack and become deep water if heavy (plate armour + heavy load)
+  - `"` **fungal growth**: releases spores when stepped on (20% poison chance). Can be burned with fire
+  - `%` **rubble**: destructible with pickaxe or force. May reveal secret passages. Blocks movement
+  - `*` **crystal formation**: glows, increases FOV by 1 in that room. Can be mined for gems (pickaxe needed)
+  - Terrain types defined in `data/dungeon_terrain.csv`
+- Multiple dungeons across the overworld (7+ dungeons), each with different depth:
+  - **Camelot Catacombs** (3-6 levels, beginner)
+  - **Tintagel Caves** (5-10 levels, medium)
+  - **Sherwood Depths** (5-10 levels, medium)
+  - **Mount Draig Volcano** (Wales) -- an active volcano (`V` red on overworld) in the Welsh mountains. 4-8 dungeon levels descending into the caldera. Lava tiles (`.` red/orange) deal fire damage if stepped on without Fire Resistance. Fire-themed enemies (Fire Drakes, Hellhounds, Imps, lava golems). The **Red Dragon (Y Ddraig Goch)** lairs in the deepest magma chamber. Extreme heat: HP drains slowly without fire resistance potion/ring/spell
+  - **Glastonbury Tor** (8-15 levels, hardest -- default Grail location, but Grail is randomly placed each game, see Phase 12)
+  - **White Cliffs Cave** (3-6 levels, sea-themed)
+  - **Whitby Abbey** (2-4 levels, vampire-themed)
+  - Additional random dungeon entrances found via treasure maps or NPC hints (1-20 levels, randomized depth)
+- **Dungeon depth is randomized** within ranges each playthrough -- you never know exactly how deep a dungeon goes. The number of levels is determined when you first enter
 - Exiting a dungeon (ascending from level 0) returns to overworld
+- **Persistent dungeon levels**: once generated, dungeon levels are stored in memory and persist:
+  - Items dropped on a floor stay there. Killed monsters stay dead. Opened doors remain open
+  - Players can stash items on cleared floors and return for them later
+  - Returning to a previously visited level loads it exactly as left (no regeneration)
+  - This allows strategic play: leave a stash of potions near the entrance, clear a level as a safe retreat point
+  - Persistence is per-dungeon, saved with the game state
+- **Dungeon branches & shafts** -- dungeons are not purely linear:
+  - **Branches**: some levels have 2 sets of stairs down, leading to different sub-branches. One branch may be the main path, the other a side vault or challenge area with unique loot. Branches rejoin after 1-2 levels or dead-end with a portal back
+  - **Shafts**: rare tiles (`>` red) that drop the player 2-3 levels at once. One-way -- must find stairs back up. Higher risk (skip to harder levels underequipped) but skip cleared content
+  - **One-way drops**: crumbling floor tiles that collapse when stepped on, dropping to the level below. Cannot return the same way -- must find stairs. Creates tension and prevents easy retreat
+  - **Secret levels**: very rare hidden stairs (behind secret doors) leading to small bonus levels with unique treasure and tough enemies. One per dungeon at most
+- **Exit portal**: on the deepest level of every dungeon, a **portal** (`0` cyan glow) is placed that teleports the player instantly back to the dungeon entrance on the overworld. This saves backtracking through cleared levels
+- **Scroll of Recall**: a rare and valuable scroll that can be found in dungeons, bought from mystics, or rewarded by NPCs:
+  - When read, it begins a **recall countdown** (random 5-15 turns). A message displays: "You feel the magic of recall building... (X turns remaining)"
+  - After the countdown, the player is teleported to the entrance of the current dungeon (overworld tile)
+  - During the countdown, the player can still move and fight normally -- but if they take a hit that reduces HP below 10%, the recall is disrupted ("The recall spell fizzles!")
+  - If used on the overworld, recall teleports to the nearest town instead
+  - Extremely useful for escaping deep dungeons when low on resources. Stackable, moderate weight (0.5)
 - **Dungeon traps** -- scattered on dungeon floors, hidden until triggered or detected:
   - Traps are invisible by default (appear as normal floor `.`). Revealed by: Detect Traps spell, Ranger passive (50% chance to spot within FOV), or stepping on one (ouch)
   - Once revealed, shown as `^` (red) and can be stepped over carefully or disarmed
@@ -490,7 +651,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Recursive shadowcasting in 8 octants, radius 8
 - `visible` = currently in FOV, `revealed` = ever seen
 - Visible tiles: full color. Revealed: `A_DIM`. Unknown: blank
-- Only applies in dungeon mode (overworld is fully visible)
+- Full shadowcasting applies in dungeon mode. Overworld uses simpler radius-based visibility (full during day, reduced at night/weather -- see Phase 3)
 - **Result:** Only nearby dungeon area visible, fog of war on explored areas
 
 ### Phase 8 -- Enemies, Combat, Message Log
@@ -501,19 +662,76 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Dark Knights & Warriors** (mid-late dungeons, overworld): Black Knight, Dark Squire, Fallen Paladin, Mercenary, Rogue Knight, Iron Golem, Breunis sans Pitie (recurring)
   - **Magical Creatures** (varied): Witch, Evil Sorcerer, Dark Monk, Warlock, Necromancer, Enchantress, Imp, Hellhound, Shadow Fiend, Demon
   - **Dragons** (Wales, deep dungeons): Young Drake, Fire Drake, Ice Drake, Red Dragon (Y Ddraig Goch), Black Dragon, Dragon Whelp, Wyvern
-  - **Faerie & Forest** (forests, faerie rings): Will-o'-the-Wisp, Pixie Swarm, Redcap, Spriggan, Green Man, Treant, Bog Hag, Forest Troll
+  - **Faerie & Forest** (forests, faerie rings): Will-o'-the-Wisp, Pixie Swarm, Redcap, Spriggan, Green Man, Treant, Bog Hag, Forest Troll, **Wood Nymph** (`n` light green)
+    - **Wood Nymph** -- encountered randomly in forests. Not hostile (cannot be attacked -- she vanishes if you try). She appears, giggles, and **steals one random item from your inventory** before disappearing into the trees ("A wood nymph snatches your Longsword and vanishes!"). The stolen item is gone permanently. Higher SPD gives a chance to resist the theft (SPD check: if SPD > 6, 30% chance to hold onto your item). Ring of Free Action also prevents nymph theft. Rare chance (10%) she drops a **Nymph's Kiss** item instead of stealing -- a charm that grants +2 SPD for 100 turns
   - **Water Creatures** (lakes, rivers, coastal): Water Serpent, Kelpie, Giant Pike, Nixie, Nessie (boss), Merfolk Warrior, Sea Serpent, Giant Crab, Drowned Knight
   - **Giants & Trolls** (hills, mountains, deep dungeons): Hill Troll, Cave Troll, Stone Giant, Frost Giant, Ogre, Ettins, Cyclops
   - **Mythical & Boss** (unique encounters): Mordred (final boss), Dragon (Wales boss), Questing Beast, Green Knight, Pellinore's Beast, Manticore, Griffin, Basilisk, Chimera
   - **Werewolf** (`W` gray/red) -- encountered **only at night** on moors, marshes, and hills:
     - Fast, aggressive, high STR. Regenerates HP each turn (2 HP/turn). Only **Silver Dagger** or **Holy weapons** deal full damage -- all other weapons deal half damage
-    - Bite attack has a 10% chance to inflict **Lycanthropy curse**: player transforms into a werewolf on the next full moon (every 30 night cycles), going berserk and attacking anything nearby for 5 turns. Cure: Purify spell, Canterbury shrine, or Potion of Cure Disease
+    - Bite attack has a 10% chance to inflict **Lycanthropy curse**:
+      - **Permanent buff**: +3 STR, +2 SPD while cursed (the wolf within strengthens you)
+      - **Full Moon transformation** (Day 15 of each 30-day cycle): at nightfall, the player involuntarily transforms into a werewolf. Screen goes red, message: "The moon rises full... you feel the change coming... AWOOOO!"
+      - During transformation: player loses control. Screen blacks out. When you "wake up" it is morning, and you are at a **random location** on the overworld map
+      - You have **lost 1-2 random items** from your inventory (dropped somewhere during the rampage)
+      - There is a chance (20%) you killed an innocent NPC during the night -- if so, **-5 chivalry** and a bounty in the nearest town
+      - Hunger is fully restored (you... ate something)
+      - The transformation happens every 30 days on the full moon, unavoidable while cursed
+      - **Cure**: Purify spell, Canterbury shrine, Potion of Cure Disease, or Silver Dagger self-inflicted ritual (costs 10 HP, cures lycanthropy permanently)
     - Werewolf Pelt dropped on kill -- valuable, can be sold or used to craft warm clothing (cold resistance)
     - Rare variant: **Alpha Werewolf** (larger, tougher, 20% bite curse chance) -- found only on remote moors deep into the night
 - Bump-to-attack: `damage = str + weapon - def - armor + rand(-2,2)`, min 0
 - Enemy turns: move toward player (simple), attack if adjacent
 - Message log: ring buffer of 50 strings, display 3-5 most recent at bottom
-- UI layout: row 0 status bar, rows 1-22 map, rows 23+ message log
+- **UI layout** -- uses ncurses windows/panels. Minimum terminal size: 100x30 (wider than classic 80x24 to fit sidebar):
+  ```
+  ┌─────────────────────────────────────────────────────────┬──────────────────┐
+  │                                                         │ Sir Galahad      │
+  │                    MAP AREA                              │ Knight Lv.7      │
+  │                   (60x22 tiles)                          │ Male             │
+  │                                                         │                  │
+  │  Player moves here, dungeon/overworld/town rendered      │ HP: 25/30 ██▓░░ │
+  │                                                         │ MP: 10/15 ██▓░░ │
+  │                                                         │ STR: 6           │
+  │                                                         │ DEF: 5           │
+  │                                                         │ INT: 4           │
+  │                                                         │ SPD: 5           │
+  │                                                         │ Wt: 45/60       │
+  │                                                         │ Gold: 120        │
+  │                                                         │ Chivalry: 42     │
+  │                                                         │  "Knight"        │
+  │                                                         │                  │
+  │                                                         │ Turn: 1523       │
+  │                                                         │ Day 2 14:30      │
+  │                                                         │ Weather: Clear   │
+  │                                                         │                  │
+  │                                                         │ Weapon: Longswd  │
+  │                                                         │ Armor:  Chain    │
+  │                                                         │ Rings:  Prot/Reg │
+  ├─────────────────────────────────────────────────────────┴──────────────────┤
+  │ Status: Poi:8 Hst:5 Hungry                                                │
+  ├────────────────────────────────────────────────────────────────────────────┤
+  │ The wolf bites you for 3 damage.                                           │
+  │ You hit the wolf for 5 damage. The wolf dies.                              │
+  │ You see a potion here.                                                     │
+  └────────────────────────────────────────────────────────────────────────────┘
+  ```
+  - **Map area** (left, ~60x22): the main game view, renders dungeon/overworld/town
+    - **Camera follows player, centered**: the player `@` is always kept in the center of the map viewport. The map scrolls around the player. When the player approaches the edge of the map (dungeon wall, overworld boundary), the player moves toward the edge of the viewport while the map stops scrolling. This keeps orientation intuitive and the player always visible
+  - **Character sidebar** (right, ~18 wide): persistent display of character stats, equipment, and time info. Always visible
+    - Press `@` to **expand sidebar** into a full-screen character sheet showing: all stats, all equipment with details, all known spells, affiliation scores, quest summary, kill count, complete inventory overview
+  - **Status effect bar** (1 line, below map): active effects with colour-coded turn counters
+    - Green (beneficial): `Hst:5` `Shd:12` `Reg:8` `Inv:15`
+    - Red (harmful): `Poi:8` `Cnf:10` `Bld:5` `Crse`
+    - Yellow (neutral): `Hgr:Hungry` `Enc:Burdened` `Vmp` `Lyc`
+    - Most critical shown first (harmful > beneficial > neutral). Effects flash when applied
+  - **Message log** (bottom, 3-5 lines): scrolling combat and event messages
+    - Press `Ctrl+P` to **expand** into full-screen message history (200 messages with turn numbers, scrollable)
+    - Important messages highlighted in colour (red=damage, green=healing, yellow=quest, cyan=loot)
+  - **Adaptive layout**: detect terminal size with `getmaxyx()`. If terminal < 100 wide, collapse sidebar and show stats on top bar instead (classic roguelike layout). If very tall terminal (40+), show more message log lines
+  - **Turn counter**: persists through save/load, drives all time-based systems (day/night, hunger, weather, king travel, witch timers, buff durations, etc.)
+  - Death screen and high score table show total turns survived
+  - Death screen and high score table show total turns survived
 - Works in both dungeon and overworld encounter modes
 - **Result:** Enemies fight back, combat messages scroll
 
@@ -530,6 +748,15 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Armor -- Helmets** (5): Leather Cap, Iron Helm, Great Helm, Crown of Wisdom (+INT), Horned Helm (+STR)
   - **Armor -- Boots** (4): Leather Boots, Iron Boots (heavy, +DEF), Elven Boots (weightless, +SPD), Boots of Water Walking
   - **Armor -- Gloves** (4): Leather Gloves, Gauntlets, Gauntlets of Strength (+2 STR), Thief's Gloves (+steal chance)
+  - **Enchanted Attire** (8) -- magical clothing and accessories, usable by any gender but with particular magical affinity:
+    - **Enchantress's Gown** (body armor): +4 INT, +3 max MP, +10% spell damage. Light weight (3). Glows faintly purple. Found in Castle Perilous or gifted by Morgan le Fay
+    - **Moonsilver Dress** (body armor): +3 DEF, +2 SPD, grants Invisibility at night. Weightless. Found on Avalon or faerie ring reward
+    - **Sorceress Heels** (boots): +2 INT, +1 SPD, -1 noise (better stealth). Enchanted to never slip. Found in mystic shops or dungeon loot
+    - **Crystal Hairpin** (helmet slot): +2 INT, +5 max MP, identifies potions automatically when picked up. Weightless. Rare drop from Enchantress enemies
+    - **Faerie Tiara** (helmet slot): +1 all stats, +Nature affinity, faeries always friendly while worn. Found at faerie ring or Faerie Queen gift
+    - **Silken Sash** (amulet slot): +2 DEF, reflects 10% of magic damage. Lightweight (0.5). Found in libraries or special dungeon rooms
+    - **Witch's Shawl** (body armor): +3 INT, +Dark affinity, spells cost 1 less MP. Cursed: -3 chivalry while worn. Dropped by witches
+    - **Morgan's Circlet** (helmet slot): +4 INT, +3 Dark affinity, learn Dark spells 1 threshold lower. Unique, gifted by Morgan le Fay as part of her bargain
   - **Potions** (50) -- **unidentified when first found**. Appear as colored liquids ("Bubbling Red Potion", "Murky Green Potion", etc.) until identified. Color-to-effect mapping randomized each game. Identification methods: (1) drink it and find out (risky!), (2) pay a potion shop to identify (10-30 gold), (3) Identify spell/scroll. Once one potion of a type is identified, all potions of that color are known for the rest of the game.
     - **Beneficial potions** (25):
       - Healing Potion (restore 15 HP), Greater Healing (restore 40 HP), Full Healing (restore all HP)
@@ -615,6 +842,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - Higher value gems/trinkets found in deeper dungeons and harder locations
     - Some quest NPCs may ask for specific gems as quest objectives
   - **Quest & Special** (7): Holy Grail (unique), Castle Keys (various), Dragon Scale, Lancelot's Lost Sword (quest), Holy Water, Faerie Charm, Merlin's Crystal
+  - **Tools** (3): Tinderbox (required for cooking at campfires), Lockpick (Rangers start with one, others can buy -- used to pick locked doors), Pickaxe (mine crystal formations, break rubble in dungeons)
   - **Legendary Artifacts** (12) -- unique, extremely powerful items scattered across the world. Each has a backstory and special location. Only one of each exists per game. Glow golden (`*` yellow bold) when on the ground:
     - **Excalibur** -- the sword of King Arthur (from the Lady of the Lake). Highest damage, +Light affinity, +2 STR, bonus vs evil
     - **Excalibur's Scabbard** -- hidden in Avalon. While carried: HP regenerates 1 per 5 turns, bleed effects cannot kill you. More valuable than the sword itself according to legend
@@ -629,8 +857,44 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - **Galahad's Helm** -- found in Carbonek after the shrine vision. +4 DEF, immunity to fear/confusion/blindness, +5 Light affinity
     - **The Cauldron of Rebirth** -- hidden in a Welsh dungeon. One-time use: fully resurrects the player on death with full HP/MP at the dungeon entrance (consumed on use). Unlike the Ring of Rebirth (which teleports to Stonehenge), this keeps you in the dungeon. The ultimate insurance policy for deep dungeon runs
 - 3-8 items per dungeon level, weighted by depth
-- Inventory: 26 slots (a-z), `g` to pickup, `i` to open, equip/drop/use
+- Inventory: 26 slots (a-z), `g` to pickup, `i` to open, equip/drop/use/throw/apply
+- **Item stacking**: identical items stack in a single inventory slot (e.g., "12 Arrows", "3 Healing Potions"). Stacking applies to: ammo, potions of same identified type, food of same type, gems/trinkets of same type, scrolls of same type, gold coins. Non-stackable: weapons, armor, rings, amulets, unique items. This keeps the 26-slot limit manageable
 - Items also purchasable in town shops
+- **Class and gender item restrictions** -- defined per item in `data/items.csv` with `class_restrict` and `gender_restrict` columns:
+  - **Class restrictions**:
+    - **Knight only**: Plate Armor, Tower Shield, Great Helm, Holy Mace, Arthur's Shield. Heavy martial gear
+    - **Wizard only**: Wizard's Staff, Enchanted Robe, Crown of Wisdom, Merlin's Staff, Staff of Light. Arcane focus items
+    - **Ranger only**: Longbow, Enchanted Bow, Elven Boots, Druid Staff. Wilderness and ranged gear
+    - **Knight cannot use**: Wizard's Staff, Enchanted Robe, Druid Staff, Sorceress Heels, Crystal Hairpin ("You lack the arcane skill to wield this")
+    - **Wizard cannot use**: Plate Armor, Tower Shield, Great Helm, Claymore, Great Axe, War Hammer ("This armour is too heavy and restrictive for spellcasting")
+    - **Ranger**: can use most items but not the heaviest armour (Plate Armor, Tower Shield) or pure arcane items (Wizard's Staff, Merlin's Staff)
+  - **Gender-flavoured items** (usable by either gender but with bonus for one):
+    - **Female bonus**: Enchantress's Gown (+1 extra INT if female), Moonsilver Dress (+1 extra SPD if female), Crystal Hairpin (+1 extra MP if female), Faerie Tiara (+1 extra to all if female)
+    - **Male bonus**: Horned Helm (+1 extra STR if male), Gauntlets of Strength (+1 extra STR if male), Great Helm (+1 extra DEF if male)
+    - Items can still be equipped by either gender, but the bonus stat only applies to the matching gender. Encourages thematic builds without hard-locking
+  - Attempting to equip a class-restricted item: "You cannot use this item" message, item stays in inventory
+- **Blessed/Cursed/Uncursed (BUC) item system** -- inspired by NetHack:
+  - Every item has a BUC state: **Blessed**, **Uncursed** (default), or **Cursed**
+  - BUC state is **unknown** until identified (items show as "a longsword" not "a blessed longsword")
+  - **Identification methods**: pray at a church altar (priest identifies all carried items' BUC), Identify spell, or pay a shopkeeper
+  - **Blessed items**: enhanced effects -- blessed potions heal more, blessed weapons deal +2 damage, blessed armor gives +1 DEF, blessed food restores more hunger
+  - **Cursed items**: reduced effects and **cannot be unequipped** once worn/wielded. Cursed weapons deal -2 damage, cursed armor gives -1 DEF. Must use Remove Curse spell, Purify, or visit a shrine to uncurse
+  - **Holy water** (buyable at churches): pour on an item to bless it. Unholy water (rare dark item): pour on an item to curse it
+  - Some enemies can curse your equipped items (witches, evil sorcerers) during combat
+  - BUC state tracked in `items.csv` as a column, default "uncursed". Dungeon loot has a % chance to be blessed (10%) or cursed (15%)
+  - Fits the Arthurian theme: holy blessings from churches, dark curses from enemies
+
+- **Ranged combat & ammunition**:
+  - Ranged weapons (bows, crossbows, sling) require **ammunition** to fire
+  - **Ammo types**: Arrows (for bows), Bolts (for crossbows), Stones (for sling), Throwing Knives (standalone). Stackable items (e.g., "24 Arrows")
+  - **Quiver slot**: a dedicated equipment slot for ammo. Press `f` to fire the equipped ranged weapon using quiver ammo
+  - **Targeting UI**: press `f`, a cursor appears on the map. Move with arrow keys to target an enemy within range and line-of-sight. Press Enter to fire. Range: Short Bow (6 tiles), Longbow (10), Crossbow (8), Sling (5), Throwing Knives (4)
+  - **Damage**: weapon base damage + ammo modifier + STR/2 (bows) or INT/2 (sling). No DEF bonus for targets at range
+  - **Ammo recovery**: 50% chance to recover arrows/bolts from the tile where the target was hit. Throwing knives: 75% recovery. Stones: 0% (consumed)
+  - **Special ammo**: Silver Arrows (bonus vs werewolves/undead), Fire Arrows (fire damage, chance to ignite), Blessed Bolts (bonus vs evil), Poisoned Throwing Knives (DOT)
+  - Ammo is bought in shops, found in dungeons, and dropped by archer enemies
+  - Ammo defined in `data/ammo.csv` with columns: name, type, damage_mod, weight, special_effect, rarity
+
 - **Weight system**:
   - Every item has a weight value (defined in `data/items.csv`, column: weight)
   - Player has a **carry capacity** based on STR and level: `capacity = 30 + (STR * 3) + (level * 2)` weight units
@@ -651,7 +915,17 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - A* pathfinding with binary-heap priority queue
 - AI states: IDLE -> CHASE -> FLEE (FSM per enemy)
 - Type-specific: Ghost walks through walls, Dragon breathes fire, Witch casts at range, Black Knight always chases
-- **Result:** Smart enemy movement, diverse behaviors
+- **Monster abilities framework** -- enemies have special abilities beyond basic melee, defined in `data/monster_abilities.csv`:
+  - **Summoners**: Necromancer raises slain monsters as undead allies. Evil Sorcerer summons imps. Witch summons spiders
+  - **Healers/Buffers**: Troll Shaman heals nearby trolls (+5 HP/turn to allies within 3 tiles). Dark Monk buffs adjacent undead (+2 STR)
+  - **Debuffers**: Witch curses player (random stat -1 for 20 turns). Enchantress charms player (random movement 5 turns). Ghost chills player (-2 SPD for 10 turns)
+  - **Ranged casters**: Evil Sorcerer casts dark bolt (8 damage, 6 tile range). Warlock casts fear. Enchantress casts sleep
+  - **On-death effects**: Imp explodes on death (3 fire damage to adjacent tiles). Slime splits into 2 smaller slimes. Gas Spore releases confusion cloud
+  - **Aura effects**: Death Knight radiates fear aura (enemies within 2 tiles must pass INT check or flee). Demon Lord radiates fire aura (2 damage/turn to adjacent player)
+  - **Theft/special**: Pixie Swarm steals a random item. Kelpie lures player toward water. Basilisk gaze attack (stun 2 turns if player faces it, countered by looking away or mirror)
+  - Abilities have cooldowns (e.g., dragon breath every 3 turns), MP costs for casters, and range limits
+  - Each monster can have 0-3 abilities, making encounters varied and tactical
+- **Result:** Smart enemy movement, diverse behaviors, tactical depth in combat
 
 ### Phase 11 -- Character Creation, Classes & Spells
 
@@ -671,6 +945,15 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
    - Female names: Elaine, Isolde, Lynette, Enid, Viviane, Nimue, Igraine, Morgause, Laudine, etc.
    - Player can re-roll random names as many times as they like
 
+4. **Appearance screen** -- flavour traits that make the character feel real (no gameplay effect, purely cosmetic):
+   - **Hair colour**: randomly generated or chosen -- Black, Brown, Auburn, Red, Blonde, Grey, White
+   - **Eye colour**: Blue, Green, Brown, Grey, Hazel, Amber
+   - **Build**: Lean, Average, Stocky, Tall, Short, Athletic, Broad-shouldered
+   - **Distinguishing feature**: Scar across cheek, Braided hair, Missing tooth, Weathered face, Freckles, Piercing gaze, Noble bearing, Calloused hands
+   - Press `r` to randomize all traits, or cycle through each option individually
+   - Displayed on the full character sheet (`@` screen) and in the death screen / morgue file
+   - NPCs occasionally reference appearance in dialogue flavour ("A [build] [hair] warrior approaches...")
+
 4. **Stats screen** -- base stats are randomly generated (rolled), modified by class and gender:
    - Stats rolled: STR, DEF, INT, SPD (each 3-8 base, random) + class bonuses + gender bonuses
    - HP and MP derived from stats and class
@@ -679,7 +962,30 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
    - Press Enter/Return to **accept** and proceed
    - Starting spell shown: Knight = Shield, Wizard = Magic Missile, Ranger = Detect Traps
 
-5. **Story screen** -- sets the scene and introduces the main quest:
+5. **Cheat mode** (optional, hidden during character creation):
+   - Press `C` (capital C) on the stats screen to open the cheat menu. Stats screen displays: "Press [r] to re-roll, [Enter] to accept, [C] for cheat options"
+   - **Cheat options** (toggle on/off):
+     - God Mode: HP set to 999, cannot die from damage
+     - Infinite Mana: MP set to 999, never depleted
+     - Rich Start: Gold set to 1000
+     - Max Stats: all stats set to 15
+     - Full Spellbook: all 50 spells learned immediately
+     - Full Inventory: start with a complete set of magical items (best weapon, best armour, all rings, potions)
+     - All Maps Revealed: overworld and dungeon maps fully visible (no fog of war)
+     - Level Skip: press `]` to skip to next dungeon level at any time
+     - Instant Kill: all attacks do 999 damage
+     - No Hunger: hunger system disabled
+   - **Cheat consequences**:
+     - Score is always **0** regardless of achievements
+     - High score table marks the entry as "CHEAT" and does not rank it
+     - Canterbury graveyard shows **"CHEAT"** on the gravestone
+     - Fallen Heroes screen marks cheated characters with a skull icon
+     - Morgue file header shows "CHEAT MODE ENABLED"
+     - Chivalry title replaced with "Cheater" on status bar
+   - Flag stored in GameState: `bool cheat_mode`. Once enabled, cannot be disabled for that run
+   - Primarily for developer testing but left in for players who want to explore freely
+
+6. **Story screen** -- sets the scene and introduces the main quest:
    - Scrolling narrative text, atmospheric:
      ```
      The kingdom of Camelot is in peril.
@@ -746,8 +1052,34 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
     - Shield (absorb next 15 damage), Blink (short random teleport 5 tiles),
     - Map (reveal current floor layout), Fireball (AoE fire damage, 3x3)
 - Spell data defined in `data/spells.csv` with columns: name, affiliation, threshold, mp_cost, damage, effect, duration, range, aoe_size, class_restriction, level_required
-- `z` to cast, MP cost, targeting cursor for AoE where applicable
-- XP leveling with stat gains
+- `z` to cast, targeting cursor for AoE where applicable
+- **Mana (MP) system**:
+  - Every spell costs MP to cast. Costs range from 2 (Light, Detect Traps) to 25 (Teleport, Earthquake, Resurrect). Defined per spell in `data/spells.csv`
+  - **Starting MP by class**: Knight: 8, Ranger: 15, Wizard: 30
+  - **MP gain on level-up**: Knight: +1, Ranger: +2, Wizard: +4
+  - **MP restoration methods**:
+    - Rest at an inn (full MP restore)
+    - Mana Potions / Greater Mana Potions (restore 10/30 MP)
+    - Stepping into a Circle of Mana (full restore, single use)
+    - Camping on overworld (restores 50% MP)
+    - Praying at a shrine (restores some MP alongside HP)
+    - Natural regeneration: 1 MP per 20 turns (slow background regen)
+    - Ring of Mana Regeneration (+1 MP per 3 turns)
+  - **MP-boosting equipment**: Wizard's Staff (+5 max MP), Ring of Sorcery (+10 max MP), Enchanted Robe (+MP regen), Crown of Wisdom (+5 max MP via INT bonus), Merlin's Staff (+5 INT = +significant max MP)
+  - Max MP = base (from class) + level-up gains + INT bonus (INT * 2) + equipment bonuses
+  - Cannot cast a spell if insufficient MP ("Not enough mana..."). Strategic MP management is key, especially for Knights and Rangers with small pools
+- **Leveling system** (20 levels max):
+  - XP thresholds: 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000, 55000
+  - On level-up: HP increases (+3 Knight, +1 Wizard, +2 Ranger), MP increases (+1 Knight, +4 Wizard, +2 Ranger)
+  - Player chooses **one stat to increase by +1** (STR, DEF, INT, or SPD) -- meaningful choice each level
+  - Carry capacity increases automatically (+2 per level)
+  - At specific levels, gain class-specific bonuses:
+    - Level 3: unlock a class spell slot (learn one extra spell beyond the 15 max)
+    - Level 5: class perk -- Knight: +2 max HP per level from now on; Wizard: -1 MP cost on all spells; Ranger: passive trap detection range doubles
+    - Level 10: class ability -- Knight: "Shield Bash" (stun enemy 2 turns on melee, 20% chance); Wizard: "Mana Shield" (absorb damage with MP when HP < 25%); Ranger: "Double Shot" (ranged attacks hit twice, 30% chance)
+    - Level 15: class mastery -- Knight: immunity to fear; Wizard: cast one spell per turn for free (0 MP) if INT > 10; Ranger: always act first in combat
+  - Level-up screen: displays stat changes, lets player allocate their +1, shows any new abilities unlocked
+  - XP sources: killing monsters (varies by monster), completing quests (+50-200), discovering new locations (+10), boss kills (+200-500)
 - **Spell learning system**:
   - Player starts with only **1 spell** based on class: Knight = Shield, Wizard = Magic Missile, Ranger = Detect Traps
   - New spells are learned by **reading Spell Scrolls** -- consumable items found in dungeons, bought from shops, or rewarded by NPCs
@@ -755,28 +1087,62 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - Spell Scrolls are rare loot -- roughly 1-2 per dungeon, also sold by mystics and Merlin
   - To learn a spell, the player must: (1) have the scroll, (2) meet the affiliation threshold, (3) have sufficient INT (some advanced spells require INT 6+)
   - If requirements aren't met: "You cannot comprehend the magic within this scroll..."
-  - Maximum known spells: 15 (forces player to choose wisely)
+  - **Spell capacity varies by class**:
+    - **Wizard**: max 15 spells. Can freely choose which to learn. The primary spellcaster
+    - **Ranger**: max 6 spells. Learning a 7th spell **randomly replaces** one of the existing 6 ("The new magic pushes an old spell from your mind... you forget Detect Traps"). Player cannot choose which is lost
+    - **Knight**: max 4 spells. Learning a 5th spell **randomly replaces** one of the existing 4. Knights are warriors first, magic is secondary and unreliable for them
+    - This makes class choice meaningful: Wizards have spell mastery, Rangers have moderate magic, Knights must rely on steel and faith with only a few spells as backup
   - Some spells can only be learned from specific NPCs (not scrolls): Merlin teaches 3 exclusive spells, Faerie Queen teaches 1, Lake Bala druid teaches 2
   - Spell Scrolls added to `data/items.csv` with type `spell_scroll` and a `teaches_spell` column linking to `spells.csv`
 - **Result:** Character creation with gender/class, meaningful affiliation choices affect available magic, spell progression through exploration and discovery
 
 ### Phase 12 -- Dungeon Bosses & The Holy Grail
-- Each dungeon has a boss on its deepest level:
+
+**Dungeon bosses** -- each dungeon has a boss on its deepest level:
   - Camelot Catacombs: **Dark Monk** (mini-boss)
   - Tintagel Caves: **Black Knight**
   - Sherwood Depths: **Evil Sorcerer**
-  - Welsh Dragon Lair: **Red Dragon (Y Ddraig Goch)**
-  - Glastonbury Tor: **Mordred** (final boss, guards the Grail)
-- Holy Grail on the final level of Glastonbury Tor
-- Picking up the Grail triggers victory
+  - Mount Draig Volcano: **Red Dragon (Y Ddraig Goch)**
+  - Glastonbury Tor: **Dark Templar** (native boss -- replaced by Mordred if Grail spawns here)
+  - Whitby Abbey: **Vampire Lord**
+  - White Cliffs Cave: **Sea Serpent King**
+
+**The Holy Grail -- main quest flow**:
+1. **Accept the quest**: visit King Arthur in Camelot Castle throne room. He bestows the quest and grants knighthood. The Grail does not exist in the world until this quest is accepted
+2. **Find the Grail's location**: the Grail is **randomly placed** in one of the game's dungeons each playthrough (not always Glastonbury Tor). It could be on the deepest level of any dungeon, behind a locked door or in a hidden room
+3. **Gather hints**: NPCs in inns give hints about the Grail's location when you talk to them:
+   - "I heard a holy light was seen deep beneath Tintagel..." (could be true)
+   - "A pilgrim told me the Grail lies under Glastonbury..." (could be a red herring)
+   - "The druids whisper of a sacred chalice in the Welsh mountains..." (could be true)
+   - Some hints are **red herrings** (30% chance an NPC hint is false). Cross-referencing multiple hints increases confidence
+   - Merlin gives a **reliable** hint (always true): "The Grail rests in [dungeon name], brave [Sir/Lady]"
+   - King Pellam at Castle Listenoise also gives a reliable hint if you heal him
+   - The Carbonek shrine vision reveals the Grail's exact dungeon and level
+4. **Recover the Grail**: find it on the deepest level of the correct dungeon, guarded by **Mordred** (who appears as final guardian wherever the Grail is placed). Defeat Mordred, pick up the Grail (`*` yellow bold glow)
+5. **Return the Grail to Arthur**: carry the Grail back to Camelot and present it to King Arthur (find him in his castle or on his travels). **Arthur requires chivalry 30+ to accept the Grail** -- if your chivalry is too low, he refuses: "You have the Grail, but you are not worthy to present it. Prove your honour first, then return." Player must raise chivalry (pray, donate, do good deeds) before Arthur will accept. This prevents a low-chivalry "evil" playthrough from easily completing the main quest. Once accepted, Arthur rewards you:
+   - Knighted as a **Knight of the Round Table** (if not already)
+   - **5000 gold** reward
+   - **+10 chivalry** permanently
+   - Title: "Grail Knight" displayed on status bar
+   - Victory fanfare screen with your character's stats and journey summary
+6. **Continue playing**: after returning the Grail, the game **does not end**. You can continue exploring, completing side quests, clearing remaining dungeons, building your character, jousting, and exploring. The score records that you found the Grail (+5000 score bonus). Eventually you may die, but you've achieved the main quest
+   - Post-Grail content: some new dialogue from NPCs congratulating you, Arthur offers additional elite quests, access to Avalon if not yet discovered
+
 - Some dungeons may require items/keys from other dungeons to access deeper levels (optional progression gating)
-- **Result:** Clear progression path, epic boss fights, win condition
+- **Result:** Non-linear Grail quest with investigation, red herrings, and continued play after victory
 
 ### Phase 13 -- Save/Load, Permadeath & High Scores
 
 **Title screen menu**:
-- If a save file exists, menu shows: **Continue** / New Game / Settings / High Scores / Quit
-- If no save file, menu shows: New Game / Settings / High Scores / Quit
+- If a save file exists, menu shows: **Continue** / New Game / Fallen Heroes / High Scores / Settings / Quit
+- If no save file, menu shows: New Game / Fallen Heroes / High Scores / Settings / Quit
+- **"Fallen Heroes"** -- view all your previous dead characters from past games:
+  - Data stored in `~/.camelot/fallen_heroes.dat` (persists across all playthroughs, same data as graveyard but viewable from title screen)
+  - Scrollable list showing each fallen character: name, class, gender, level, cause of death, turns survived, score, chivalry title
+  - Select a hero to see their full death summary (same as the death screen: stats, combat record, quests, spells learned, etc.)
+  - Sorted by most recent death first
+  - Shows total number of heroes who have fallen ("12 brave souls have perished in the quest for the Grail")
+  - Same data displayed on Canterbury Graveyard gravestones in-game
 - "Continue" resumes from the single save file immediately
 - "New Game" warns if a save exists ("This will overwrite your existing save. Are you sure?")
 - "Settings" opens the settings menu (font size, colors, etc.) before starting
@@ -812,8 +1178,9 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Full-screen overlay with scrollable content, navigate with arrow keys, `q` to close
 - **Commands tab** -- lists all keybindings organized by category:
   - Movement: hjklyubn / arrow keys, `>` `<` for stairs
-  - Actions: `g` pickup, `i` inventory, `z` spells, `j` journal, `S` save
-  - UI: `?` help, `=` settings, `q` quit
+  - Actions: `g` pickup, `i` inventory, `z` spells, `j` journal, `S` save, `f` fire ranged, `o` open door, `c` close door, `s` search walls, `D` disarm trap, `t` throw item, `a` apply/use item on another item (e.g., pour holy water on weapon), `x` dig
+  - Movement: hjklyubn (8-dir) / arrow keys (4-dir) / numpad 1-9 (8-dir). `.` or `5` wait one turn. Shift+direction to auto-run until interrupted
+  - UI: `?` help, `=` settings, `;` look/examine, `Ctrl+P` message history, `@` character sheet, `q` quit
 - **Symbols tab** -- legend of all ASCII characters and their colors:
   - `@` You (the player), `#` Wall, `.` Floor, `~` Water, etc.
   - All enemy glyphs with names and colors
@@ -821,6 +1188,39 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - All NPC/landmark glyphs
 - **Tips tab** -- gameplay tips: "Bump into enemies to attack", "Visit inns to rest", "Wells may contain treasure... or danger", etc.
 - Context-sensitive: pressing `?` while looking at an entity shows info about that specific entity
+
+**Look/examine mode** (press `;`):
+- A cursor (`X` yellow) appears on the map at the player's position
+- Move cursor with arrow keys / hjkl to any visible tile
+- Status line shows what's on the highlighted tile: tile type, monster name and HP (if visible), item name, NPC name
+- Press Enter on a tile to see a detailed description: monster stats and abilities, item properties, terrain effects
+- Press `q` or Escape to exit look mode
+- Works in all modes (dungeon, overworld, town)
+
+**Message history** (press `Ctrl+P`):
+- Opens a full-screen scrollable view of all messages from the current session
+- Scroll with arrow keys, Page Up/Down
+- Shows up to 200 most recent messages with turn numbers
+- Press `q` to close and return to the game
+- Important messages (combat, deaths, quest updates) highlighted in colour
+
+**Morgue file / character dump**:
+- On death (or victory), automatically save a text file to `~/.camelot/morgue/[name]_[date].txt`
+- Contains complete character record:
+  - Character name, class, gender, level, cause of death
+  - All final stats, chivalry, affiliations
+  - Equipment worn at death
+  - Full inventory listing
+  - Spells known
+  - Quests completed and active
+  - Monsters killed (by type and count)
+  - Locations visited, dungeons explored
+  - Turn count, days survived, final score
+  - Last 20 messages (combat log leading to death)
+  - **Game seed** number (for replay or sharing challenge runs)
+- Shareable text format for comparing runs or posting online
+- Morgue files persist indefinitely in `~/.camelot/morgue/`
+- **Seed system**: game seed shown on death screen and in morgue file. Players can enter a seed at New Game for challenge runs or bug reproduction
 
 **Settings menu** (press `=` to open):
 - Stored in `~/.camelot/settings.cfg` (simple key=value text file)
@@ -830,14 +1230,70 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - **Auto-pickup gold** -- on/off (default: on)
 - **Confirm before attacking** -- on/off (default: off) for accidental bumps
 - **Show minimap** -- on/off (overworld only, shows player position on a small England outline)
+- **Key rebinding** -- customise all keybindings via settings file (`~/.camelot/keys.cfg`). Supports remapping movement, actions, and UI keys. Essential for non-QWERTY keyboards and accessibility
+- **Animation speed** -- fast / normal / off. Controls projectile animations, spell effects, and message display pacing
+- **Numpad support** -- enable/disable numpad (1-9) for 8-directional movement as alternative to vi-keys. On by default
 
 **Title screen and polish:**
-- Title screen with ASCII art castle and menu: New Game / Load / High Scores / Settings / Quit
+- **Title screen** with elaborate ANSI art:
+  - Large ASCII/ANSI art of the Holy Grail (coloured, using extended characters and colour pairs)
+  - Game title: "KNIGHTS OF CAMELOT" in large ASCII block letters
+  - Subtitle: "The Quest for the Holy Grail"
+  - Atmospheric border with castle battlements and medieval flourishes
+  - Menu: Continue (if save exists) / New Game / Fallen Heroes / High Scores / Settings / Quit
+  - Background colour: dark blue/black with gold accents
 - Class selection screen after New Game
 - Death screen and victory screen with score entry
 - Debug mode (`-d` flag): full map, stats visible, level skip with `]`
-- Balancing pass on HP/damage/spawn rates/economy/mystic odds
+- **Game balance philosophy** -- the game should be challenging but fair, never frustrating:
+  - **Level-scaled encounters**: overworld encounters scale with player level. A level 1 player encounters rats and wolves; a level 10 player encounters trolls and dark knights. Monsters from `data/monsters.csv` have `min_depth` and `max_depth` fields that determine when they appear
+  - **Dungeon difficulty curves**: each dungeon has a difficulty rating. Enemies on each floor are appropriate for the expected player level at that dungeon depth. Early dungeon floors should be beatable by a careful player
+  - **Flee is always an option**: running away from combat always has at least a 30% base success rate (higher on roads, with horse, with high SPD). The player should never feel trapped with no escape. Even boss fights allow retreat (boss stays on its floor)
+  - **Out-of-depth monsters**: rare (5% chance) encounters with monsters above the player's level. These are signalled: "You sense a powerful presence..." -- giving the player a chance to avoid. Defeating out-of-depth enemies gives bonus XP
+  - **Difficulty tuning knobs** (all in CSV files for easy adjustment):
+    - Monster HP, STR, DEF per depth level
+    - Item drop rates and quality per dungeon depth
+    - Encounter frequency per terrain
+    - Potion/food spawn rates
+    - Gold economy (shop prices, quest rewards, gold drops)
+    - XP curve and level-up bonuses
+  - **Intended progression curve**: 
+    - Levels 1-3: Camelot area, Catacombs. Learning the basics
+    - Levels 4-7: expand to nearby towns, Tintagel/Sherwood dungeons
+    - Levels 8-12: deeper dungeons, volcano, difficult castles, most quests completable
+    - Levels 13-17: endgame content, Glastonbury, Grail hunt, boss encounters
+    - Levels 18-20: post-Grail elite content, princess quest, Avalon
+  - **Death should feel fair**: when the player dies, they should feel "I could have survived if I'd played differently" rather than "that was unfair". No unavoidable instant kills (except Basilisk with save via Ring of Free Action). Traps are detectable. Ambushes give 1 turn to react
 - Inn flavor text and beer names for atmosphere
+- **Humour system** -- occasional funny messages and easter eggs to keep the game fun:
+  - **Funny combat messages** (10% chance to replace standard message):
+    - "You swing your sword heroically... and miss. The wolf looks unimpressed."
+    - "The skeleton rattles menacingly. You wonder who dressed it this morning."
+    - "You hit the bandit. He looks personally offended."
+    - "The troll falls. The ground shakes. Your teeth rattle."
+    - "You defeated the Giant Rat. Your mother would be so proud."
+  - **Funny item descriptions** (shown in look/examine mode):
+    - Rusty Sword: "It's seen better days. And better centuries."
+    - Bread: "Stale enough to use as a weapon in a pinch."
+    - Healing Potion: "Tastes like hope and elderberries."
+    - Empty chest: "Someone got here first. Typical."
+  - **Funny NPC dialogue** (random inn patron chatter):
+    - "I used to be an adventurer like you, then I took an arrow to the... actually, never mind."
+    - "Have you tried the stew? I think it moved."
+    - "I saw a dragon once. Then I ran. Quickly."
+    - "The Black Knight? Oh, he's armless. Literally."
+  - **Funny death messages** (added to cause of death):
+    - "Slain by a Giant Rat on level 1. The bards will not sing of this."
+    - "Drowned in a puddle. A hero's end."
+    - "Killed by a kitten. Wait, how?"
+  - **Fun/joke items** (found rarely in dungeons, wells, or as joke shop inventory):
+    - **Rubber Duck** (`d` yellow): no combat use. Squeaks when used ("Squeak!"). +1 morale (tiny HP regen, 1 per 50 turns). Floats on water. If thrown at an enemy, 1 damage and confuses them for 2 turns (they're so baffled). Beloved by speedrunners
+    - **Pointy Hat of Silliness** (helmet): +0 stats but makes all NPCs laugh when they see you. Shopkeepers give 5% discount because you cheer them up. "You look ridiculous." -2 chivalry while worn
+    - **Coconut Halves** (misc item): use to simulate horse sounds while walking. No actual speed boost. "You clop along pretending to ride a horse. A nearby peasant stares."
+    - **Holy Hand Grenade** (rare, one-use): deals massive damage (50) to all enemies in the room. Must count to three first (takes 3 turns to use). "One... two... five!" "Three, sir!" "Three!"
+    - **Shrubbery** (misc item): a nice shrubbery. Quest item for a joke quest from the Knights Who Say Ni (random overworld encounter, very rare). Reward: they stop saying "Ni" and give you a herring
+    - **Comfy Chair** (misc item): when used, sit for 5 turns and restore 10 HP. "Nobody expects the comfy chair!"
+  - Humorous messages stored in `data/dialogue.csv` with a `humour` tag for easy editing/expansion
 
 ## Key Algorithms
 - **Map gen:** Binary Space Partition (BSP) for dungeons
@@ -851,4 +1307,6 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Debug mode for testing: `-d` flag shows full map, enemy stats, level skip
 - Manual playtesting across overworld, all towns, and all 5 dungeons
 - Verify quest system: pick up quests in inns, complete objectives, return for rewards
-- Verify win condition: travel to Glastonbury, clear Tor, retrieve Grail
+- Verify Grail quest: accept from Arthur, gather hints, find randomized Grail location, defeat Mordred, return to Arthur
+- Verify princess quest: rescue from tower, visit at castle, marriage ending
+- Verify post-Grail gameplay continues
