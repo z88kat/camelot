@@ -41,7 +41,10 @@ typedef enum {
     NPC_BANKER,
     NPC_STABLE,
     NPC_WELL,       /* not really an NPC, but interactive */
-    NPC_TOWNFOLK     /* flavour NPC */
+    NPC_TOWNFOLK,    /* flavour NPC */
+    NPC_DOG,         /* wanders, harmless */
+    NPC_CAT,         /* wanders, harmless */
+    NPC_CHICKEN      /* wanders, harmless */
 } TownNPCType;
 
 /* An NPC placed in the town interior */
@@ -51,6 +54,7 @@ typedef struct {
     char        glyph;
     short       color_pair;
     char        label[MAX_NAME];  /* "Innkeeper", "Priest", etc. */
+    bool        wanders;         /* moves around randomly each turn */
 } TownNPC;
 
 #define MAX_TOWN_NPCS 16
@@ -80,5 +84,8 @@ void town_generate_map(TownMap *tm, const TownDef *td);
 
 /* Get the NPC at a position, or NULL. */
 TownNPC *town_npc_at(TownMap *tm, int x, int y);
+
+/* Move wandering NPCs randomly. Call once per town turn. player_pos to avoid. */
+void town_move_npcs(TownMap *tm, Vec2 player_pos);
 
 #endif /* TOWN_H */

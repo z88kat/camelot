@@ -390,8 +390,28 @@ static const char *terrain_name(TileType type) {
 static void handle_overworld_input(GameState *gs, int key) {
     Direction dir = key_to_direction(key);
     if (dir != DIR_NONE) {
+        /* Drunkenness: chance of random direction */
+        if (gs->drunk_turns > 0) {
+            int stumble_chance = 0;
+            if (gs->beers_drunk >= 4) stumble_chance = 40;
+            else if (gs->beers_drunk >= 3) stumble_chance = 25;
+            else if (gs->beers_drunk >= 2) stumble_chance = 10;
+            if (rng_chance(stumble_chance)) {
+                dir = rng_range(0, 7);
+                log_add(&gs->log, gs->turn, CP_YELLOW, "You stumble drunkenly...");
+            }
+            gs->drunk_turns--;
+            if (gs->drunk_turns <= 0) {
+                gs->beers_drunk = 0;
+                log_add(&gs->log, gs->turn, CP_GREEN, "You sober up. Your head clears.");
+            }
+        }
+
         int nx = gs->player_pos.x + dir_dx[dir];
         int ny = gs->player_pos.y + dir_dy[dir];
+
+        /* Bounds check */
+        if (nx < 0 || nx >= OW_WIDTH || ny < 0 || ny >= OW_HEIGHT) return;
 
         TileType tt = gs->overworld->map[ny][nx].type;
         char target_glyph = gs->overworld->map[ny][nx].glyph;
@@ -755,6 +775,41 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
         }
         break;
+    case NPC_DOG:
+        {
+            const char *barks[] = {
+                "The dog barks happily and wags its tail!",
+                "The dog sniffs your hand and licks it.",
+                "Woof! The dog rolls over for a belly rub.",
+                "The dog follows you for a moment, then gets distracted.",
+            };
+            int n = sizeof(barks) / sizeof(barks[0]);
+            log_add(&gs->log, gs->turn, CP_BROWN, "%s", barks[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_CAT:
+        {
+            const char *meows[] = {
+                "The cat purrs and rubs against your leg.",
+                "The cat stares at you with disdain, then walks away.",
+                "Meow! The cat yawns and stretches lazily.",
+                "The cat hisses and darts behind a building.",
+            };
+            int n = sizeof(meows) / sizeof(meows[0]);
+            log_add(&gs->log, gs->turn, CP_YELLOW, "%s", meows[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_CHICKEN:
+        {
+            const char *clucks[] = {
+                "Bawk! The chicken flutters away in a panic.",
+                "The chicken pecks at the ground, ignoring you.",
+                "Cluck cluck! A feather drifts to the ground.",
+            };
+            int n = sizeof(clucks) / sizeof(clucks[0]);
+            log_add(&gs->log, gs->turn, CP_WHITE, "%s", clucks[rng_range(0, n - 1)]);
+        }
+        break;
     default:
         break;
     }
@@ -839,6 +894,7 @@ static void town_do_inn(GameState *gs) {
     mvprintw(row++, 4, "The innkeeper nods as you enter.");
     row++;
     mvprintw(row++, 4, "[r] Rest until morning (%dg)", td->inn_cost);
+    mvprintw(row++, 4, "[n] Rest until nightfall (%dg)", td->inn_cost);
     mvprintw(row++, 4, "[b] Buy a %s (%dg)", td->beer_name, td->beer_cost);
     mvprintw(row++, 4, "[q] Leave the inn");
     row++;
@@ -848,6 +904,24 @@ static void town_do_inn(GameState *gs) {
 
     int key = ui_getkey();
     if (key == 'r') town_do_inn_rest(gs);
+    else if (key == 'n') {
+        /* Rest until nightfall */
+        const TownDef *td2 = gs->current_town;
+        if (gs->gold < td2->inn_cost) {
+            log_add(&gs->log, gs->turn, CP_RED, "You cannot afford to rest here.");
+            return;
+        }
+        gs->gold -= td2->inn_cost;
+        gs->hp = gs->max_hp;
+        gs->mp = gs->max_mp;
+        int old_hour = gs->hour;
+        if (gs->hour < 19) { gs->hour = 19; } else { gs->day++; gs->hour = 19; }
+        gs->minute = 0;
+        advance_time(gs, 0);
+        check_lunar_events(gs, old_hour);
+        log_add(&gs->log, gs->turn, CP_GREEN,
+                 "You rest until nightfall. HP and MP fully restored.");
+    }
     else if (key == 'b') town_do_inn_beer(gs);
 }
 
@@ -866,6 +940,9 @@ static void town_do_church(GameState *gs) {
     mvprintw(row++, 4, "[d] Donate gold (+1 chivalry per 20g)");
     if (!gs->confessed && gs->chivalry < 50)
         mvprintw(row++, 4, "[c] Confession (+3 chivalry)");
+    attron(COLOR_PAIR(CP_RED));
+    mvprintw(row++, 4, "[l] Loot the church (-12 chivalry!)");
+    attroff(COLOR_PAIR(CP_RED));
     mvprintw(row++, 4, "[q] Leave the church");
     row++;
     mvprintw(row++, 4, "Gold: %d  |  Chivalry: %d", gs->gold, gs->chivalry);
@@ -897,6 +974,15 @@ static void town_do_church(GameState *gs) {
         gs->confessed = true;
         log_add(&gs->log, gs->turn, CP_WHITE,
                  "\"Your sins are forgiven. Go forth and do good.\" (+3 chivalry)");
+    } else if (key == 'l') {
+        int loot = rng_range(50, 100);
+        gs->gold += loot;
+        gs->chivalry -= 12;
+        if (gs->chivalry < 0) gs->chivalry = 0;
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "You steal %d gold from the collection plate! SACRILEGE! (-12 chivalry)", loot);
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "The priest cries out in horror. You are no longer welcome here.");
     }
 }
 
@@ -1182,6 +1268,7 @@ static void handle_town_input(GameState *gs, int key) {
             gs->town_player_pos.x = nx;
             gs->town_player_pos.y = ny;
             advance_time(gs, 1);
+            town_move_npcs(tm, gs->town_player_pos);  /* NPCs wander each turn */
         }
         return;
     }

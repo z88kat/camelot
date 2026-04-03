@@ -1,4 +1,5 @@
 #include "town.h"
+#include "rng.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -199,13 +200,14 @@ static void carve_building(TownMap *tm, int x, int y, int w, int h, int door_sid
 
 /* Add an NPC inside a building */
 static void add_npc(TownMap *tm, TownNPCType type, int x, int y,
-                    char glyph, short cp, const char *label) {
+                    char glyph, short cp, const char *label, bool wanders) {
     if (tm->num_npcs >= MAX_TOWN_NPCS) return;
     TownNPC *npc = &tm->npcs[tm->num_npcs++];
     npc->type = type;
     npc->pos = (Vec2){ x, y };
     npc->glyph = glyph;
     npc->color_pair = cp;
+    npc->wanders = wanders;
     snprintf(npc->label, MAX_NAME, "%s", label);
 }
 
@@ -281,7 +283,7 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
         int npc_x = s->x + bw / 2;
         int npc_y = (s->door_side == 0) ? s->y + 2 : s->y + bh - 3;
         add_npc(tm, buildings[i].ntype, npc_x, npc_y,
-                buildings[i].glyph, buildings[i].cp, buildings[i].label);
+                buildings[i].glyph, buildings[i].cp, buildings[i].label, false);
 
         /* Label above the door */
         int label_y = (s->door_side == 0) ? s->y + bh : s->y - 1;
@@ -301,12 +303,18 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
     /* Well -- place in the courtyard if available */
     if (td->services & SVC_WELL) {
         int wx = TOWN_MAP_W / 2 + 5, wy = TOWN_MAP_H / 2 + 3;
-        add_npc(tm, NPC_WELL, wx, wy, 'O', CP_BLUE, "Well");
+        add_npc(tm, NPC_WELL, wx, wy, 'O', CP_BLUE, "Well", false);
     }
 
-    /* A few townfolk for atmosphere */
-    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 - 3, TOWN_MAP_H / 2 + 1, '@', CP_WHITE, "Townfolk");
-    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 + 4, TOWN_MAP_H / 2 - 1, '@', CP_WHITE, "Townfolk");
+    /* Townfolk who wander around */
+    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 - 3, TOWN_MAP_H / 2 + 1, '@', CP_WHITE, "Townfolk", true);
+    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 + 4, TOWN_MAP_H / 2 - 1, '@', CP_WHITE, "Townfolk", true);
+    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 4, TOWN_MAP_H / 2, '@', CP_WHITE, "Townfolk", true);
+
+    /* Animals wandering the town */
+    add_npc(tm, NPC_DOG, TOWN_MAP_W / 2 + 8, TOWN_MAP_H / 2 + 2, 'd', CP_BROWN, "Dog", true);
+    add_npc(tm, NPC_CAT, TOWN_MAP_W / 2 - 6, TOWN_MAP_H / 2 - 2, 'c', CP_YELLOW, "Cat", true);
+    add_npc(tm, NPC_CHICKEN, TOWN_MAP_W / 3, TOWN_MAP_H / 2 + 3, 'k', CP_WHITE, "Chicken", true);
 }
 
 TownNPC *town_npc_at(TownMap *tm, int x, int y) {
@@ -315,6 +323,36 @@ TownNPC *town_npc_at(TownMap *tm, int x, int y) {
             return &tm->npcs[i];
     }
     return NULL;
+}
+
+void town_move_npcs(TownMap *tm, Vec2 player_pos) {
+    for (int i = 0; i < tm->num_npcs; i++) {
+        TownNPC *npc = &tm->npcs[i];
+        if (!npc->wanders) continue;
+
+        /* Only move ~40% of turns for a natural wandering pace */
+        if (!rng_chance(40)) continue;
+
+        /* Pick a random cardinal direction */
+        int dirs[4][2] = { {0,-1}, {0,1}, {-1,0}, {1,0} };
+        int d = rng_range(0, 3);
+        /* Try a few directions if the first is blocked */
+        for (int tries = 0; tries < 4; tries++) {
+            int dd = (d + tries) & 3;
+            int nx = npc->pos.x + dirs[dd][0];
+            int ny = npc->pos.y + dirs[dd][1];
+
+            if (nx <= 1 || nx >= TOWN_MAP_W - 2 || ny <= 1 || ny >= TOWN_MAP_H - 2)
+                continue;
+            if (!tm->map[ny][nx].passable) continue;
+            if (town_npc_at(tm, nx, ny)) continue;  /* don't step on another NPC */
+            if (nx == player_pos.x && ny == player_pos.y) continue;  /* don't step on player */
+
+            npc->pos.x = nx;
+            npc->pos.y = ny;
+            break;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
