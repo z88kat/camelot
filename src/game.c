@@ -393,12 +393,57 @@ static void handle_overworld_input(GameState *gs, int key) {
         int nx = gs->player_pos.x + dir_dx[dir];
         int ny = gs->player_pos.y + dir_dy[dir];
 
-        if (!overworld_is_passable(gs->overworld, nx, ny)) {
-            TileType tt = gs->overworld->map[ny][nx].type;
+        TileType tt = gs->overworld->map[ny][nx].type;
+        char target_glyph = gs->overworld->map[ny][nx].glyph;
+        bool passable = gs->overworld->map[ny][nx].passable;
+
+        /* In a boat: water and lake tiles are passable */
+        if (gs->in_boat) {
+            if (tt == TILE_WATER || tt == TILE_LAKE) {
+                passable = true;
+            } else if (passable) {
+                /* Stepping from water onto land -- leave the boat at the water behind us */
+                int ox = gs->player_pos.x, oy = gs->player_pos.y;
+                Tile *boat_tile = &gs->overworld->map[oy][ox];
+                boat_tile->glyph = 'B';
+                boat_tile->color_pair = CP_BROWN;
+                boat_tile->passable = true;  /* can board it again later */
+                gs->in_boat = false;
+                log_add(&gs->log, gs->turn, CP_CYAN,
+                         "You reach the shore and step off the boat, leaving it behind.");
+            }
+        }
+
+        /* Stepping onto a boat tile from land -- board the boat and clear the tile */
+        if (!gs->in_boat && target_glyph == 'B' && passable) {
+            gs->in_boat = true;
+            /* Remove the boat from this tile -- we're taking it with us */
+            Tile *bt = &gs->overworld->map[ny][nx];
+            if (bt->type == TILE_LAKE || bt->type == TILE_WATER) {
+                /* Boat was on water (left by previous disembark) -- restore water */
+                bt->glyph = (bt->type == TILE_LAKE) ? 'o' : '~';
+                bt->color_pair = CP_BLUE;
+                bt->passable = false;
+            } else {
+                /* Boat was on a shore land tile -- restore the underlying terrain */
+                /* Re-derive what the land tile should look like */
+                bt->glyph = '"';
+                bt->color_pair = CP_GREEN;
+                bt->passable = true;
+            }
+            log_add(&gs->log, gs->turn, CP_CYAN,
+                     "You push a small boat into the water and climb aboard.");
+        }
+
+        if (!passable) {
             switch (tt) {
             case TILE_WATER:
-                log_add(&gs->log, gs->turn, CP_BLUE,
-                         "The sea stretches before you. You cannot swim that far.");
+                if (gs->in_boat)
+                    log_add(&gs->log, gs->turn, CP_BLUE,
+                             "The open sea is too dangerous. Stay close to the shore.");
+                else
+                    log_add(&gs->log, gs->turn, CP_BLUE,
+                             "The sea stretches before you. You cannot swim that far.");
                 break;
             case TILE_LAKE:
                 log_add(&gs->log, gs->turn, CP_BLUE,
@@ -481,6 +526,11 @@ static void handle_overworld_input(GameState *gs, int key) {
                          "A dark cave entrance in the hillside.");
                 break;
             default:
+                /* Check for player home by name */
+                if (loc && strcmp(loc->name, "Your Home") == 0) {
+                    log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                             "Home sweet home. Your storage chest awaits.");
+                }
                 break;
             }
         }
@@ -810,16 +860,17 @@ static void game_render(GameState *gs) {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         int moon = game_get_moon_day(gs);
+        const char *tname = gs->in_boat ? "Sailing" : terrain_name(t->type);
         if (loc) {
             snprintf(status, sizeof(status), "%s | %s | %s %s | Day %d %02d:%02d %s | %s",
-                     loc->name, terrain_name(t->type),
+                     loc->name, tname,
                      weather_icon(gs->weather), weather_name(gs->weather),
                      gs->day, gs->hour, gs->minute,
                      time_of_day_name(gs->hour),
                      moon_phase_name(moon));
         } else {
             snprintf(status, sizeof(status), "%s | %s %s | Day %d %02d:%02d %s | %s",
-                     terrain_name(t->type),
+                     tname,
                      weather_icon(gs->weather), weather_name(gs->weather),
                      gs->day, gs->hour, gs->minute,
                      time_of_day_name(gs->hour),

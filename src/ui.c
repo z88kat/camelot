@@ -128,34 +128,42 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
     mvprintw(row++, col, " Level %-10d", level);
     row++; /* blank line */
 
-    /* HP bar */
-    int hp_bars = (max_hp > 0) ? (hp * 10 / max_hp) : 0;
-    mvprintw(row, col, " HP: %3d/%-3d ", hp, max_hp);
-    for (int i = 0; i < 10; i++) {
-        if (i < hp_bars) {
-            attron(COLOR_PAIR(CP_GREEN));
-            addch(ACS_BLOCK);
-            attroff(COLOR_PAIR(CP_GREEN));
-        } else {
-            attron(COLOR_PAIR(CP_RED));
-            addch(ACS_BULLET);
-            attroff(COLOR_PAIR(CP_RED));
+    /* HP */
+    mvprintw(row++, col, " HP: %3d/%-3d", hp, max_hp);
+    {
+        int bar_len = 16;
+        int hp_bars = (max_hp > 0) ? (hp * bar_len / max_hp) : 0;
+        mvaddch(row, col, ' ');
+        for (int i = 0; i < bar_len; i++) {
+            if (i < hp_bars) {
+                attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
+                mvaddch(row, col + 1 + i, '=');
+                attroff(COLOR_PAIR(CP_GREEN) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(CP_RED));
+                mvaddch(row, col + 1 + i, '-');
+                attroff(COLOR_PAIR(CP_RED));
+            }
         }
     }
     row++;
 
-    /* MP bar */
-    int mp_bars = (max_mp > 0) ? (mp * 10 / max_mp) : 0;
-    mvprintw(row, col, " MP: %3d/%-3d ", mp, max_mp);
-    for (int i = 0; i < 10; i++) {
-        if (i < mp_bars) {
-            attron(COLOR_PAIR(CP_BLUE));
-            addch(ACS_BLOCK);
-            attroff(COLOR_PAIR(CP_BLUE));
-        } else {
-            attron(COLOR_PAIR(CP_CYAN));
-            addch(ACS_BULLET);
-            attroff(COLOR_PAIR(CP_CYAN));
+    /* MP */
+    mvprintw(row++, col, " MP: %3d/%-3d", mp, max_mp);
+    {
+        int bar_len = 16;
+        int mp_bars = (max_mp > 0) ? (mp * bar_len / max_mp) : 0;
+        mvaddch(row, col, ' ');
+        for (int i = 0; i < bar_len; i++) {
+            if (i < mp_bars) {
+                attron(COLOR_PAIR(CP_CYAN) | A_BOLD);
+                mvaddch(row, col + 1 + i, '=');
+                attroff(COLOR_PAIR(CP_CYAN) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(CP_BLUE));
+                mvaddch(row, col + 1 + i, '-');
+                attroff(COLOR_PAIR(CP_BLUE));
+            }
         }
     }
     row++;

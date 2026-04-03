@@ -42,6 +42,7 @@ typedef struct {
     int        mp, max_mp;
     int        str, def, intel, spd;
     int        gold;
+    bool       in_boat;     /* currently sailing across water */
     int        weight, max_weight;
     int        chivalry;
 

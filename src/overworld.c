@@ -349,6 +349,33 @@ static void draw_lake(Overworld *ow, int cx, int cy, int radius) {
             }
         }
     }
+
+    /* Place a boat on the shore of the lake */
+    /* Scan outward from center, find first land tile adjacent to lake water */
+    for (int r = radius; r <= radius + 5; r++) {
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (dx*dx + dy*dy < radius*radius) continue;  /* inside the lake */
+                if (dx*dx + dy*dy > (r+1)*(r+1)) continue;    /* too far out */
+                int x = cx + dx, y = cy + dy;
+                if (x < 1 || x >= OW_WIDTH-1 || y < 1 || y >= OW_HEIGHT-1) continue;
+                Tile *t = &ow->map[y][x];
+                if (!t->passable) continue;
+                /* Check if adjacent to lake water */
+                bool adj_lake = false;
+                for (int d = 0; d < 8; d += 2) {
+                    int nx = x + dir_dx[d], ny = y + dir_dy[d];
+                    if (nx >= 0 && nx < OW_WIDTH && ny >= 0 && ny < OW_HEIGHT &&
+                        ow->map[ny][nx].type == TILE_LAKE)
+                        adj_lake = true;
+                }
+                if (adj_lake) {
+                    set_tile(t, TILE_BRIDGE, 'B', CP_BROWN, true);
+                    return;  /* one boat per lake */
+                }
+            }
+        }
+    }
 }
 
 /* Draw an island in the sea and place a boat on the nearest mainland shore */
@@ -629,6 +656,7 @@ void overworld_init(Overworld *ow) {
 
     /* Active Castles */
     ow_add_location(ow, "Camelot Castle",   LOC_CASTLE_ACTIVE, 215, 162, '#', CP_YELLOW_BOLD);
+    ow_add_location(ow, "Your Home",        LOC_LANDMARK, 213, 163, 'h', CP_WHITE_BOLD);
     ow_add_location(ow, "Castle Surluise",  LOC_CASTLE_ACTIVE, 175, 131, '#', CP_WHITE);
     ow_add_location(ow, "Castle Lothian",   LOC_CASTLE_ACTIVE, 212, 48,  '#', CP_WHITE);
     ow_add_location(ow, "Castle Northumberland", LOC_CASTLE_ACTIVE, 262, 69, '#', CP_WHITE);
