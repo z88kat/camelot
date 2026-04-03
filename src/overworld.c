@@ -259,20 +259,65 @@ static void draw_road(Overworld *ow, int x0, int y0, int x1, int y1) {
     }
 }
 
-/* Draw a river from source to coast/edge */
+/* Draw a river from source toward a direction. Width 2-3 tiles for a real barrier. */
 static void draw_river(Overworld *ow, int x, int y, int dx, int dy, int len) {
     for (int i = 0; i < len; i++) {
         if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) break;
         Tile *t = &ow->map[y][x];
-        if (t->type == TILE_WATER || t->type == TILE_LAKE) break;
+        if (t->type == TILE_WATER) break;  /* reached the sea */
+
+        /* Draw river 2-3 tiles wide perpendicular to flow */
         set_river(t);
+        if (dx != 0) {
+            /* Flowing horizontally: widen vertically */
+            if (y > 0) set_river(&ow->map[y-1][x]);
+            if (y < OW_HEIGHT - 1 && (i % 3 != 0)) set_river(&ow->map[y+1][x]);
+        } else {
+            /* Flowing vertically: widen horizontally */
+            if (x > 0) set_river(&ow->map[y][x-1]);
+            if (x < OW_WIDTH - 1 && (i % 3 != 0)) set_river(&ow->map[y][x+1]);
+        }
+
         x += dx;
         y += dy;
-        /* Add some wandering */
-        if ((hash2d(x, y + i) & 7) == 0) {
+        /* Add some meandering */
+        if ((hash2d(x * 3, y + i * 7) & 7) == 0) {
             if (dx == 0) x += ((hash2d(x, y) & 1) ? 1 : -1);
             else         y += ((hash2d(x, y) & 1) ? 1 : -1);
         }
+    }
+}
+
+/* Draw a river between two points (for rivers that need specific routing) */
+static void draw_river_to(Overworld *ow, int x0, int y0, int x1, int y1) {
+    int x = x0, y = y0;
+    int steps = 0;
+    while ((x != x1 || y != y1) && steps < 500) {
+        if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) break;
+        Tile *t = &ow->map[y][x];
+        if (t->type == TILE_WATER) break;
+
+        set_river(t);
+        /* Widen to 2 tiles */
+        int pdx = (y1 != y0) ? 1 : 0;
+        int pdy = (x1 != x0) ? 1 : 0;
+        int wx = x + pdx, wy = y + pdy;
+        if (wx >= 0 && wx < OW_WIDTH && wy >= 0 && wy < OW_HEIGHT)
+            set_river(&ow->map[wy][wx]);
+
+        int adx = abs(x1 - x), ady = abs(y1 - y);
+        int sdx = (x1 > x) ? 1 : (x1 < x) ? -1 : 0;
+        int sdy = (y1 > y) ? 1 : (y1 < y) ? -1 : 0;
+
+        if (adx >= ady) x += sdx;
+        else            y += sdy;
+
+        /* Meander slightly */
+        if ((hash2d(x * 5, y * 3 + steps) & 7) == 0) {
+            if (adx >= ady && sdy == 0) y += ((hash2d(x, y) & 1) ? 1 : -1);
+            else if (sdx == 0) x += ((hash2d(x, y) & 1) ? 1 : -1);
+        }
+        steps++;
     }
 }
 
@@ -351,12 +396,43 @@ void overworld_init(Overworld *ow) {
         }
     }
 
-    /* Step 3: Rivers (scaled 1.25x) */
-    draw_river(ow, 225, 194, 3, 0, 75);    /* Thames */
-    draw_river(ow, 162, 119, 0, 2, 31);    /* Severn */
-    draw_river(ow, 262, 125, 2, -1, 38);   /* Trent */
-    draw_river(ow, 312, 102, 3, 0, 25);    /* Humber */
-    draw_river(ow, 250, 72, 3, 0, 31);     /* Tyne */
+    /* Step 3: Rivers -- wide enough to be barriers, need bridges to cross */
+
+    /* River Thames -- major east-west barrier across southern England */
+    draw_river_to(ow, 190, 190, 350, 185);
+
+    /* River Severn -- flows south through Welsh border country to Bristol Channel */
+    draw_river_to(ow, 140, 115, 130, 160);
+
+    /* River Trent -- flows northeast through the Midlands */
+    draw_river_to(ow, 240, 135, 310, 100);
+
+    /* River Humber -- estuary flowing east into the North Sea */
+    draw_river(ow, 290, 98, 3, 0, 30);
+
+    /* River Tyne -- flows east across northern England */
+    draw_river(ow, 220, 72, 3, 0, 35);
+
+    /* River Ouse (Yorkshire) -- flows south through York area */
+    draw_river_to(ow, 275, 80, 290, 98);
+
+    /* River Dee -- flows north along Welsh border */
+    draw_river_to(ow, 120, 140, 115, 112);
+
+    /* River Exe -- flows south through Devon */
+    draw_river_to(ow, 115, 195, 110, 215);
+
+    /* River Avon (Bristol) -- flows west to Bristol Channel */
+    draw_river_to(ow, 165, 172, 135, 168);
+
+    /* River Medway -- flows through Kent */
+    draw_river_to(ow, 350, 190, 365, 205);
+
+    /* River Tweed -- Scottish border */
+    draw_river(ow, 200, 62, 3, 0, 30);
+
+    /* River Clyde -- Scottish lowlands, flows west */
+    draw_river_to(ow, 180, 50, 140, 55);
 
     /* Step 4: Lakes (scaled 1.25x, radii +1) */
     draw_lake(ow, 148, 85, 4);    /* Lake District */
@@ -368,6 +444,13 @@ void overworld_init(Overworld *ow) {
     draw_lake(ow, 112, 125, 3);   /* Lake Bala (Wales) */
     draw_lake(ow, 150, 81, 4);    /* Windermere */
     draw_lake(ow, 200, 169, 4);   /* Lady of the Lake */
+    /* Norfolk Broads */
+    draw_lake(ow, 355, 125, 3);
+    draw_lake(ow, 360, 128, 2);
+    /* Llyn Tegid (larger Lake Bala) */
+    draw_lake(ow, 108, 128, 2);
+    /* Ullswater (Lake District) */
+    draw_lake(ow, 155, 82, 3);
 
     /* Step 5: Roads (scaled 1.25x) */
     draw_road(ow, 212, 162, 312, 181);   /* Camelot -> London */
