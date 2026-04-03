@@ -632,11 +632,11 @@ static void handle_overworld_input(GameState *gs, int key) {
                 break;
             case LOC_COTTAGE:
                 log_add(&gs->log, gs->turn, CP_BROWN,
-                         "A small cottage sits by the path.");
+                         "A small cottage sits by the path. Press Enter to go inside.");
                 break;
             case LOC_CAVE:
                 log_add(&gs->log, gs->turn, CP_GRAY,
-                         "A dark cave entrance in the hillside.");
+                         "A dark cave entrance in the hillside. Press Enter to explore.");
                 break;
             default:
                 /* Check for player home by name */
@@ -681,6 +681,297 @@ static void handle_overworld_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "%s has no services available.", loc->name);
             }
+        } else if (loc && loc->type == LOC_COTTAGE) {
+            if (loc->visited) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The cottage is abandoned. Nothing remains here.");
+                return;
+            }
+            loc->visited = true;
+
+            /* Draw cottage interior and random encounter */
+            ui_clear();
+            int term_rows, term_cols;
+            ui_get_size(&term_rows, &term_cols);
+
+            #define COT_W 12
+            #define COT_H 8
+            int ox = (term_cols - COT_W) / 2;
+            int oy = 2;
+
+            /* Draw cottage: walls, floor, door, fireplace, table */
+            for (int cy = 0; cy < COT_H; cy++) {
+                for (int cx = 0; cx < COT_W; cx++) {
+                    int sx = ox + cx, sy = oy + cy;
+                    if (cy == 0 || cy == COT_H - 1 || cx == 0 || cx == COT_W - 1) {
+                        attron(COLOR_PAIR(CP_BROWN));
+                        mvaddch(sy, sx, '#');
+                        attroff(COLOR_PAIR(CP_BROWN));
+                    } else {
+                        attron(COLOR_PAIR(CP_YELLOW));
+                        mvaddch(sy, sx, '.');
+                        attroff(COLOR_PAIR(CP_YELLOW));
+                    }
+                }
+            }
+            /* Door at bottom center */
+            attron(COLOR_PAIR(CP_BROWN));
+            mvaddch(oy + COT_H - 1, ox + COT_W / 2, '/');
+            attroff(COLOR_PAIR(CP_BROWN));
+            /* Fireplace */
+            attron(COLOR_PAIR(CP_RED) | A_BOLD);
+            mvaddch(oy + 1, ox + 1, '^');
+            attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+            /* Table */
+            attron(COLOR_PAIR(CP_BROWN));
+            mvaddch(oy + 3, ox + COT_W / 2, '=');
+            attroff(COLOR_PAIR(CP_BROWN));
+            /* Player at door */
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvaddch(oy + COT_H - 2, ox + COT_W / 2, '@');
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+            /* Title */
+            attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
+            mvprintw(oy - 1, ox, "A Small Cottage");
+            attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+
+            /* Random state */
+            int cot_roll = rng_range(1, 100);
+            int text_y = oy + COT_H + 1;
+
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(text_y++, ox - 10, "You push open the creaky door and step inside...");
+            text_y++;
+
+            if (cot_roll <= 30) {
+                /* Empty */
+                mvprintw(text_y++, ox - 10, "The cottage is abandoned. Dust covers everything.");
+                mvprintw(text_y++, ox - 10, "A cold fireplace and an empty table. You rest briefly.");
+                gs->hp += gs->max_hp / 4;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                gs->mp += gs->max_mp / 4;
+                if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(text_y++, ox - 10, "You rest and recover slightly. (+25%% HP/MP)");
+                attroff(COLOR_PAIR(CP_GREEN));
+            } else if (cot_roll <= 65) {
+                /* Friendly occupant */
+                /* Draw occupant */
+                attron(COLOR_PAIR(CP_WHITE) | A_BOLD);
+                mvaddch(oy + 2, ox + COT_W / 2 + 2, '@');
+                attroff(COLOR_PAIR(CP_WHITE) | A_BOLD);
+
+                int who = rng_range(1, 4);
+                if (who == 1) {
+                    mvprintw(text_y++, ox - 10, "A hermit sits by the fire. He looks up and smiles.");
+                    mvprintw(text_y++, ox - 10, "\"Sit, traveller. I know these lands well.\"");
+                    attron(COLOR_PAIR(CP_YELLOW));
+                    mvprintw(text_y++, ox - 10, "He shares rumours about a nearby dungeon.");
+                    attroff(COLOR_PAIR(CP_YELLOW));
+                } else if (who == 2) {
+                    mvprintw(text_y++, ox - 10, "A healer tends herbs by the window.");
+                    mvprintw(text_y++, ox - 10, "\"You look weary. Let me help.\"");
+                    gs->hp = gs->max_hp;
+                    attron(COLOR_PAIR(CP_GREEN));
+                    mvprintw(text_y++, ox - 10, "She heals your wounds. HP fully restored!");
+                    attroff(COLOR_PAIR(CP_GREEN));
+                } else if (who == 3) {
+                    mvprintw(text_y++, ox - 10, "A retired knight sits polishing a old sword.");
+                    mvprintw(text_y++, ox - 10, "\"Let me tell you about fighting, lad...\"");
+                    gs->str++;
+                    attron(COLOR_PAIR(CP_GREEN));
+                    mvprintw(text_y++, ox - 10, "His tales inspire you. +1 STR!");
+                    attroff(COLOR_PAIR(CP_GREEN));
+                } else {
+                    mvprintw(text_y++, ox - 10, "A peasant offers you bread and water.");
+                    mvprintw(text_y++, ox - 10, "\"Not much, but you're welcome to it.\"");
+                    gs->hp += gs->max_hp / 2;
+                    if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                    attron(COLOR_PAIR(CP_GREEN));
+                    mvprintw(text_y++, ox - 10, "The food restores you. (+50%% HP)");
+                    attroff(COLOR_PAIR(CP_GREEN));
+                }
+                gs->chivalry += 2;
+                if (gs->chivalry > 100) gs->chivalry = 100;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(text_y++, ox - 10, "You are grateful for the hospitality. (+2 chivalry)");
+                attroff(COLOR_PAIR(CP_YELLOW));
+            } else if (cot_roll <= 85) {
+                /* Hostile -- bandits (placeholder without combat) */
+                attron(COLOR_PAIR(CP_RED) | A_BOLD);
+                mvaddch(oy + 2, ox + 3, 'b');
+                mvaddch(oy + 3, ox + 8, 'b');
+                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+
+                mvprintw(text_y++, ox - 10, "Bandits! Two rough men lunge at you!");
+                int damage = rng_range(3, 8);
+                gs->hp -= damage;
+                if (gs->hp < 1) gs->hp = 1;
+                attron(COLOR_PAIR(CP_RED));
+                mvprintw(text_y++, ox - 10, "You fight them off but take %d damage.", damage);
+                attroff(COLOR_PAIR(CP_RED));
+                int loot = rng_range(8, 25);
+                gs->gold += loot;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(text_y++, ox - 10, "You find %d gold in their stash.", loot);
+                attroff(COLOR_PAIR(CP_YELLOW));
+            } else {
+                /* Special -- alchemist lab */
+                attron(COLOR_PAIR(CP_MAGENTA));
+                mvaddch(oy + 2, ox + 3, '!');
+                mvaddch(oy + 2, ox + 5, '!');
+                mvaddch(oy + 2, ox + 7, '!');
+                attroff(COLOR_PAIR(CP_MAGENTA));
+
+                mvprintw(text_y++, ox - 10, "An abandoned alchemist's laboratory!");
+                mvprintw(text_y++, ox - 10, "Bubbling potions line the shelves.");
+                int gold = rng_range(10, 30);
+                gs->gold += gold;
+                gs->mp += 10;
+                if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                attron(COLOR_PAIR(CP_MAGENTA));
+                mvprintw(text_y++, ox - 10, "You find %d gold and drink a mana potion. (+10 MP)", gold);
+                attroff(COLOR_PAIR(CP_MAGENTA));
+            }
+
+            attroff(COLOR_PAIR(CP_WHITE));
+            text_y++;
+            mvprintw(text_y, ox - 10, "Press any key to leave the cottage...");
+            ui_refresh();
+            ui_getkey();
+
+            log_add(&gs->log, gs->turn, CP_BROWN, "You leave the cottage.");
+
+        } else if (loc && loc->type == LOC_CAVE) {
+            if (loc->visited) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The cave is empty. You've already explored it.");
+                return;
+            }
+            loc->visited = true;
+
+            /* Draw cave interior */
+            ui_clear();
+            int term_rows2, term_cols2;
+            ui_get_size(&term_rows2, &term_cols2);
+
+            #define CAVE_W 10
+            #define CAVE_H 7
+            int cox = (term_cols2 - CAVE_W) / 2;
+            int coy = 2;
+
+            /* Draw cave: rough walls, dark floor */
+            for (int cy = 0; cy < CAVE_H; cy++) {
+                for (int cx = 0; cx < CAVE_W; cx++) {
+                    int sx = cox + cx, sy = coy + cy;
+                    double dist = (double)((cx - CAVE_W/2)*(cx - CAVE_W/2)) / 12.0 +
+                                  (double)((cy - CAVE_H/2)*(cy - CAVE_H/2)) / 8.0;
+                    if (dist > 1.0) {
+                        attron(COLOR_PAIR(CP_GRAY));
+                        mvaddch(sy, sx, '#');
+                        attroff(COLOR_PAIR(CP_GRAY));
+                    } else {
+                        attron(COLOR_PAIR(CP_GRAY));
+                        mvaddch(sy, sx, '.');
+                        attroff(COLOR_PAIR(CP_GRAY));
+                    }
+                }
+            }
+            /* Entrance */
+            attron(COLOR_PAIR(CP_BROWN));
+            mvaddch(coy + CAVE_H - 1, cox + CAVE_W / 2, '/');
+            attroff(COLOR_PAIR(CP_BROWN));
+            /* Player */
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvaddch(coy + CAVE_H - 2, cox + CAVE_W / 2, '@');
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+            attron(COLOR_PAIR(CP_GRAY) | A_BOLD);
+            mvprintw(coy - 1, cox, "A Dark Cave");
+            attroff(COLOR_PAIR(CP_GRAY) | A_BOLD);
+
+            int cave_roll = rng_range(1, 100);
+            int ct_y = coy + CAVE_H + 1;
+
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(ct_y++, cox - 10, "You squeeze through the narrow entrance...");
+            ct_y++;
+
+            if (cave_roll <= 25) {
+                mvprintw(ct_y++, cox - 10, "The cave is empty. A dry shelter, nothing more.");
+                gs->hp += gs->max_hp / 4;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(ct_y++, cox - 10, "You rest briefly. (+25%% HP)");
+                attroff(COLOR_PAIR(CP_GREEN));
+            } else if (cave_roll <= 55) {
+                /* Monster lair */
+                attron(COLOR_PAIR(CP_RED) | A_BOLD);
+                mvaddch(coy + 2, cox + CAVE_W / 2, 'B');
+                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+
+                mvprintw(ct_y++, cox - 10, "A bear growls from the shadows!");
+                int damage = rng_range(4, 10);
+                gs->hp -= damage;
+                if (gs->hp < 1) gs->hp = 1;
+                attron(COLOR_PAIR(CP_RED));
+                mvprintw(ct_y++, cox - 10, "The bear mauls you for %d damage!", damage);
+                attroff(COLOR_PAIR(CP_RED));
+                int loot = rng_range(5, 15);
+                gs->gold += loot;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(ct_y++, cox - 10, "You drive it off and find %d gold in its lair.", loot);
+                attroff(COLOR_PAIR(CP_YELLOW));
+            } else if (cave_roll <= 90) {
+                /* Hermit */
+                attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
+                mvaddch(coy + 2, cox + CAVE_W / 2, 'h');
+                attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+
+                mvprintw(ct_y++, cox - 10, "A hermit sits cross-legged, meditating.");
+                mvprintw(ct_y++, cox - 10, "\"Peace, traveller. Take this blessing.\"");
+                int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                int pick = rng_range(0, 3);
+                (*stats[pick])++;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(ct_y++, cox - 10, "The hermit blesses you. +1 %s!", names[pick]);
+                attroff(COLOR_PAIR(CP_GREEN));
+                gs->chivalry += 2;
+                if (gs->chivalry > 100) gs->chivalry = 100;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(ct_y++, cox - 10, "You respect his solitude. (+2 chivalry)");
+                attroff(COLOR_PAIR(CP_YELLOW));
+            } else {
+                /* Bandit hideout */
+                attron(COLOR_PAIR(CP_RED) | A_BOLD);
+                mvaddch(coy + 2, cox + 3, 'b');
+                mvaddch(coy + 3, cox + 6, 'b');
+                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+
+                mvprintw(ct_y++, cox - 10, "Bandits! They spring from the darkness!");
+                int damage = rng_range(2, 6);
+                gs->hp -= damage;
+                if (gs->hp < 1) gs->hp = 1;
+                attron(COLOR_PAIR(CP_RED));
+                mvprintw(ct_y++, cox - 10, "A scuffle! You take %d damage.", damage);
+                attroff(COLOR_PAIR(CP_RED));
+                int loot = rng_range(15, 40);
+                gs->gold += loot;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(ct_y++, cox - 10, "You defeat them and loot %d gold!", loot);
+                attroff(COLOR_PAIR(CP_YELLOW));
+            }
+
+            attroff(COLOR_PAIR(CP_WHITE));
+            ct_y++;
+            mvprintw(ct_y, cox - 10, "Press any key to leave the cave...");
+            ui_refresh();
+            ui_getkey();
+
+            log_add(&gs->log, gs->turn, CP_GRAY, "You leave the cave.");
+
         } else if (loc && loc->type == LOC_LANDMARK) {
             /* Landmark interactions */
             if (strcmp(loc->name, "Stonehenge") == 0 && !gs->stonehenge_used) {

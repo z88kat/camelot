@@ -735,16 +735,16 @@ void overworld_init(Overworld *ow) {
     ow_add_location(ow, "Castle Gaul",      LOC_CASTLE_ACTIVE, 400, 240, '#', CP_WHITE);
     ow_add_location(ow, "Castle Brittany",  LOC_CASTLE_ACTIVE, 340, 245, '#', CP_WHITE);
 
-    /* ---- Random cottages (10) scattered on grassland/road near roads ---- */
+    /* ---- Random cottages (25) scattered on grassland/road/forest ---- */
     {
         int placed = 0;
         int attempts = 0;
-        while (placed < 10 && attempts < 2000) {
+        while (placed < 25 && attempts < 5000) {
             int rx = rng_range(40, OW_WIDTH - 40);
             int ry = rng_range(20, OW_HEIGHT - 20);
             Tile *t = &ow->map[ry][rx];
-            if (t->passable && (t->type == TILE_GRASS || t->type == TILE_ROAD) &&
-                !overworld_location_at(ow, rx, ry)) {
+            if (t->passable && (t->type == TILE_GRASS || t->type == TILE_ROAD ||
+                t->type == TILE_FOREST) && !overworld_location_at(ow, rx, ry)) {
                 char name[MAX_NAME];
                 snprintf(name, MAX_NAME, "Cottage");
                 ow_add_location(ow, name, LOC_COTTAGE, rx, ry, 'n', CP_BROWN);
@@ -754,11 +754,11 @@ void overworld_init(Overworld *ow) {
         }
     }
 
-    /* ---- Random caves (6) in hills/mountains ---- */
+    /* ---- Random caves (12) in hills/mountains ---- */
     {
         int placed = 0;
         int attempts = 0;
-        while (placed < 6 && attempts < 2000) {
+        while (placed < 12 && attempts < 4000) {
             int rx = rng_range(40, OW_WIDTH - 40);
             int ry = rng_range(20, OW_HEIGHT - 20);
             Tile *t = &ow->map[ry][rx];

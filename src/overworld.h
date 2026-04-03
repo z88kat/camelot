@@ -28,6 +28,7 @@ typedef struct {
     char          glyph;
     short         color_pair;
     bool          discovered;
+    bool          visited;      /* for cottages/caves: has been explored */
     int           id;
 } Location;
 
