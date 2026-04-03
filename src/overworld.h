@@ -3,9 +3,9 @@
 
 #include "common.h"
 
-/* Overworld map dimensions (larger than viewport, scrolls) */
-#define OW_WIDTH   120
-#define OW_HEIGHT  40
+/* Overworld map dimensions -- 5x larger than original */
+#define OW_WIDTH   400
+#define OW_HEIGHT  200
 
 /* Location types on the overworld */
 typedef enum {
@@ -24,16 +24,16 @@ typedef enum {
 typedef struct {
     char          name[MAX_NAME];
     LocationType  type;
-    Vec2          pos;          /* position on overworld map */
+    Vec2          pos;
     char          glyph;
     short         color_pair;
-    bool          discovered;   /* has player visited/seen this? */
-    int           id;           /* index for lookups */
+    bool          discovered;
+    int           id;
 } Location;
 
-#define MAX_LOCATIONS 64
+#define MAX_LOCATIONS 128
 
-/* Overworld state */
+/* Overworld state -- allocated on heap due to size */
 typedef struct {
     Tile     map[OW_HEIGHT][OW_WIDTH];
     Location locations[MAX_LOCATIONS];

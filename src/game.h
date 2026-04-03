@@ -9,8 +9,8 @@ typedef struct {
     /* Dungeon map (used in MODE_DUNGEON) */
     Tile       dungeon_map[MAP_HEIGHT][MAP_WIDTH];
 
-    /* Overworld */
-    Overworld  overworld;
+    /* Overworld (heap-allocated due to size) */
+    Overworld  *overworld;
 
     /* Player */
     Vec2       player_pos;       /* current position (in whichever map is active) */

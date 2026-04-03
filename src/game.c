@@ -1,6 +1,7 @@
 #include "game.h"
 #include "ui.h"
 #include "rng.h"
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -153,8 +154,8 @@ static void handle_overworld_input(GameState *gs, int key) {
         int nx = gs->player_pos.x + dir_dx[dir];
         int ny = gs->player_pos.y + dir_dy[dir];
 
-        if (!overworld_is_passable(&gs->overworld, nx, ny)) {
-            TileType tt = gs->overworld.map[ny][nx].type;
+        if (!overworld_is_passable(gs->overworld, nx, ny)) {
+            TileType tt = gs->overworld->map[ny][nx].type;
             if (tt == TILE_WATER || tt == TILE_LAKE)
                 log_add(&gs->log, gs->turn, CP_BLUE, "The water blocks your path.");
             else if (tt == TILE_RIVER)
@@ -169,7 +170,7 @@ static void handle_overworld_input(GameState *gs, int key) {
         advance_time(gs);
 
         /* Check for a location at the new position */
-        Location *loc = overworld_location_at(&gs->overworld, nx, ny);
+        Location *loc = overworld_location_at(gs->overworld, nx, ny);
         if (loc) {
             if (!loc->discovered) {
                 loc->discovered = true;
@@ -208,7 +209,7 @@ static void handle_overworld_input(GameState *gs, int key) {
 
     /* Enter dungeon */
     if (key == '>') {
-        Location *loc = overworld_location_at(&gs->overworld,
+        Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc && (loc->type == LOC_DUNGEON_ENTRANCE || loc->type == LOC_VOLCANO)) {
             gs->ow_player_pos = gs->player_pos;
@@ -315,11 +316,12 @@ void game_init(GameState *gs) {
     gs->mode = MODE_OVERWORLD;
     gs->running = true;
 
-    /* Initialize overworld */
-    overworld_init(&gs->overworld);
+    /* Initialize overworld (heap allocated due to size) */
+    gs->overworld = calloc(1, sizeof(Overworld));
+    overworld_init(gs->overworld);
 
-    /* Place player at Camelot (45, 22) */
-    gs->player_pos = (Vec2){ 45, 22 };
+    /* Place player at Camelot */
+    gs->player_pos = (Vec2){ 170, 130 };
     gs->ow_player_pos = gs->player_pos;
 
     /* Initialize dungeon (test map for now) */
@@ -360,7 +362,7 @@ static void game_render(GameState *gs) {
         if (map_view_width > OW_WIDTH) map_view_width = OW_WIDTH;
         if (map_view_height > OW_HEIGHT) map_view_height = OW_HEIGHT;
 
-        ui_render_map_generic((Tile *)gs->overworld.map, OW_WIDTH, OW_HEIGHT,
+        ui_render_map_generic((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
                               gs->player_pos, map_view_width, map_view_height);
     } else if (gs->mode == MODE_DUNGEON) {
         if (map_view_width > MAP_WIDTH) map_view_width = MAP_WIDTH;
@@ -391,8 +393,8 @@ static void game_render(GameState *gs) {
 
     if (gs->mode == MODE_OVERWORLD) {
         /* Show terrain and location info */
-        Tile *t = &gs->overworld.map[gs->player_pos.y][gs->player_pos.x];
-        Location *loc = overworld_location_at(&gs->overworld,
+        Tile *t = &gs->overworld->map[gs->player_pos.y][gs->player_pos.x];
+        Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc) {
             snprintf(status, sizeof(status), "Overworld: %s | %s | Turn %d | Day %d %02d:%02d",
