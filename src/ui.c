@@ -24,7 +24,7 @@ bool ui_init(void) {
     init_pair(CP_RED,         COLOR_RED,     COLOR_BLACK);
     init_pair(CP_GREEN,       COLOR_GREEN,   COLOR_BLACK);
     init_pair(CP_YELLOW,      COLOR_YELLOW,  COLOR_BLACK);
-    init_pair(CP_BLUE,        COLOR_BLUE,    COLOR_BLACK);
+    init_pair(CP_BLUE,        COLOR_CYAN,    COLOR_BLACK);
     init_pair(CP_MAGENTA,     COLOR_MAGENTA, COLOR_BLACK);
     init_pair(CP_CYAN,        COLOR_CYAN,    COLOR_BLACK);
 

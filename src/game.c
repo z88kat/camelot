@@ -124,7 +124,21 @@ static void advance_time(GameState *gs, int minutes) {
     }
 }
 
-/* Get descriptive name for the time of day */
+/* ------------------------------------------------------------------ */
+/* Time of day                                                         */
+/* ------------------------------------------------------------------ */
+
+TimeOfDay game_get_tod(const GameState *gs) {
+    int h = gs->hour;
+    if (h >= 22 || h < 5)  return TOD_NIGHT;
+    if (h < 7)  return TOD_DAWN;
+    if (h < 12) return TOD_MORNING;
+    if (h < 14) return TOD_MIDDAY;
+    if (h < 17) return TOD_AFTERNOON;
+    if (h < 19) return TOD_DUSK;
+    return TOD_EVENING;
+}
+
 static const char *time_of_day_name(int hour) {
     if (hour >= 5 && hour < 7)   return "[Dawn]";
     if (hour >= 7 && hour < 12)  return "[Morning]";
@@ -135,18 +149,169 @@ static const char *time_of_day_name(int hour) {
     return "[Night]";
 }
 
-/* Get travel time in minutes for stepping onto an overworld tile */
-static int overworld_travel_time(TileType type) {
-    switch (type) {
-    case TILE_ROAD:    return 5;   /* fast travel */
-    case TILE_BRIDGE:  return 5;   /* same as road */
-    case TILE_GRASS:   return 10;  /* normal */
-    case TILE_FOREST:  return 20;  /* slow, dense undergrowth */
-    case TILE_HILLS:   return 25;  /* steep climbs */
-    case TILE_MARSH:   return 30;  /* boggy, treacherous */
-    case TILE_SWAMP:   return 35;  /* worst terrain, exhausting */
-    default:           return 10;
+static bool is_night(int hour) {
+    return hour >= 22 || hour < 5;
+}
+
+/* ------------------------------------------------------------------ */
+/* Moon phase                                                          */
+/* ------------------------------------------------------------------ */
+
+int game_get_moon_day(const GameState *gs) {
+    return ((gs->day - 1) % 30) + 1;
+}
+
+static const char *moon_phase_name(int moon_day) {
+    if (moon_day == 1)                    return "New Moon";
+    if (moon_day >= 2 && moon_day <= 7)   return "Waxing Crescent";
+    if (moon_day == 8)                    return "First Quarter";
+    if (moon_day >= 9 && moon_day <= 14)  return "Waxing Gibbous";
+    if (moon_day == 15)                   return "Full Moon";
+    if (moon_day >= 16 && moon_day <= 21) return "Waning Gibbous";
+    if (moon_day == 22)                   return "Last Quarter";
+    return "Waning Crescent";
+}
+
+/* Check for lunar event and notify player */
+static void check_lunar_events(GameState *gs, int old_hour) {
+    int moon = game_get_moon_day(gs);
+    /* Only notify once per day at dawn */
+    if (old_hour < 5 && gs->hour >= 5) {
+        switch (moon) {
+        case 1:
+            log_add(&gs->log, gs->turn, CP_CYAN, "New Moon tonight. The darkness will be absolute.");
+            break;
+        case 5:
+            log_add(&gs->log, gs->turn, CP_YELLOW, "Feast Day at Camelot! A grand celebration awaits.");
+            break;
+        case 10:
+            log_add(&gs->log, gs->turn, CP_YELLOW, "Market Day! Merchants gather in Camelot and London.");
+            break;
+        case 12:
+            log_add(&gs->log, gs->turn, CP_GREEN, "The Druid Gathering at Stonehenge begins today.");
+            break;
+        case 14:
+            log_add(&gs->log, gs->turn, CP_WHITE, "Tomorrow is the Full Moon. Beware the night...");
+            break;
+        case 15:
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "FULL MOON tonight! Werewolves roam. Stay indoors.");
+            break;
+        case 18:
+            log_add(&gs->log, gs->turn, CP_YELLOW, "Tournament Day! Jousting at a nearby castle.");
+            break;
+        case 20:
+            log_add(&gs->log, gs->turn, CP_WHITE, "Holy Day. Visit a shrine for double blessings.");
+            break;
+        case 22:
+            log_add(&gs->log, gs->turn, CP_MAGENTA, "The Witching Hour approaches. Dark magic stirs.");
+            break;
+        case 25:
+            log_add(&gs->log, gs->turn, CP_YELLOW, "King's Court today! Arthur holds court at Camelot.");
+            break;
+        case 27:
+            log_add(&gs->log, gs->turn, CP_CYAN, "Night of Spirits! The dead walk tonight.");
+            break;
+        case 30:
+            log_add(&gs->log, gs->turn, CP_GREEN, "Harvest Moon. Food is plentiful today.");
+            break;
+        default:
+            break;
+        }
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Weather                                                             */
+/* ------------------------------------------------------------------ */
+
+const char *weather_name(WeatherType w) {
+    switch (w) {
+    case WEATHER_CLEAR: return "Clear";
+    case WEATHER_RAIN:  return "Rain";
+    case WEATHER_STORM: return "Storm";
+    case WEATHER_FOG:   return "Fog";
+    case WEATHER_SNOW:  return "Snow";
+    case WEATHER_WIND:  return "Wind";
+    default:            return "Clear";
+    }
+}
+
+static const char *weather_icon(WeatherType w) {
+    switch (w) {
+    case WEATHER_CLEAR: return "*";
+    case WEATHER_RAIN:  return "/";
+    case WEATHER_STORM: return "!";
+    case WEATHER_FOG:   return "~";
+    case WEATHER_SNOW:  return "+";
+    case WEATHER_WIND:  return ">";
+    default:            return "*";
+    }
+}
+
+static void change_weather(GameState *gs) {
+    WeatherType old = gs->weather;
+
+    /* Weighted random: clear is most common */
+    int roll = rng_range(1, 100);
+    if (roll <= 40)      gs->weather = WEATHER_CLEAR;
+    else if (roll <= 60) gs->weather = WEATHER_RAIN;
+    else if (roll <= 70) gs->weather = WEATHER_STORM;
+    else if (roll <= 82) gs->weather = WEATHER_FOG;
+    else if (roll <= 90) gs->weather = WEATHER_SNOW;
+    else                 gs->weather = WEATHER_WIND;
+
+    gs->weather_turns_left = rng_range(100, 300);
+
+    if (gs->weather != old && gs->mode == MODE_OVERWORLD) {
+        switch (gs->weather) {
+        case WEATHER_CLEAR:
+            log_add(&gs->log, gs->turn, CP_YELLOW, "The skies clear. The sun shines warmly.");
+            break;
+        case WEATHER_RAIN:
+            log_add(&gs->log, gs->turn, CP_BLUE, "Dark clouds gather. Rain begins to fall.");
+            break;
+        case WEATHER_STORM:
+            log_add(&gs->log, gs->turn, CP_BLUE, "Thunder rumbles! A fierce storm breaks overhead.");
+            break;
+        case WEATHER_FOG:
+            log_add(&gs->log, gs->turn, CP_WHITE, "A thick fog rolls in. Visibility is poor.");
+            break;
+        case WEATHER_SNOW:
+            log_add(&gs->log, gs->turn, CP_WHITE_BOLD, "Snow begins to fall. The land turns white.");
+            break;
+        case WEATHER_WIND:
+            log_add(&gs->log, gs->turn, CP_CYAN, "A strong wind picks up, howling across the land.");
+            break;
+        }
+    }
+}
+
+/* Weather speed modifier (added to travel time) */
+static int weather_speed_penalty(WeatherType w) {
+    switch (w) {
+    case WEATHER_RAIN:  return 2;
+    case WEATHER_STORM: return 5;
+    case WEATHER_FOG:   return 1;
+    case WEATHER_SNOW:  return 4;
+    case WEATHER_WIND:  return 1;
+    default:            return 0;
+    }
+}
+
+/* Get travel time in minutes for stepping onto an overworld tile */
+static int overworld_travel_time(GameState *gs, TileType type) {
+    int base;
+    switch (type) {
+    case TILE_ROAD:    base = 5;  break;
+    case TILE_BRIDGE:  base = 5;  break;
+    case TILE_GRASS:   base = 10; break;
+    case TILE_FOREST:  base = 20; break;
+    case TILE_HILLS:   base = 25; break;
+    case TILE_MARSH:   base = 30; break;
+    case TILE_SWAMP:   base = 35; break;
+    default:           base = 10; break;
+    }
+    return base + weather_speed_penalty(gs->weather);
 }
 
 /* ------------------------------------------------------------------ */
@@ -218,8 +383,10 @@ static void handle_overworld_input(GameState *gs, int key) {
         gs->player_pos.x = nx;
         gs->player_pos.y = ny;
         TileType stepped_on = gs->overworld->map[ny][nx].type;
-        int travel_mins = overworld_travel_time(stepped_on);
+        int travel_mins = overworld_travel_time(gs, stepped_on);
+        int old_hour = gs->hour;
         advance_time(gs, travel_mins);
+        check_lunar_events(gs, old_hour);
 
         /* Check for a location at the new position */
         Location *loc = overworld_location_at(gs->overworld, nx, ny);
@@ -263,6 +430,36 @@ static void handle_overworld_input(GameState *gs, int key) {
             default:
                 break;
             }
+        }
+        return;
+    }
+
+    /* Camp on overworld */
+    if (key == 'c') {
+        TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+        if (here == TILE_GRASS || here == TILE_ROAD || here == TILE_FOREST) {
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "You make camp and rest for several hours...");
+            /* Advance 8 hours */
+            int old_hour = gs->hour;
+            advance_time(gs, 480);
+            /* Restore 50% HP/MP */
+            gs->hp += gs->max_hp / 2;
+            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+            gs->mp += gs->max_mp / 2;
+            if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "You feel rested. HP and MP partially restored.");
+            /* Night ambush chance */
+            if (is_night(gs->hour) && rng_chance(15)) {
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "You are awakened by sounds in the dark! (Ambush!)");
+                /* TODO: trigger encounter when combat is implemented */
+            }
+            check_lunar_events(gs, old_hour);
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You cannot camp here. Find grassland, a road, or a forest.");
         }
         return;
     }
@@ -425,6 +622,8 @@ void game_init(GameState *gs) {
     gs->day = 1;
     gs->hour = 8;
     gs->minute = 0;
+    gs->weather = WEATHER_CLEAR;
+    gs->weather_turns_left = rng_range(100, 200);
 
     /* Start on overworld at Camelot */
     gs->mode = MODE_OVERWORLD;
@@ -450,7 +649,13 @@ void game_init(GameState *gs) {
 }
 
 void game_update(GameState *gs) {
-    (void)gs;
+    /* Tick weather countdown */
+    if (gs->mode == MODE_OVERWORLD) {
+        gs->weather_turns_left--;
+        if (gs->weather_turns_left <= 0) {
+            change_weather(gs);
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -478,6 +683,47 @@ static void game_render(GameState *gs) {
 
         ui_render_map_generic((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
                               gs->player_pos, map_view_width, map_view_height);
+
+        /* Apply night/dusk/dawn dimming -- spare a radius around the player */
+        {
+            TimeOfDay tod = game_get_tod(gs);
+            bool do_dim = (tod == TOD_NIGHT || tod == TOD_EVENING ||
+                           tod == TOD_DUSK  || tod == TOD_DAWN);
+            if (do_dim) {
+                /* Player position in viewport coordinates */
+                int cam_x = gs->player_pos.x - map_view_width / 2;
+                int cam_y = gs->player_pos.y - map_view_height / 2;
+                if (cam_x < 0) cam_x = 0;
+                if (cam_y < 0) cam_y = 0;
+                if (cam_x + map_view_width > OW_WIDTH) cam_x = OW_WIDTH - map_view_width;
+                if (cam_y + map_view_height > OW_HEIGHT) cam_y = OW_HEIGHT - map_view_height;
+                int px = gs->player_pos.x - cam_x;
+                int py = gs->player_pos.y - cam_y;
+
+                /* Light radius: larger at dusk/dawn, smaller at night */
+                int light_r;
+                switch (tod) {
+                case TOD_DAWN:    light_r = 6; break;
+                case TOD_DUSK:    light_r = 5; break;
+                case TOD_EVENING: light_r = 4; break;
+                case TOD_NIGHT:   light_r = 3; break;
+                default:          light_r = 6; break;
+                }
+
+                for (int vy = 0; vy < map_view_height; vy++) {
+                    for (int vx = 0; vx < map_view_width; vx++) {
+                        int dx = vx - px;
+                        int dy = vy - py;
+                        int dist_sq = dx * dx + dy * dy;
+                        if (dist_sq <= light_r * light_r) continue; /* inside light radius */
+
+                        chtype ch = mvinch(vy, vx);
+                        if ((ch & A_CHARTEXT) == '@') continue;
+                        mvaddch(vy, vx, (ch & ~A_COLOR) | A_DIM | (ch & A_COLOR));
+                    }
+                }
+            }
+        }
     } else if (gs->mode == MODE_DUNGEON) {
         if (map_view_width > MAP_WIDTH) map_view_width = MAP_WIDTH;
 
@@ -510,21 +756,26 @@ static void game_render(GameState *gs) {
         Tile *t = &gs->overworld->map[gs->player_pos.y][gs->player_pos.x];
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
+        int moon = game_get_moon_day(gs);
         if (loc) {
-            snprintf(status, sizeof(status), "Overworld: %s | %s | Turn %d | Day %d %02d:%02d %s",
+            snprintf(status, sizeof(status), "%s | %s | %s %s | Day %d %02d:%02d %s | %s",
                      loc->name, terrain_name(t->type),
-                     gs->turn, gs->day, gs->hour, gs->minute,
-                     time_of_day_name(gs->hour));
+                     weather_icon(gs->weather), weather_name(gs->weather),
+                     gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour),
+                     moon_phase_name(moon));
         } else {
-            snprintf(status, sizeof(status), "Overworld: %s | Turn %d | Day %d %02d:%02d %s",
+            snprintf(status, sizeof(status), "%s | %s %s | Day %d %02d:%02d %s | %s",
                      terrain_name(t->type),
-                     gs->turn, gs->day, gs->hour, gs->minute,
-                     time_of_day_name(gs->hour));
+                     weather_icon(gs->weather), weather_name(gs->weather),
+                     gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour),
+                     moon_phase_name(moon));
         }
     } else {
-        snprintf(status, sizeof(status), "Dungeon | Turn %d | Day %d %02d:%02d %s",
-                 gs->turn, gs->day, gs->hour, gs->minute,
-                 time_of_day_name(gs->hour));
+        snprintf(status, sizeof(status), "Dungeon | Day %d %02d:%02d %s | Turn %d",
+                 gs->day, gs->hour, gs->minute,
+                 time_of_day_name(gs->hour), gs->turn);
     }
 
     ui_render_status_bar(status_row, term_cols, status);

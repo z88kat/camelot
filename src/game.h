@@ -5,6 +5,27 @@
 #include "log.h"
 #include "overworld.h"
 
+/* Weather types */
+typedef enum {
+    WEATHER_CLEAR,
+    WEATHER_RAIN,
+    WEATHER_STORM,
+    WEATHER_FOG,
+    WEATHER_SNOW,
+    WEATHER_WIND
+} WeatherType;
+
+/* Time of day periods */
+typedef enum {
+    TOD_NIGHT,      /* 22:00 - 04:59 */
+    TOD_DAWN,       /* 05:00 - 06:59 */
+    TOD_MORNING,    /* 07:00 - 11:59 */
+    TOD_MIDDAY,     /* 12:00 - 13:59 */
+    TOD_AFTERNOON,  /* 14:00 - 16:59 */
+    TOD_DUSK,       /* 17:00 - 18:59 */
+    TOD_EVENING     /* 19:00 - 21:59 */
+} TimeOfDay;
+
 typedef struct {
     /* Dungeon map (used in MODE_DUNGEON) */
     Tile       dungeon_map[MAP_HEIGHT][MAP_WIDTH];
@@ -13,8 +34,8 @@ typedef struct {
     Overworld  *overworld;
 
     /* Player */
-    Vec2       player_pos;       /* current position (in whichever map is active) */
-    Vec2       ow_player_pos;    /* saved overworld position (when entering dungeon) */
+    Vec2       player_pos;
+    Vec2       ow_player_pos;
     char       player_name[MAX_NAME];
     int        player_level;
     int        hp, max_hp;
@@ -30,6 +51,10 @@ typedef struct {
     int        hour;
     int        minute;
 
+    /* Weather */
+    WeatherType weather;
+    int         weather_turns_left;  /* turns until next weather change */
+
     /* State */
     GameMode   mode;
     bool       running;
@@ -37,6 +62,15 @@ typedef struct {
     /* Message log */
     MessageLog log;
 } GameState;
+
+/* Get current time of day. */
+TimeOfDay game_get_tod(const GameState *gs);
+
+/* Get moon phase day (1-30). */
+int game_get_moon_day(const GameState *gs);
+
+/* Get weather name string. */
+const char *weather_name(WeatherType w);
 
 /* Initialize a new game state. */
 void game_init(GameState *gs);
