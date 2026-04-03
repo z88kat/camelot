@@ -497,10 +497,17 @@ static void handle_overworld_input(GameState *gs, int key) {
 
             switch (loc->type) {
             case LOC_TOWN:
-            case LOC_CASTLE_ACTIVE:
-                log_add(&gs->log, gs->turn, CP_WHITE,
-                         "You arrive at %s. (Towns not yet implemented)", loc->name);
+            case LOC_CASTLE_ACTIVE: {
+                const TownDef *td = town_get_def(loc->name);
+                if (td) {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "You enter %s.", loc->name);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "You arrive at %s. Press Enter to enter.", loc->name);
+                }
                 break;
+            }
             case LOC_CASTLE_ABANDONED:
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "The ruins of %s loom before you.", loc->name);
@@ -533,6 +540,30 @@ static void handle_overworld_input(GameState *gs, int key) {
                 }
                 break;
             }
+        }
+        return;
+    }
+
+    /* Enter town */
+    if (key == '\n' || key == '\r' || key == KEY_ENTER) {
+        Location *loc = overworld_location_at(gs->overworld,
+                                               gs->player_pos.x, gs->player_pos.y);
+        if (loc && (loc->type == LOC_TOWN || loc->type == LOC_CASTLE_ACTIVE)) {
+            const TownDef *td = town_get_def(loc->name);
+            if (td) {
+                gs->current_town = td;
+                gs->mode = MODE_TOWN;
+                gs->well_explored = false;
+                gs->confessed = false;
+                gs->beers_drunk = 0;
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "You enter %s.", loc->name);
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "%s has no services available.", loc->name);
+            }
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing to enter here.");
         }
         return;
     }
@@ -641,6 +672,404 @@ static void handle_overworld_input(GameState *gs, int key) {
 /* Dungeon input                                                       */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Town menu system                                                    */
+/* ------------------------------------------------------------------ */
+
+static void town_render_menu(GameState *gs) {
+    ui_clear();
+    int term_rows, term_cols;
+    ui_get_size(&term_rows, &term_cols);
+
+    const TownDef *td = gs->current_town;
+    if (!td) return;
+
+    int row = 1;
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 2, "=== Welcome to %s ===", td->name);
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row++;
+
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 2, "Available services:");
+    row++;
+
+    char key_char = 'a';
+    if (td->services & SVC_INN) {
+        mvprintw(row++, 4, "[%c] Inn - Rest (%dg) / Drink %s (%dg)",
+                 key_char++, td->inn_cost, td->beer_name, td->beer_cost);
+    }
+    if (td->services & SVC_CHURCH) {
+        mvprintw(row++, 4, "[%c] Church - Pray / Donate / Confession", key_char++);
+    }
+    if (td->services & SVC_EQUIP_SHOP) {
+        mvprintw(row++, 4, "[%c] Equipment Shop (not yet stocked)", key_char++);
+    }
+    if (td->services & SVC_POTION_SHOP) {
+        mvprintw(row++, 4, "[%c] Potion Shop (not yet stocked)", key_char++);
+    }
+    if (td->services & SVC_PAWN_SHOP) {
+        mvprintw(row++, 4, "[%c] Pawn Shop (not yet stocked)", key_char++);
+    }
+    if (td->services & SVC_MYSTIC) {
+        mvprintw(row++, 4, "[%c] Mystic - Have your fortune told (5g)", key_char++);
+    }
+    if (td->services & SVC_BANK) {
+        mvprintw(row++, 4, "[%c] Bank - Deposit / Withdraw gold", key_char++);
+    }
+    if (td->services & SVC_WELL) {
+        if (gs->well_explored)
+            mvprintw(row++, 4, "[%c] Well (already explored)", key_char++);
+        else
+            mvprintw(row++, 4, "[%c] Well - Climb down and explore", key_char++);
+    }
+    if (td->services & SVC_STABLE) {
+        mvprintw(row++, 4, "[%c] Stable (horses not yet available)", key_char++);
+    }
+    row++;
+    mvprintw(row++, 4, "[q] Leave %s", td->name);
+    row += 2;
+
+    /* Player status */
+    mvprintw(row++, 2, "Gold: %d  |  HP: %d/%d  |  MP: %d/%d  |  Chivalry: %d",
+             gs->gold, gs->hp, gs->max_hp, gs->mp, gs->max_mp, gs->chivalry);
+    attroff(COLOR_PAIR(CP_WHITE));
+
+    /* Message log at bottom */
+    ui_render_log(&gs->log, term_rows - 3, term_cols, 3);
+    ui_refresh();
+}
+
+/* Map a keypress to a service based on which services are available */
+static int town_key_to_service(const TownDef *td, int key) {
+    if (key < 'a' || key > 'z') return -1;
+    int target = key - 'a';
+    int idx = 0;
+    int svc_flags[] = {
+        SVC_INN, SVC_CHURCH, SVC_EQUIP_SHOP, SVC_POTION_SHOP,
+        SVC_PAWN_SHOP, SVC_MYSTIC, SVC_BANK, SVC_WELL, SVC_STABLE
+    };
+    for (int i = 0; i < 9; i++) {
+        if (td->services & svc_flags[i]) {
+            if (idx == target) return svc_flags[i];
+            idx++;
+        }
+    }
+    return -1;
+}
+
+static void town_do_inn_rest(GameState *gs) {
+    const TownDef *td = gs->current_town;
+    if (gs->gold < td->inn_cost) {
+        log_add(&gs->log, gs->turn, CP_RED, "You cannot afford to rest here (%dg).", td->inn_cost);
+        return;
+    }
+    gs->gold -= td->inn_cost;
+    gs->hp = gs->max_hp;
+    gs->mp = gs->max_mp;
+
+    /* Advance to next morning */
+    int old_hour = gs->hour;
+    if (gs->hour >= 6) { gs->day++; }
+    gs->hour = 6;
+    gs->minute = 0;
+    advance_time(gs, 0);
+    check_lunar_events(gs, old_hour);
+
+    log_add(&gs->log, gs->turn, CP_GREEN,
+             "You rest at the inn. A warm bed and a good meal. HP and MP fully restored.");
+}
+
+static void town_do_inn_beer(GameState *gs) {
+    const TownDef *td = gs->current_town;
+    if (gs->gold < td->beer_cost) {
+        log_add(&gs->log, gs->turn, CP_RED, "You can't afford a drink.");
+        return;
+    }
+    gs->gold -= td->beer_cost;
+    gs->beers_drunk++;
+
+    switch (gs->beers_drunk) {
+    case 1:
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "You drink a pint of %s. You feel merry!", td->beer_name);
+        break;
+    case 2:
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Another %s! You feel tipsy...", td->beer_name);
+        gs->drunk_turns = 30;
+        break;
+    case 3:
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "A third %s! You are drunk. The room sways.", td->beer_name);
+        gs->drunk_turns = 50;
+        break;
+    case 4:
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "Yet another %s! You are very drunk!", td->beer_name);
+        gs->drunk_turns = 70;
+        break;
+    default:
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "You pass out face-first into your %s...", td->beer_name);
+        gs->drunk_turns = 100;
+        gs->hp = gs->max_hp / 2;
+        /* Advance 8 hours */
+        gs->hour += 8;
+        if (gs->hour >= 24) { gs->hour -= 24; gs->day++; }
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "You wake up outside the inn with a splitting headache.");
+        gs->beers_drunk = 0;
+        break;
+    }
+}
+
+static void town_do_inn(GameState *gs) {
+    ui_clear();
+    int row = 2;
+    const TownDef *td = gs->current_town;
+
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 2, "=== The Inn ===");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row++;
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 4, "The innkeeper nods as you enter.");
+    row++;
+    mvprintw(row++, 4, "[r] Rest until morning (%dg)", td->inn_cost);
+    mvprintw(row++, 4, "[b] Buy a %s (%dg)", td->beer_name, td->beer_cost);
+    mvprintw(row++, 4, "[q] Leave the inn");
+    row++;
+    mvprintw(row++, 4, "Gold: %d  |  Beers: %d", gs->gold, gs->beers_drunk);
+    attroff(COLOR_PAIR(CP_WHITE));
+    ui_refresh();
+
+    int key = ui_getkey();
+    if (key == 'r') town_do_inn_rest(gs);
+    else if (key == 'b') town_do_inn_beer(gs);
+}
+
+static void town_do_church(GameState *gs) {
+    ui_clear();
+    int row = 2;
+
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    mvprintw(row++, 2, "=== The Church ===");
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    row++;
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 4, "A priest tends the altar. Candles flicker softly.");
+    row++;
+    mvprintw(row++, 4, "[p] Pray (restore some HP/MP)");
+    mvprintw(row++, 4, "[d] Donate gold (+1 chivalry per 20g)");
+    if (!gs->confessed && gs->chivalry < 50)
+        mvprintw(row++, 4, "[c] Confession (+3 chivalry)");
+    mvprintw(row++, 4, "[q] Leave the church");
+    row++;
+    mvprintw(row++, 4, "Gold: %d  |  Chivalry: %d", gs->gold, gs->chivalry);
+    attroff(COLOR_PAIR(CP_WHITE));
+    ui_refresh();
+
+    int key = ui_getkey();
+    if (key == 'p') {
+        gs->hp += gs->max_hp / 4;
+        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+        gs->mp += gs->max_mp / 4;
+        if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+        log_add(&gs->log, gs->turn, CP_WHITE,
+                 "You kneel and pray. A sense of peace washes over you.");
+    } else if (key == 'd') {
+        if (gs->gold < 20) {
+            log_add(&gs->log, gs->turn, CP_RED, "You don't have enough gold to donate.");
+        } else {
+            int donate = 20;
+            gs->gold -= donate;
+            gs->chivalry++;
+            if (gs->chivalry > 100) gs->chivalry = 100;
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "The priest blesses you for your generosity. (+1 chivalry)");
+        }
+    } else if (key == 'c' && !gs->confessed && gs->chivalry < 50) {
+        gs->chivalry += 3;
+        if (gs->chivalry > 100) gs->chivalry = 100;
+        gs->confessed = true;
+        log_add(&gs->log, gs->turn, CP_WHITE,
+                 "\"Your sins are forgiven. Go forth and do good.\" (+3 chivalry)");
+    }
+}
+
+static void town_do_mystic(GameState *gs) {
+    if (gs->gold < 5) {
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "The mystic demands 5 gold. You cannot afford it.");
+        return;
+    }
+    gs->gold -= 5;
+
+    /* Random stat change */
+    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+    int stat_idx = rng_range(0, 3);
+    bool good = rng_chance(60);  /* 60% positive */
+
+    if (good) {
+        (*stats[stat_idx])++;
+        const char *msgs[] = {
+            "\"The stars favour your strength...\" (+1 STR)",
+            "\"Your shield shall not falter...\" (+1 DEF)",
+            "\"Wisdom flows through you...\" (+1 INT)",
+            "\"The wind is at your back...\" (+1 SPD)"
+        };
+        log_add(&gs->log, gs->turn, CP_MAGENTA, "%s", msgs[stat_idx]);
+    } else {
+        if (*stats[stat_idx] > 1) (*stats[stat_idx])--;
+        const char *msgs[] = {
+            "\"A dark cloud hangs over your might...\" (-1 STR)",
+            "\"Your guard weakens...\" (-1 DEF)",
+            "\"A fog clouds your mind...\" (-1 INT)",
+            "\"Your steps grow heavy...\" (-1 SPD)"
+        };
+        log_add(&gs->log, gs->turn, CP_MAGENTA, "%s", msgs[stat_idx]);
+    }
+}
+
+static void town_do_bank(GameState *gs) {
+    ui_clear();
+    int row = 2;
+
+    /* TODO: load bank balance from ~/.camelot/bank.dat for persistence */
+    static int bank_balance = 0;  /* placeholder until save system */
+
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 2, "=== The Bank ===");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row++;
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 4, "The banker greets you. \"How may I help?\"");
+    row++;
+    mvprintw(row++, 4, "Bank balance: %d gold", bank_balance);
+    mvprintw(row++, 4, "Your gold:    %d", gs->gold);
+    row++;
+    mvprintw(row++, 4, "[d] Deposit 50 gold (5%% fee)");
+    mvprintw(row++, 4, "[D] Deposit all gold (5%% fee)");
+    mvprintw(row++, 4, "[w] Withdraw 50 gold");
+    mvprintw(row++, 4, "[W] Withdraw all gold");
+    mvprintw(row++, 4, "[q] Leave the bank");
+    attroff(COLOR_PAIR(CP_WHITE));
+    ui_refresh();
+
+    int key = ui_getkey();
+    if (key == 'd') {
+        int amount = 50;
+        if (gs->gold < amount) amount = gs->gold;
+        if (amount <= 0) { log_add(&gs->log, gs->turn, CP_RED, "You have no gold to deposit."); return; }
+        int fee = amount * 5 / 100;
+        if (fee < 1) fee = 1;
+        gs->gold -= amount;
+        bank_balance += (amount - fee);
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Deposited %d gold (fee: %d). Bank balance: %d", amount, fee, bank_balance);
+    } else if (key == 'D') {
+        int amount = gs->gold;
+        if (amount <= 0) { log_add(&gs->log, gs->turn, CP_RED, "You have no gold to deposit."); return; }
+        int fee = amount * 5 / 100;
+        if (fee < 1) fee = 1;
+        gs->gold = 0;
+        bank_balance += (amount - fee);
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Deposited %d gold (fee: %d). Bank balance: %d", amount, fee, bank_balance);
+    } else if (key == 'w') {
+        int amount = 50;
+        if (bank_balance < amount) amount = bank_balance;
+        if (amount <= 0) { log_add(&gs->log, gs->turn, CP_RED, "No gold in the bank."); return; }
+        bank_balance -= amount;
+        gs->gold += amount;
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Withdrew %d gold. Bank balance: %d", amount, bank_balance);
+    } else if (key == 'W') {
+        if (bank_balance <= 0) { log_add(&gs->log, gs->turn, CP_RED, "No gold in the bank."); return; }
+        gs->gold += bank_balance;
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Withdrew %d gold. Bank balance: 0", bank_balance);
+        bank_balance = 0;
+    }
+}
+
+static void town_do_well(GameState *gs) {
+    if (gs->well_explored) {
+        log_add(&gs->log, gs->turn, CP_GRAY, "You already explored the well today.");
+        return;
+    }
+    gs->well_explored = true;
+
+    int roll = rng_range(1, 100);
+    if (roll <= 40) {
+        /* Found treasure */
+        int gold_found = rng_range(5, 30);
+        gs->gold += gold_found;
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "You climb down the well and find %d gold coins!", gold_found);
+    } else if (roll <= 60) {
+        /* Monster encounter (placeholder) */
+        int damage = rng_range(2, 6);
+        gs->hp -= damage;
+        if (gs->hp < 1) gs->hp = 1;
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "A rat bites you in the darkness! -%d HP", damage);
+        /* Small reward for surviving */
+        int gold_found = rng_range(3, 10);
+        gs->gold += gold_found;
+        log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold at the bottom.", gold_found);
+    } else {
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "The well is dry and empty. Nothing here.");
+    }
+}
+
+static void handle_town_input(GameState *gs, int key) {
+    if (key == 'q' || key == 'Q') {
+        gs->mode = MODE_OVERWORLD;
+        gs->current_town = NULL;
+        gs->beers_drunk = 0;
+        gs->well_explored = false;
+        gs->confessed = false;
+        log_add(&gs->log, gs->turn, CP_WHITE, "You leave the town.");
+        return;
+    }
+
+    int svc = town_key_to_service(gs->current_town, key);
+    switch (svc) {
+    case SVC_INN:
+        town_do_inn(gs);
+        break;
+    case SVC_CHURCH:
+        town_do_church(gs);
+        break;
+    case SVC_MYSTIC:
+        town_do_mystic(gs);
+        break;
+    case SVC_BANK:
+        town_do_bank(gs);
+        break;
+    case SVC_WELL:
+        town_do_well(gs);
+        break;
+    case SVC_EQUIP_SHOP:
+    case SVC_POTION_SHOP:
+    case SVC_PAWN_SHOP:
+        log_add(&gs->log, gs->turn, CP_GRAY, "The shop is not yet stocked. Come back later.");
+        break;
+    case SVC_STABLE:
+        log_add(&gs->log, gs->turn, CP_GRAY, "The stable master is away. No horses available yet.");
+        break;
+    default:
+        break;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dungeon input                                                       */
+/* ------------------------------------------------------------------ */
+
 static void handle_dungeon_input(GameState *gs, int key) {
     /* Ascend stairs to overworld */
     if (key == '<') {
@@ -680,7 +1109,8 @@ static void handle_dungeon_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 
 void game_handle_input(GameState *gs, int key) {
-    if (key == 'q' || key == 'Q') {
+    /* Quit -- but not in town mode (q leaves town instead) */
+    if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         gs->running = false;
         return;
     }
@@ -696,6 +1126,9 @@ void game_handle_input(GameState *gs, int key) {
     switch (gs->mode) {
     case MODE_OVERWORLD:
         handle_overworld_input(gs, key);
+        break;
+    case MODE_TOWN:
+        handle_town_input(gs, key);
         break;
     case MODE_DUNGEON:
         handle_dungeon_input(gs, key);
@@ -735,6 +1168,7 @@ void game_init(GameState *gs) {
     /* Initialize overworld (heap allocated due to size) */
     gs->overworld = calloc(1, sizeof(Overworld));
     overworld_init(gs->overworld);
+    town_init();
 
     /* Place player at Camelot (scaled coordinates) */
     gs->player_pos = (Vec2){ 212, 162 };
@@ -778,7 +1212,12 @@ static void game_render(GameState *gs) {
         map_view_height = term_rows - LOG_LINES - 2;
     if (map_view_height < 5) map_view_height = 5;
 
-    /* Render the appropriate map */
+    /* Render the appropriate map / screen */
+    if (gs->mode == MODE_TOWN) {
+        town_render_menu(gs);
+        return;  /* town renders its own full screen */
+    }
+
     if (gs->mode == MODE_OVERWORLD) {
         /* Clamp view to overworld dimensions */
         if (map_view_width > OW_WIDTH) map_view_width = OW_WIDTH;

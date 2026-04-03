@@ -135,9 +135,51 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `>` | Descend stairs |
 | `<` | Ascend stairs |
 
-### Actions
+### Overworld Actions
 | Key | Action |
 |-----|--------|
+| `Enter` | Enter a town or castle |
+| `>` | Descend into a dungeon entrance |
+| `c` | Camp (rest 8 hours, restore 50% HP/MP) |
+| `M` | Minimap (full overworld overview) |
+| `d` | Dismount horse |
+| `x` | Dig (treasure maps) |
+
+### Town Menu
+| Key | Action |
+|-----|--------|
+| `a`-`i` | Select a service (inn, church, shop, etc.) |
+| `q` | Leave the town |
+
+#### Inn
+| Key | Action |
+|-----|--------|
+| `r` | Rest until morning (costs gold, full HP/MP) |
+| `b` | Buy a beer (local brew, risk drunkenness!) |
+| `q` | Leave the inn |
+
+#### Church
+| Key | Action |
+|-----|--------|
+| `p` | Pray (restore 25% HP/MP, free) |
+| `d` | Donate gold (+1 chivalry per 20g) |
+| `c` | Confession (+3 chivalry, once per visit) |
+| `q` | Leave the church |
+
+#### Bank
+| Key | Action |
+|-----|--------|
+| `d` | Deposit 50 gold (5% fee) |
+| `D` | Deposit all gold (5% fee) |
+| `w` | Withdraw 50 gold |
+| `W` | Withdraw all gold |
+| `q` | Leave the bank |
+
+### Dungeon Actions
+| Key | Action |
+|-----|--------|
+| `<` | Ascend stairs (return to overworld from level 1) |
+| `>` | Descend stairs |
 | `g` | Pick up item |
 | `i` | Open inventory |
 | `z` | Cast a spell |
@@ -148,13 +190,10 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `c` | Close door |
 | `s` | Search adjacent walls for secret doors |
 | `D` | Disarm trap |
-| `x` | Dig (treasure maps) |
-| `d` | Dismount horse |
-| `p` | Play instrument (Tristan's Harp) |
 | `J` | Quest journal |
 | `S` | Save game |
 
-### UI
+### UI (all modes)
 | Key | Action |
 |-----|--------|
 | `?` | Help system |
@@ -162,8 +201,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `@` | Full character sheet |
 | `Ctrl+P` | Message history |
 | `=` | Settings |
-| `M` | Minimap (overworld overview) |
-| `q` | Quit game |
+| `q` | Quit (overworld/dungeon) or leave (town) |
 
 ## Player Guide
 
