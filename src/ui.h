@@ -14,7 +14,11 @@ void ui_shutdown(void);
 /* Get terminal dimensions. */
 void ui_get_size(int *rows, int *cols);
 
-/* Render the map viewport centered on the player. */
+/* Render a map viewport centered on the player (generic, any dimensions). */
+void ui_render_map_generic(Tile *map, int map_w, int map_h,
+                           Vec2 player_pos, int view_width, int view_height);
+
+/* Render dungeon map (MAP_WIDTH x MAP_HEIGHT). */
 void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
                    int view_width, int view_height);
 

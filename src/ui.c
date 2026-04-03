@@ -61,8 +61,8 @@ void ui_get_size(int *rows, int *cols) {
     getmaxyx(stdscr, *rows, *cols);
 }
 
-void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
-                   int view_width, int view_height) {
+void ui_render_map_generic(Tile *map, int map_w, int map_h,
+                           Vec2 player_pos, int view_width, int view_height) {
     /* Calculate camera offset to keep player centered */
     int cam_x = player_pos.x - view_width / 2;
     int cam_y = player_pos.y - view_height / 2;
@@ -70,21 +70,21 @@ void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
     /* Clamp camera to map bounds */
     if (cam_x < 0) cam_x = 0;
     if (cam_y < 0) cam_y = 0;
-    if (cam_x + view_width > MAP_WIDTH) cam_x = MAP_WIDTH - view_width;
-    if (cam_y + view_height > MAP_HEIGHT) cam_y = MAP_HEIGHT - view_height;
+    if (cam_x + view_width > map_w) cam_x = map_w - view_width;
+    if (cam_y + view_height > map_h) cam_y = map_h - view_height;
     if (cam_x < 0) cam_x = 0;
     if (cam_y < 0) cam_y = 0;
 
-    for (int vy = 0; vy < view_height && vy < MAP_HEIGHT; vy++) {
+    for (int vy = 0; vy < view_height; vy++) {
         int my = cam_y + vy;
-        for (int vx = 0; vx < view_width && vx < MAP_WIDTH; vx++) {
+        for (int vx = 0; vx < view_width; vx++) {
             int mx = cam_x + vx;
-            if (mx < 0 || mx >= MAP_WIDTH || my < 0 || my >= MAP_HEIGHT) {
+            if (mx < 0 || mx >= map_w || my < 0 || my >= map_h) {
                 mvaddch(vy, vx, ' ');
                 continue;
             }
 
-            Tile *t = &map[my][mx];
+            Tile *t = &map[my * map_w + mx];
             if (t->visible) {
                 attron(COLOR_PAIR(t->color_pair));
                 mvaddch(vy, vx, t->glyph);
@@ -107,6 +107,12 @@ void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
         mvaddch(py, px, '@');
         attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
     }
+}
+
+void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
+                   int view_width, int view_height) {
+    ui_render_map_generic((Tile *)map, MAP_WIDTH, MAP_HEIGHT,
+                          player_pos, view_width, view_height);
 }
 
 void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,

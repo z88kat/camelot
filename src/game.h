@@ -3,14 +3,18 @@
 
 #include "common.h"
 #include "log.h"
+#include "overworld.h"
 
-/* Minimal game state for Phase 1 */
 typedef struct {
-    /* Map */
-    Tile       map[MAP_HEIGHT][MAP_WIDTH];
+    /* Dungeon map (used in MODE_DUNGEON) */
+    Tile       dungeon_map[MAP_HEIGHT][MAP_WIDTH];
+
+    /* Overworld */
+    Overworld  overworld;
 
     /* Player */
-    Vec2       player_pos;
+    Vec2       player_pos;       /* current position (in whichever map is active) */
+    Vec2       ow_player_pos;    /* saved overworld position (when entering dungeon) */
     char       player_name[MAX_NAME];
     int        player_level;
     int        hp, max_hp;
@@ -46,7 +50,7 @@ void game_handle_input(GameState *gs, int key);
 /* Update game state after input. */
 void game_update(GameState *gs);
 
-/* Initialize the map with a simple test layout. */
+/* Initialize the dungeon map with a simple test layout. */
 void game_init_test_map(GameState *gs);
 
 #endif /* GAME_H */
