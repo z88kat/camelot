@@ -62,7 +62,7 @@ void town_init(void) {
 
     /* Smaller towns */
     add_town("Cornwall",
-        SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC,
+        SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC | SVC_EQUIP_SHOP,
         5, 2, "Cornish Scrumpy");
 
     add_town("Wales",
@@ -70,7 +70,7 @@ void town_init(void) {
         5, 2, "Welsh Mead");
 
     add_town("Whitby",
-        SVC_INN | SVC_CHURCH | SVC_PAWN_SHOP,
+        SVC_INN | SVC_CHURCH | SVC_PAWN_SHOP | SVC_POTION_SHOP,
         12, 3, "Whitby Stout");  /* double price per plan */
 
     add_town("Llanthony",
@@ -78,12 +78,12 @@ void town_init(void) {
         4, 1, "Monk's Brew");
 
     add_town("Carbonek",
-        SVC_INN | SVC_CHURCH,
+        SVC_INN | SVC_CHURCH | SVC_PAWN_SHOP,
         6, 2, "Grail Ale");
 
     /* Island towns */
     add_town("Isle of Wight",
-        SVC_INN | SVC_PAWN_SHOP,
+        SVC_INN | SVC_PAWN_SHOP | SVC_EQUIP_SHOP,
         6, 2, "Island Bitter");
 
     add_town("Isle of Man",
@@ -91,11 +91,11 @@ void town_init(void) {
         7, 2, "Manx Ale");
 
     add_town("Anglesey",
-        SVC_INN | SVC_MYSTIC | SVC_WELL,
+        SVC_INN | SVC_MYSTIC | SVC_WELL | SVC_PAWN_SHOP,
         5, 2, "Anglesey Mead");
 
     add_town("Orkney",
-        SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC,
+        SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC | SVC_EQUIP_SHOP,
         8, 3, "Orkney Whisky");
 
     /* Active castles -- each has an inn and various services */

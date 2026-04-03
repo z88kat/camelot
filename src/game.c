@@ -1003,27 +1003,148 @@ static void town_do_well(GameState *gs) {
     }
     gs->well_explored = true;
 
+    /* Determine what's in the well */
     int roll = rng_range(1, 100);
-    if (roll <= 40) {
-        /* Found treasure */
-        int gold_found = rng_range(5, 30);
-        gs->gold += gold_found;
-        log_add(&gs->log, gs->turn, CP_YELLOW,
-                 "You climb down the well and find %d gold coins!", gold_found);
-    } else if (roll <= 60) {
-        /* Monster encounter (placeholder) */
+    bool has_treasure = (roll <= 40);
+    bool has_rat = (roll > 40 && roll <= 65);
+    (void)(roll); /* empty case handled by default */
+    int gold_found = has_treasure ? rng_range(8, 40) : (has_rat ? rng_range(3, 12) : 0);
+
+    /* Draw the well interior */
+    ui_clear();
+    int term_rows, term_cols;
+    ui_get_size(&term_rows, &term_cols);
+
+    /* Well map: 15 wide x 11 tall, centered */
+    #define WELL_W 15
+    #define WELL_H 11
+    int ox = (term_cols - WELL_W) / 2;
+    int oy = 2;
+
+    /* Title */
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    mvprintw(oy - 1, ox, "Bottom of the Well");
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+    /* Draw circular well with walls, floor, and water puddles */
+    for (int wy = 0; wy < WELL_H; wy++) {
+        for (int wx = 0; wx < WELL_W; wx++) {
+            int dx = wx - WELL_W / 2;
+            int dy = wy - WELL_H / 2;
+            double dist = (double)(dx * dx) / 25.0 + (double)(dy * dy) / 16.0;
+
+            int sx = ox + wx, sy = oy + wy;
+
+            if (dist > 1.1) {
+                /* Outside -- dark stone */
+                attron(COLOR_PAIR(CP_GRAY));
+                mvaddch(sy, sx, '#');
+                attroff(COLOR_PAIR(CP_GRAY));
+            } else if (dist > 0.9) {
+                /* Wall edge */
+                attron(COLOR_PAIR(CP_BROWN));
+                mvaddch(sy, sx, '#');
+                attroff(COLOR_PAIR(CP_BROWN));
+            } else {
+                /* Floor -- damp stone with occasional water */
+                int h = (wx * 31 + wy * 17) & 7;
+                if (h == 0) {
+                    attron(COLOR_PAIR(CP_BLUE));
+                    mvaddch(sy, sx, '~');
+                    attroff(COLOR_PAIR(CP_BLUE));
+                } else {
+                    attron(COLOR_PAIR(CP_GRAY));
+                    mvaddch(sy, sx, '.');
+                    attroff(COLOR_PAIR(CP_GRAY));
+                }
+            }
+        }
+    }
+
+    /* Ladder coming down from above */
+    int ladder_x = ox + WELL_W / 2;
+    attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
+    mvaddch(oy, ladder_x, 'H');
+    mvaddch(oy + 1, ladder_x, 'H');
+    attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+
+    /* Player at bottom of ladder */
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    mvaddch(oy + 2, ladder_x, '@');
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+    /* Chest in the well */
+    if (has_treasure || has_rat) {
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvaddch(oy + WELL_H / 2 + 1, ox + WELL_W / 2 - 2, '=');
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(oy + WELL_H / 2 + 1, ox + WELL_W / 2, " Chest");
+        attroff(COLOR_PAIR(CP_WHITE));
+    }
+
+    /* Rat if present */
+    if (has_rat) {
+        attron(COLOR_PAIR(CP_RED) | A_BOLD);
+        mvaddch(oy + WELL_H / 2, ox + WELL_W / 2 + 2, 'r');
+        attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+
+        attron(COLOR_PAIR(CP_RED));
+        mvprintw(oy + WELL_H / 2, ox + WELL_W / 2 + 4, "Rat!");
+        attroff(COLOR_PAIR(CP_RED));
+    }
+
+    /* Description text */
+    int text_y = oy + WELL_H + 1;
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(text_y++, ox - 5, "You climb down the slippery ladder...");
+    mvprintw(text_y++, ox - 5, "The air is cold and damp. Water drips from above.");
+    text_y++;
+
+    if (has_treasure) {
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(text_y++, ox - 5, "You find a chest! Inside: %d gold coins!", gold_found);
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    } else if (has_rat) {
+        attron(COLOR_PAIR(CP_RED));
+        mvprintw(text_y++, ox - 5, "A rat lunges at you from the shadows!");
+        attroff(COLOR_PAIR(CP_RED));
         int damage = rng_range(2, 6);
         gs->hp -= damage;
         if (gs->hp < 1) gs->hp = 1;
+        attron(COLOR_PAIR(CP_RED));
+        mvprintw(text_y++, ox - 5, "The rat bites you for %d damage!", damage);
+        attroff(COLOR_PAIR(CP_RED));
+        if (gold_found > 0) {
+            attron(COLOR_PAIR(CP_YELLOW));
+            mvprintw(text_y++, ox - 5, "You find %d gold in the chest after driving it off.", gold_found);
+            attroff(COLOR_PAIR(CP_YELLOW));
+        }
+    } else {
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(text_y++, ox - 5, "The well is dry. Nothing but damp stones and silence.");
+        attroff(COLOR_PAIR(CP_GRAY));
+    }
+
+    text_y++;
+    mvprintw(text_y, ox - 5, "Press any key to climb back up...");
+    attroff(COLOR_PAIR(CP_WHITE));
+
+    ui_refresh();
+    ui_getkey();
+
+    /* Apply rewards */
+    gs->gold += gold_found;
+    if (has_treasure) {
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "Found %d gold in the well!", gold_found);
+    } else if (has_rat) {
         log_add(&gs->log, gs->turn, CP_RED,
-                 "A rat bites you in the darkness! -%d HP", damage);
-        /* Small reward for surviving */
-        int gold_found = rng_range(3, 10);
-        gs->gold += gold_found;
-        log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold at the bottom.", gold_found);
+                 "Bitten by a rat in the well! Found %d gold.", gold_found);
     } else {
         log_add(&gs->log, gs->turn, CP_GRAY,
-                 "The well is dry and empty. Nothing here.");
+                 "The well was empty. Nothing but damp stones.");
     }
 }
 
@@ -1045,8 +1166,8 @@ static void handle_town_input(GameState *gs, int key) {
             return;
         }
 
-        /* Check for exit (walking off the bottom edge / through the gate) */
-        if (ny >= TOWN_MAP_H - 1) {
+        /* Check for exit -- only through the gate (open door on bottom wall) */
+        if (ny == TOWN_MAP_H - 1 && tm->map[ny][nx].type == TILE_DOOR_OPEN) {
             gs->mode = MODE_OVERWORLD;
             gs->current_town = NULL;
             gs->beers_drunk = 0;
