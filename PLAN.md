@@ -43,8 +43,7 @@
 - [ ] `data/dungeon_terrain.csv`
 - [ ] `data/time.csv`
 - [ ] `data/monster_abilities.csv`
-- [ ] `data/potions.csv` (if separate from items.csv)
-- [ ] `data/food.csv` (if separate from items.csv)
+*Note: rings, artifacts, potions, and food are rows in `data/items.csv` with appropriate type columns. Separate CSVs (`potions.csv`, `food.csv`) may be used if the data grows too large.*
 
 ## Context
 Building "Knights of Camelot" -- a full-featured terminal ASCII roguelike in C using ncurses. Theme: Knights of Camelot and the Quest for the Holy Grail. Features an overworld map of England with towns/villages, and multiple dungeons. The repo is empty (just README/LICENSE/.gitignore).
@@ -496,7 +495,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 
 ### Phase 5 -- Quest System
 - 10-15 side quests picked up from NPCs in inn taverns, in addition to the main Grail quest
-- Press `j` to open quest journal showing active/completed quests
+- Press `J` (capital J) to open quest journal showing active/completed quests
 - Quest types (mix of all three):
   - **Fetch quests** -- retrieve an item from a dungeon and return it to the quest giver
     - "Find my grandfather's shield in the Catacombs" (Camelot inn)
@@ -731,7 +730,6 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
   - **Adaptive layout**: detect terminal size with `getmaxyx()`. If terminal < 100 wide, collapse sidebar and show stats on top bar instead (classic roguelike layout). If very tall terminal (40+), show more message log lines
   - **Turn counter**: persists through save/load, drives all time-based systems (day/night, hunger, weather, king travel, witch timers, buff durations, etc.)
   - Death screen and high score table show total turns survived
-  - Death screen and high score table show total turns survived
 - Works in both dungeon and overworld encounter modes
 - **Result:** Enemies fight back, combat messages scroll
 
@@ -954,7 +952,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
    - Displayed on the full character sheet (`@` screen) and in the death screen / morgue file
    - NPCs occasionally reference appearance in dialogue flavour ("A [build] [hair] warrior approaches...")
 
-4. **Stats screen** -- base stats are randomly generated (rolled), modified by class and gender:
+5. **Stats screen** -- base stats are randomly generated (rolled), modified by class and gender:
    - Stats rolled: STR, DEF, INT, SPD (each 3-8 base, random) + class bonuses + gender bonuses
    - HP and MP derived from stats and class
    - Display all stats, starting gear, and starting spell clearly
@@ -962,7 +960,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
    - Press Enter/Return to **accept** and proceed
    - Starting spell shown: Knight = Shield, Wizard = Magic Missile, Ranger = Detect Traps
 
-5. **Cheat mode** (optional, hidden during character creation):
+6. **Cheat mode** (optional, hidden during character creation):
    - Press `C` (capital C) on the stats screen to open the cheat menu. Stats screen displays: "Press [r] to re-roll, [Enter] to accept, [C] for cheat options"
    - **Cheat options** (toggle on/off):
      - God Mode: HP set to 999, cannot die from damage
@@ -985,12 +983,12 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
    - Flag stored in GameState: `bool cheat_mode`. Once enabled, cannot be disabled for that run
    - Primarily for developer testing but left in for players who want to explore freely
 
-6. **Story screen** -- sets the scene and introduces the main quest:
+7. **Story screen** -- sets the scene and introduces the main quest:
    - Scrolling narrative text, atmospheric:
      ```
      The kingdom of Camelot is in peril.
-     The Holy Grail, long hidden in the depths beneath
-     Glastonbury Tor, holds the power to save the realm.
+     The Holy Grail, long hidden somewhere in the
+     depths of England, holds the power to save the realm.
      
      King Arthur has summoned you to his court.
      Seek an audience with the King in the
@@ -1178,7 +1176,8 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 - Full-screen overlay with scrollable content, navigate with arrow keys, `q` to close
 - **Commands tab** -- lists all keybindings organized by category:
   - Movement: hjklyubn / arrow keys, `>` `<` for stairs
-  - Actions: `g` pickup, `i` inventory, `z` spells, `j` journal, `S` save, `f` fire ranged, `o` open door, `c` close door, `s` search walls, `D` disarm trap, `t` throw item, `a` apply/use item on another item (e.g., pour holy water on weapon), `x` dig
+  - Actions: `g` pickup, `i` inventory, `z` spells, `J` journal, `S` save, `f` fire ranged, `o` open door, `c` close door, `s` search walls, `D` disarm trap, `t` throw item, `a` apply/use item on another item (e.g., pour holy water on weapon), `x` dig
+  - Context-sensitive keys: `c` = close door (dungeon) / camp (overworld). `s` = search walls (dungeon) / stash at home chest. `t` = throw (combat) / take from chest (home) / steal (shop). `h` = move left (normal) / haggle (shop UI). `b` = move down-left (normal) / blow horn (inventory use). These resolve by game mode (DUNGEON, OVERWORLD, TOWN, SHOP, HOME)
   - Movement: hjklyubn (8-dir) / arrow keys (4-dir) / numpad 1-9 (8-dir). `.` or `5` wait one turn. Shift+direction to auto-run until interrupted
   - UI: `?` help, `=` settings, `;` look/examine, `Ctrl+P` message history, `@` character sheet, `q` quit
 - **Symbols tab** -- legend of all ASCII characters and their colors:
@@ -1305,7 +1304,7 @@ All ASCII graphics use ncurses color pairs. Requires 256-color terminal support 
 ## Verification
 - Each phase produces a compilable, playable build (`make && ./camelot`)
 - Debug mode for testing: `-d` flag shows full map, enemy stats, level skip
-- Manual playtesting across overworld, all towns, and all 5 dungeons
+- Manual playtesting across overworld, all towns, and all 7+ dungeons
 - Verify quest system: pick up quests in inns, complete objectives, return for rewards
 - Verify Grail quest: accept from Arthur, gather hints, find randomized Grail location, defeat Mordred, return to Arthur
 - Verify princess quest: rescue from tower, visit at castle, marriage ending

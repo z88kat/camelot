@@ -11,7 +11,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 ## Features
 
 ### World
-- Hand-crafted overworld map of England with 10+ towns, 14 castles, landmarks, and 7+ dungeons
+- Hand-crafted overworld map of England with 10+ towns, 17 castles (14 active + 3 abandoned), landmarks, and 7+ dungeons
 - Towns with equipment shops, potion shops, inns (with beer!), churches, mystics, pawn shops, banks, and wells
 - Active castles ruled by Arthurian kings who travel the realm, and abandoned castles to explore
 - Landmarks: Stonehenge, Hadrian's Wall, White Cliffs of Dover, Avalon, Faerie Rings
@@ -111,7 +111,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `x` | Dig (treasure maps) |
 | `d` | Dismount horse |
 | `p` | Play instrument (Tristan's Harp) |
-| `j` | Quest journal |
+| `J` | Quest journal |
 | `S` | Save game |
 
 ### UI
