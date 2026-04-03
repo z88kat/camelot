@@ -455,6 +455,64 @@ static void handle_overworld_input(GameState *gs, int key) {
                      "You push a small boat into the water and climb aboard.");
         }
 
+        /* Check for creature bump before passability */
+        OWCreature *creature = overworld_creature_at(gs->overworld, nx, ny);
+        if (creature && passable) {
+            switch (creature->type) {
+            case OW_NPC_TRAVELLER:
+                {
+                    const char *msgs[] = {
+                        "A traveller nods. \"Safe travels, friend.\"",
+                        "\"The road to York is long. Watch for bandits.\"",
+                        "\"I've come from London. The markets are busy.\"",
+                    };
+                    log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, 2)]);
+                }
+                break;
+            case OW_NPC_PILGRIM:
+                {
+                    const char *msgs[] = {
+                        "A pilgrim bows. \"Blessings upon you, traveller.\"",
+                        "\"I journey to Canterbury to pray at the shrine.\"",
+                        "\"Have faith. The Lord watches over us all.\"",
+                    };
+                    log_add(&gs->log, gs->turn, CP_YELLOW, "%s", msgs[rng_range(0, 2)]);
+                }
+                break;
+            case OW_NPC_MERCHANT:
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "A merchant waves. \"Fine wares! Visit me in town!\"");
+                break;
+            case OW_NPC_PEASANT:
+                log_add(&gs->log, gs->turn, CP_BROWN,
+                         "A peasant tips their hat. \"Good day, m'lord.\"");
+                break;
+            case OW_NPC_DEER:
+                log_add(&gs->log, gs->turn, CP_BROWN,
+                         "A deer startles and bounds away into the trees.");
+                /* Deer flees from player */
+                creature->pos.x += rng_range(-3, 3);
+                creature->pos.y += rng_range(-3, 3);
+                break;
+            case OW_NPC_SHEEP:
+                log_add(&gs->log, gs->turn, CP_WHITE, "Baaaa! A sheep bleats nervously.");
+                break;
+            case OW_NPC_RABBIT:
+                log_add(&gs->log, gs->turn, CP_BROWN,
+                         "A rabbit darts into its burrow.");
+                creature->pos.x += rng_range(-5, 5);
+                creature->pos.y += rng_range(-5, 5);
+                break;
+            case OW_NPC_CROW:
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "Caw! A crow takes flight, circling overhead.");
+                creature->pos.x += rng_range(-8, 8);
+                creature->pos.y += rng_range(-4, 4);
+                break;
+            }
+            /* Don't block movement -- player walks through */
+        }
+
         if (!passable) {
             switch (tt) {
             case TILE_WATER:
@@ -501,6 +559,9 @@ static void handle_overworld_input(GameState *gs, int key) {
         advance_time(gs, travel_mins);
         check_lunar_events(gs, old_hour);
 
+        /* Move overworld creatures */
+        overworld_move_creatures(gs->overworld, gs->player_pos);
+
         /* Regional weather shift -- chance of weather changing as you travel */
         if (gs->turn % 20 == 0 && rng_chance(30)) {
             change_weather(gs);
@@ -537,8 +598,33 @@ static void handle_overworld_input(GameState *gs, int key) {
                          "A dungeon entrance: %s. Press > to enter.", loc->name);
                 break;
             case LOC_LANDMARK:
-                log_add(&gs->log, gs->turn, CP_YELLOW,
-                         "You stand at %s.", loc->name);
+                if (strcmp(loc->name, "Stonehenge") == 0) {
+                    if (!gs->stonehenge_used) {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "The ancient stones hum with power. Press Enter to commune.");
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "Stonehenge. The stones are quiet now.");
+                    }
+                } else if (strcmp(loc->name, "Faerie Ring") == 0) {
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "A faerie ring glows softly! Press Enter to step inside.");
+                } else if (strcmp(loc->name, "White Cliffs") == 0) {
+                    log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                             "The White Cliffs of Dover. The sea crashes far below.");
+                } else if (strcmp(loc->name, "Hadrian's Wall") == 0) {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "Hadrian's Wall stretches east and west. Roman ruins crumble.");
+                } else if (strcmp(loc->name, "Holy Island") == 0) {
+                    log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                             "Holy Island. A place of peace and ancient prayer.");
+                } else if (strcmp(loc->name, "Avalon") == 0) {
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "The mystical Isle of Avalon! Press Enter to explore.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You stand at %s.", loc->name);
+                }
                 break;
             case LOC_VOLCANO:
                 log_add(&gs->log, gs->turn, CP_RED,
@@ -569,6 +655,17 @@ static void handle_overworld_input(GameState *gs, int key) {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc && (loc->type == LOC_TOWN || loc->type == LOC_CASTLE_ACTIVE)) {
+            /* Castles are locked at night */
+            if (loc->type == LOC_CASTLE_ACTIVE && is_night(gs->hour)) {
+                if (gs->chivalry >= 60) {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "The guards recognise your honour and open the gates.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "The castle gates are barred for the night. Return at dawn.");
+                    return;
+                }
+            }
             const TownDef *td = town_get_def(loc->name);
             if (td) {
                 gs->current_town = td;
@@ -583,6 +680,84 @@ static void handle_overworld_input(GameState *gs, int key) {
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "%s has no services available.", loc->name);
+            }
+        } else if (loc && loc->type == LOC_LANDMARK) {
+            /* Landmark interactions */
+            if (strcmp(loc->name, "Stonehenge") == 0 && !gs->stonehenge_used) {
+                gs->stonehenge_used = true;
+                int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                int pick = rng_range(0, 3);
+                (*stats[pick])++;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "The ancient spirits grant you power! +1 %s", names[pick]);
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "The stones fall silent. Their gift is given.");
+            } else if (strcmp(loc->name, "Stonehenge") == 0) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The stones are quiet. They have nothing more to give.");
+            } else if (strcmp(loc->name, "Faerie Ring") == 0) {
+                int roll = rng_range(1, 100);
+                if (roll <= 30) {
+                    /* Friendly faerie -- stat boost */
+                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                    int pick = rng_range(0, 3);
+                    (*stats[pick])++;
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "A faerie giggles and touches your brow. +1 %s!", names[pick]);
+                } else if (roll <= 50) {
+                    /* Restore MP */
+                    gs->mp = gs->max_mp;
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "Faerie dust swirls around you. MP fully restored!");
+                } else if (roll <= 65) {
+                    /* Gold gift */
+                    int gold = rng_range(10, 50);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "A faerie drops a pouch of %d gold at your feet!", gold);
+                } else if (roll <= 80) {
+                    /* Trickster -- swap two stats */
+                    int a = rng_range(0, 3), b = (a + rng_range(1, 3)) % 4;
+                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                    int tmp = *stats[a]; *stats[a] = *stats[b]; *stats[b] = tmp;
+                    log_add(&gs->log, gs->turn, CP_MAGENTA,
+                             "A trickster faerie cackles! %s and %s swapped!", names[a], names[b]);
+                } else if (roll <= 90) {
+                    /* Trickster -- teleport randomly */
+                    int nx, ny;
+                    for (int t = 0; t < 100; t++) {
+                        nx = gs->player_pos.x + rng_range(-30, 30);
+                        ny = gs->player_pos.y + rng_range(-30, 30);
+                        if (overworld_is_passable(gs->overworld, nx, ny)) {
+                            gs->player_pos.x = nx;
+                            gs->player_pos.y = ny;
+                            break;
+                        }
+                    }
+                    log_add(&gs->log, gs->turn, CP_MAGENTA,
+                             "A faerie snaps its fingers! The world spins... you're somewhere else!");
+                } else {
+                    /* Nothing happens */
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "The faeries watch you curiously but do nothing.");
+                }
+            } else if (strcmp(loc->name, "Avalon") == 0) {
+                gs->hp = gs->max_hp;
+                gs->mp = gs->max_mp;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "The mystical air of Avalon restores you. HP and MP fully restored.");
+            } else if (strcmp(loc->name, "Holy Island") == 0) {
+                gs->chivalry += 2;
+                if (gs->chivalry > 100) gs->chivalry = 100;
+                gs->hp = gs->max_hp;
+                log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                         "The sacred ground heals your body and spirit. +2 chivalry.");
+            } else {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You examine %s but find nothing to interact with.", loc->name);
             }
         } else {
             log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing to enter here.");
@@ -754,8 +929,13 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
     case NPC_EQUIP_SHOP:
     case NPC_POTION_SHOP:
     case NPC_PAWN_SHOP:
-        log_add(&gs->log, gs->turn, CP_GRAY,
-                 "The %s says: \"Come back when I have stock!\"", npc->label);
+        if (is_night(gs->hour)) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "The %s's shop is closed for the night.", npc->label);
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "The %s says: \"Come back when I have stock!\"", npc->label);
+        }
         break;
     case NPC_STABLE:
         log_add(&gs->log, gs->turn, CP_GRAY,
@@ -926,6 +1106,12 @@ static void town_do_inn(GameState *gs) {
 }
 
 static void town_do_church(GameState *gs) {
+    if (gs->church_looted) {
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "The priest bars the door. \"Begone, thief! You are not welcome here!\"");
+        return;
+    }
+
     ui_clear();
     int row = 2;
 
@@ -983,6 +1169,7 @@ static void town_do_church(GameState *gs) {
                  "You steal %d gold from the collection plate! SACRILEGE! (-12 chivalry)", loot);
         log_add(&gs->log, gs->turn, CP_RED,
                  "The priest cries out in horror. You are no longer welcome here.");
+        gs->church_looted = true;
     }
 }
 
@@ -1387,6 +1574,7 @@ void game_init(GameState *gs) {
     /* Initialize overworld (heap allocated due to size) */
     gs->overworld = calloc(1, sizeof(Overworld));
     overworld_init(gs->overworld);
+    overworld_spawn_creatures(gs->overworld);
     town_init();
 
     /* Place player at Camelot (scaled coordinates) */
@@ -1468,6 +1656,27 @@ static void game_render(GameState *gs) {
 
         ui_render_map_generic((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
                               gs->player_pos, map_view_width, map_view_height);
+
+        /* Draw wandering creatures on the overworld */
+        {
+            int cam_x = gs->player_pos.x - map_view_width / 2;
+            int cam_y = gs->player_pos.y - map_view_height / 2;
+            if (cam_x < 0) cam_x = 0;
+            if (cam_y < 0) cam_y = 0;
+            if (cam_x + map_view_width > OW_WIDTH) cam_x = OW_WIDTH - map_view_width;
+            if (cam_y + map_view_height > OW_HEIGHT) cam_y = OW_HEIGHT - map_view_height;
+
+            for (int i = 0; i < gs->overworld->num_creatures; i++) {
+                OWCreature *c = &gs->overworld->creatures[i];
+                int sx = c->pos.x - cam_x;
+                int sy = c->pos.y - cam_y;
+                if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
+                    attron(COLOR_PAIR(c->color_pair));
+                    mvaddch(sy, sx, c->glyph);
+                    attroff(COLOR_PAIR(c->color_pair));
+                }
+            }
+        }
 
         /* Apply night/dusk/dawn dimming -- spare a radius around the player */
         {

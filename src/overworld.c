@@ -786,3 +786,92 @@ bool overworld_is_passable(Overworld *ow, int x, int y) {
     if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) return false;
     return ow->map[y][x].passable;
 }
+
+/* ------------------------------------------------------------------ */
+/* Wandering creatures                                                 */
+/* ------------------------------------------------------------------ */
+
+static void spawn_creature(Overworld *ow, OWCreatureType type,
+                            char glyph, short cp, const char *name,
+                            TileType preferred_terrain) {
+    if (ow->num_creatures >= MAX_OW_CREATURES) return;
+
+    /* Try to place on preferred terrain */
+    for (int attempts = 0; attempts < 500; attempts++) {
+        int x = rng_range(20, OW_WIDTH - 20);
+        int y = rng_range(15, OW_HEIGHT - 15);
+        Tile *t = &ow->map[y][x];
+        if (!t->passable) continue;
+        if (preferred_terrain != TILE_NONE && t->type != preferred_terrain) continue;
+
+        OWCreature *c = &ow->creatures[ow->num_creatures++];
+        c->type = type;
+        c->pos = (Vec2){ x, y };
+        c->glyph = glyph;
+        c->color_pair = cp;
+        snprintf(c->name, MAX_NAME, "%s", name);
+        return;
+    }
+}
+
+void overworld_spawn_creatures(Overworld *ow) {
+    ow->num_creatures = 0;
+
+    /* NPCs on roads */
+    for (int i = 0; i < 4; i++)
+        spawn_creature(ow, OW_NPC_TRAVELLER, '@', CP_WHITE, "Traveller", TILE_ROAD);
+    for (int i = 0; i < 3; i++)
+        spawn_creature(ow, OW_NPC_PILGRIM, '@', CP_YELLOW, "Pilgrim", TILE_ROAD);
+    for (int i = 0; i < 2; i++)
+        spawn_creature(ow, OW_NPC_MERCHANT, '@', CP_GREEN, "Merchant", TILE_ROAD);
+
+    /* Peasants near grassland */
+    for (int i = 0; i < 4; i++)
+        spawn_creature(ow, OW_NPC_PEASANT, '@', CP_BROWN, "Peasant", TILE_GRASS);
+
+    /* Animals */
+    for (int i = 0; i < 6; i++)
+        spawn_creature(ow, OW_NPC_DEER, 'd', CP_BROWN, "Deer", TILE_FOREST);
+    for (int i = 0; i < 6; i++)
+        spawn_creature(ow, OW_NPC_SHEEP, 's', CP_WHITE, "Sheep", TILE_GRASS);
+    for (int i = 0; i < 4; i++)
+        spawn_creature(ow, OW_NPC_RABBIT, 'r', CP_BROWN, "Rabbit", TILE_GRASS);
+    for (int i = 0; i < 5; i++)
+        spawn_creature(ow, OW_NPC_CROW, 'v', CP_GRAY, "Crow", TILE_NONE);  /* anywhere on land */
+}
+
+void overworld_move_creatures(Overworld *ow, Vec2 player_pos) {
+    int dirs[4][2] = { {0,-1}, {0,1}, {-1,0}, {1,0} };
+
+    for (int i = 0; i < ow->num_creatures; i++) {
+        OWCreature *c = &ow->creatures[i];
+
+        /* Move ~30% of turns */
+        if (!rng_chance(30)) continue;
+
+        int d = rng_range(0, 3);
+        for (int tries = 0; tries < 4; tries++) {
+            int dd = (d + tries) & 3;
+            int nx = c->pos.x + dirs[dd][0];
+            int ny = c->pos.y + dirs[dd][1];
+
+            if (nx < 1 || nx >= OW_WIDTH - 1 || ny < 1 || ny >= OW_HEIGHT - 1) continue;
+            if (!ow->map[ny][nx].passable) continue;
+            if (nx == player_pos.x && ny == player_pos.y) continue;
+            /* Don't step on locations */
+            if (overworld_location_at(ow, nx, ny)) continue;
+
+            c->pos.x = nx;
+            c->pos.y = ny;
+            break;
+        }
+    }
+}
+
+OWCreature *overworld_creature_at(Overworld *ow, int x, int y) {
+    for (int i = 0; i < ow->num_creatures; i++) {
+        if (ow->creatures[i].pos.x == x && ow->creatures[i].pos.y == y)
+            return &ow->creatures[i];
+    }
+    return NULL;
+}

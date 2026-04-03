@@ -33,11 +33,35 @@ typedef struct {
 
 #define MAX_LOCATIONS 128
 
+/* Wandering creature on the overworld */
+typedef enum {
+    OW_NPC_TRAVELLER,
+    OW_NPC_PILGRIM,
+    OW_NPC_MERCHANT,
+    OW_NPC_PEASANT,
+    OW_NPC_DEER,
+    OW_NPC_SHEEP,
+    OW_NPC_RABBIT,
+    OW_NPC_CROW
+} OWCreatureType;
+
+typedef struct {
+    OWCreatureType type;
+    Vec2           pos;
+    char           glyph;
+    short          color_pair;
+    char           name[MAX_NAME];
+} OWCreature;
+
+#define MAX_OW_CREATURES 40
+
 /* Overworld state -- allocated on heap due to size */
 typedef struct {
-    Tile     map[OW_HEIGHT][OW_WIDTH];
-    Location locations[MAX_LOCATIONS];
-    int      num_locations;
+    Tile        map[OW_HEIGHT][OW_WIDTH];
+    Location    locations[MAX_LOCATIONS];
+    int         num_locations;
+    OWCreature  creatures[MAX_OW_CREATURES];
+    int         num_creatures;
 } Overworld;
 
 /* Initialize the overworld map and place all locations. */
@@ -48,5 +72,14 @@ Location *overworld_location_at(Overworld *ow, int x, int y);
 
 /* Check if a tile is passable for the player. */
 bool overworld_is_passable(Overworld *ow, int x, int y);
+
+/* Spawn wandering creatures on the overworld. Call after overworld_init. */
+void overworld_spawn_creatures(Overworld *ow);
+
+/* Move all wandering creatures. Call once per overworld turn. */
+void overworld_move_creatures(Overworld *ow, Vec2 player_pos);
+
+/* Get the creature at a position, or NULL. */
+OWCreature *overworld_creature_at(Overworld *ow, int x, int y);
 
 #endif /* OVERWORLD_H */

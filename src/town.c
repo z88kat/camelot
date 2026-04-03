@@ -306,15 +306,39 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
         add_npc(tm, NPC_WELL, wx, wy, 'O', CP_BLUE, "Well", false);
     }
 
-    /* Townfolk who wander around */
-    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 - 3, TOWN_MAP_H / 2 + 1, '@', CP_WHITE, "Townfolk", true);
-    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 + 4, TOWN_MAP_H / 2 - 1, '@', CP_WHITE, "Townfolk", true);
-    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 4, TOWN_MAP_H / 2, '@', CP_WHITE, "Townfolk", true);
+    /* Random townfolk (2-5) */
+    int num_folk = rng_range(2, 5);
+    for (int i = 0; i < num_folk; i++) {
+        /* Find a random passable courtyard tile */
+        for (int tries = 0; tries < 50; tries++) {
+            int rx = rng_range(3, TOWN_MAP_W - 4);
+            int ry = rng_range(3, TOWN_MAP_H - 4);
+            if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
+                add_npc(tm, NPC_TOWNFOLK, rx, ry, '@', CP_WHITE, "Townfolk", true);
+                break;
+            }
+        }
+    }
 
-    /* Animals wandering the town */
-    add_npc(tm, NPC_DOG, TOWN_MAP_W / 2 + 8, TOWN_MAP_H / 2 + 2, 'd', CP_BROWN, "Dog", true);
-    add_npc(tm, NPC_CAT, TOWN_MAP_W / 2 - 6, TOWN_MAP_H / 2 - 2, 'c', CP_YELLOW, "Cat", true);
-    add_npc(tm, NPC_CHICKEN, TOWN_MAP_W / 3, TOWN_MAP_H / 2 + 3, 'k', CP_WHITE, "Chicken", true);
+    /* Random animals (0-4 total, random mix) */
+    typedef struct { TownNPCType type; char glyph; short cp; const char *name; } AnimalDef;
+    AnimalDef animals[] = {
+        { NPC_DOG,     'd', CP_BROWN,  "Dog" },
+        { NPC_CAT,     'c', CP_YELLOW, "Cat" },
+        { NPC_CHICKEN, 'k', CP_WHITE,  "Chicken" },
+    };
+    int num_animals = rng_range(0, 4);
+    for (int i = 0; i < num_animals; i++) {
+        AnimalDef *a = &animals[rng_range(0, 2)];
+        for (int tries = 0; tries < 50; tries++) {
+            int rx = rng_range(3, TOWN_MAP_W - 4);
+            int ry = rng_range(3, TOWN_MAP_H - 4);
+            if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
+                add_npc(tm, a->type, rx, ry, a->glyph, a->cp, a->name, true);
+                break;
+            }
+        }
+    }
 }
 
 TownNPC *town_npc_at(TownMap *tm, int x, int y) {

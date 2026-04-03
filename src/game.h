@@ -51,6 +51,8 @@ typedef struct {
     Vec2       town_player_pos;  /* player position inside town */
     bool       well_explored;    /* has the well been explored this visit? */
     bool       confessed;        /* has player confessed at church this visit? */
+    bool       stonehenge_used;  /* has player used Stonehenge this game? */
+    bool       church_looted;    /* has player looted a church? */
     int        weight, max_weight;
     int        chivalry;
 

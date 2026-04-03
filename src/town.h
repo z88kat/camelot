@@ -57,7 +57,7 @@ typedef struct {
     bool        wanders;         /* moves around randomly each turn */
 } TownNPC;
 
-#define MAX_TOWN_NPCS 16
+#define MAX_TOWN_NPCS 24
 
 /* A generated town interior map */
 typedef struct {
