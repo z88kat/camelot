@@ -248,19 +248,67 @@ static const char *weather_icon(WeatherType w) {
     }
 }
 
+/* Get regional weather weights based on player position.
+   Returns weights for: clear, rain, storm, fog, snow, wind (must sum to 100) */
+static void get_regional_weather(int px, int py, int w[6]) {
+    /*                      clear rain storm fog snow wind */
+    /* Default (midlands) */
+    w[0]=40; w[1]=25; w[2]=8; w[3]=12; w[4]=5; w[5]=10;
+
+    /* Scotland (y < 65) -- cold, wet, snowy highlands */
+    if (py < 65) {
+        w[0]=20; w[1]=30; w[2]=10; w[3]=10; w[4]=20; w[5]=10;
+    }
+    /* Northern England (y 65-110) -- rainy, windy moors */
+    else if (py < 110) {
+        w[0]=30; w[1]=30; w[2]=10; w[3]=12; w[4]=8; w[5]=10;
+    }
+    /* Wales (x < 140, y 110-160) -- very rainy, foggy hills */
+    else if (px < 140 && py < 160) {
+        w[0]=20; w[1]=35; w[2]=10; w[3]=20; w[4]=5; w[5]=10;
+    }
+    /* Southwest / Cornwall (x < 100, y > 160) -- mild, windy, rainy */
+    else if (px < 100 && py > 160) {
+        w[0]=30; w[1]=30; w[2]=10; w[3]=10; w[4]=2; w[5]=18;
+    }
+    /* Southeast / Kent (x > 300, y > 150) -- drier, clearer */
+    else if (px > 300 && py > 150) {
+        w[0]=50; w[1]=18; w[2]=7; w[3]=10; w[4]=3; w[5]=12;
+    }
+    /* South coast (y > 190) -- mild, windy */
+    else if (py > 190) {
+        w[0]=40; w[1]=22; w[2]=8; w[3]=8; w[4]=2; w[5]=20;
+    }
+    /* East coast (x > 280) -- cold wind off the sea */
+    else if (px > 280) {
+        w[0]=35; w[1]=20; w[2]=8; w[3]=15; w[4]=7; w[5]=15;
+    }
+
+    /* Whitby special: always raining (per plan) */
+    if (px > 310 && px < 350 && py > 80 && py < 100) {
+        w[0]=5; w[1]=55; w[2]=20; w[3]=15; w[4]=3; w[5]=2;
+    }
+}
+
 static void change_weather(GameState *gs) {
     WeatherType old = gs->weather;
 
-    /* Weighted random: clear is most common */
-    int roll = rng_range(1, 100);
-    if (roll <= 40)      gs->weather = WEATHER_CLEAR;
-    else if (roll <= 60) gs->weather = WEATHER_RAIN;
-    else if (roll <= 70) gs->weather = WEATHER_STORM;
-    else if (roll <= 82) gs->weather = WEATHER_FOG;
-    else if (roll <= 90) gs->weather = WEATHER_SNOW;
-    else                 gs->weather = WEATHER_WIND;
+    /* Region-based weather probabilities */
+    int w[6];
+    get_regional_weather(gs->player_pos.x, gs->player_pos.y, w);
 
-    gs->weather_turns_left = rng_range(100, 300);
+    int roll = rng_range(1, 100);
+    int cumulative = 0;
+    gs->weather = WEATHER_CLEAR;
+    for (int i = 0; i < 6; i++) {
+        cumulative += w[i];
+        if (roll <= cumulative) {
+            gs->weather = (WeatherType)i;
+            break;
+        }
+    }
+
+    gs->weather_turns_left = rng_range(80, 250);
 
     if (gs->weather != old && gs->mode == MODE_OVERWORLD) {
         switch (gs->weather) {
@@ -387,6 +435,11 @@ static void handle_overworld_input(GameState *gs, int key) {
         int old_hour = gs->hour;
         advance_time(gs, travel_mins);
         check_lunar_events(gs, old_hour);
+
+        /* Regional weather shift -- chance of weather changing as you travel */
+        if (gs->turn % 20 == 0 && rng_chance(30)) {
+            change_weather(gs);
+        }
 
         /* Check for a location at the new position */
         Location *loc = overworld_location_at(gs->overworld, nx, ny);
