@@ -23,7 +23,45 @@ typedef struct {
     char     beer_name[MAX_NAME]; /* local beer flavour */
 } TownDef;
 
-#define MAX_TOWNS 32
+#define MAX_TOWNS 40
+
+/* Town interior map dimensions */
+#define TOWN_MAP_W  60
+#define TOWN_MAP_H  24
+
+/* NPC types inside a town */
+typedef enum {
+    NPC_NONE,
+    NPC_INNKEEPER,
+    NPC_PRIEST,
+    NPC_EQUIP_SHOP,
+    NPC_POTION_SHOP,
+    NPC_PAWN_SHOP,
+    NPC_MYSTIC,
+    NPC_BANKER,
+    NPC_STABLE,
+    NPC_WELL,       /* not really an NPC, but interactive */
+    NPC_TOWNFOLK     /* flavour NPC */
+} TownNPCType;
+
+/* An NPC placed in the town interior */
+typedef struct {
+    TownNPCType type;
+    Vec2        pos;
+    char        glyph;
+    short       color_pair;
+    char        label[MAX_NAME];  /* "Innkeeper", "Priest", etc. */
+} TownNPC;
+
+#define MAX_TOWN_NPCS 16
+
+/* A generated town interior map */
+typedef struct {
+    Tile     map[TOWN_MAP_H][TOWN_MAP_W];
+    TownNPC  npcs[MAX_TOWN_NPCS];
+    int      num_npcs;
+    Vec2     entrance;   /* where the player spawns */
+} TownMap;
 
 /* Get the town definition for a given location name. Returns NULL if not a town. */
 const TownDef *town_get_def(const char *name);
@@ -36,5 +74,11 @@ int town_count(void);
 
 /* Get town def by index. */
 const TownDef *town_get_by_index(int idx);
+
+/* Generate a town interior map based on its services. */
+void town_generate_map(TownMap *tm, const TownDef *td);
+
+/* Get the NPC at a position, or NULL. */
+TownNPC *town_npc_at(TownMap *tm, int x, int y);
 
 #endif /* TOWN_H */

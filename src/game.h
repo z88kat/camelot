@@ -47,6 +47,8 @@ typedef struct {
     int        beers_drunk; /* current drunkenness counter */
     int        drunk_turns; /* turns of drunkenness remaining */
     const TownDef *current_town; /* town we're currently in (NULL if not in town) */
+    TownMap    town_map;         /* current town interior map */
+    Vec2       town_player_pos;  /* player position inside town */
     bool       well_explored;    /* has the well been explored this visit? */
     bool       confessed;        /* has player confessed at church this visit? */
     int        weight, max_weight;

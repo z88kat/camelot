@@ -156,6 +156,169 @@ void town_init(void) {
         7, 2, "Breton Cider");
 }
 
+/* ------------------------------------------------------------------ */
+/* Town interior map generation                                        */
+/* ------------------------------------------------------------------ */
+
+static void tm_set(Tile *t, TileType type, char glyph, short cp, bool pass) {
+    t->type = type;
+    t->glyph = glyph;
+    t->color_pair = cp;
+    t->passable = pass;
+    t->blocks_sight = (type == TILE_WALL);
+    t->visible = true;
+    t->revealed = true;
+}
+
+/* Carve a building (room) with walls, floor, and a door */
+static void carve_building(TownMap *tm, int x, int y, int w, int h, int door_side) {
+    /* Walls */
+    for (int by = y; by < y + h; by++) {
+        for (int bx = x; bx < x + w; bx++) {
+            if (bx < 0 || bx >= TOWN_MAP_W || by < 0 || by >= TOWN_MAP_H) continue;
+            if (by == y || by == y + h - 1 || bx == x || bx == x + w - 1) {
+                tm_set(&tm->map[by][bx], TILE_WALL, '#', CP_BROWN, false);
+            } else {
+                tm_set(&tm->map[by][bx], TILE_FLOOR, '.', CP_YELLOW, true);
+            }
+        }
+    }
+    /* Door -- placed on the side facing the courtyard */
+    int dx, dy;
+    switch (door_side) {
+    case 0: dx = x + w / 2; dy = y + h - 1; break; /* south */
+    case 1: dx = x + w / 2; dy = y;         break; /* north */
+    case 2: dx = x;         dy = y + h / 2; break; /* west */
+    case 3: dx = x + w - 1; dy = y + h / 2; break; /* east */
+    default: dx = x + w / 2; dy = y + h - 1; break;
+    }
+    if (dx >= 0 && dx < TOWN_MAP_W && dy >= 0 && dy < TOWN_MAP_H) {
+        tm_set(&tm->map[dy][dx], TILE_DOOR_OPEN, '/', CP_BROWN, true);
+    }
+}
+
+/* Add an NPC inside a building */
+static void add_npc(TownMap *tm, TownNPCType type, int x, int y,
+                    char glyph, short cp, const char *label) {
+    if (tm->num_npcs >= MAX_TOWN_NPCS) return;
+    TownNPC *npc = &tm->npcs[tm->num_npcs++];
+    npc->type = type;
+    npc->pos = (Vec2){ x, y };
+    npc->glyph = glyph;
+    npc->color_pair = cp;
+    snprintf(npc->label, MAX_NAME, "%s", label);
+}
+
+void town_generate_map(TownMap *tm, const TownDef *td) {
+    memset(tm, 0, sizeof(*tm));
+
+    /* Fill with outdoor ground (courtyard) */
+    for (int y = 0; y < TOWN_MAP_H; y++) {
+        for (int x = 0; x < TOWN_MAP_W; x++) {
+            if (y == 0 || y == TOWN_MAP_H - 1 || x == 0 || x == TOWN_MAP_W - 1) {
+                /* Town border wall */
+                tm_set(&tm->map[y][x], TILE_WALL, '#', CP_GRAY, false);
+            } else {
+                tm_set(&tm->map[y][x], TILE_FLOOR, '.', CP_GREEN, true);
+            }
+        }
+    }
+
+    /* Draw some paths through the courtyard */
+    for (int x = 1; x < TOWN_MAP_W - 1; x++) {
+        tm_set(&tm->map[TOWN_MAP_H / 2][x], TILE_ROAD, '.', CP_YELLOW, true);
+    }
+    for (int y = 1; y < TOWN_MAP_H - 1; y++) {
+        tm_set(&tm->map[y][TOWN_MAP_W / 2], TILE_ROAD, '.', CP_YELLOW, true);
+    }
+
+    /* Entrance at bottom center */
+    tm->entrance = (Vec2){ TOWN_MAP_W / 2, TOWN_MAP_H - 2 };
+    tm_set(&tm->map[TOWN_MAP_H - 1][TOWN_MAP_W / 2], TILE_DOOR_OPEN, '/', CP_BROWN, true);
+
+    /* Place buildings based on services -- arranged around the courtyard */
+    /* Top row of buildings */
+    int bw = 8, bh = 5;
+    int slot = 0;
+
+    typedef struct { int svc; char glyph; short cp; const char *label; TownNPCType ntype; } Bld;
+    Bld buildings[] = {
+        { SVC_INN,        'I', CP_BROWN,       "Innkeeper",    NPC_INNKEEPER },
+        { SVC_CHURCH,     'P', CP_WHITE_BOLD,  "Priest",       NPC_PRIEST },
+        { SVC_EQUIP_SHOP, '$', CP_YELLOW,      "Blacksmith",   NPC_EQUIP_SHOP },
+        { SVC_POTION_SHOP,'!', CP_MAGENTA,     "Apothecary",   NPC_POTION_SHOP },
+        { SVC_PAWN_SHOP,  'P', CP_GREEN,       "Pawnbroker",   NPC_PAWN_SHOP },
+        { SVC_MYSTIC,     '?', CP_MAGENTA_BOLD,"Mystic",       NPC_MYSTIC },
+        { SVC_BANK,       'B', CP_YELLOW_BOLD, "Banker",       NPC_BANKER },
+        { SVC_STABLE,     'S', CP_BROWN,       "Stablemaster", NPC_STABLE },
+    };
+    int nbuildings = sizeof(buildings) / sizeof(buildings[0]);
+
+    /* Layout positions: top-left, top-right, mid-left, mid-right, etc. */
+    typedef struct { int x, y, door_side; } Slot;
+    Slot slots[] = {
+        {  3,  2, 0 },   /* top-left, door south */
+        { 14,  2, 0 },   /* top-center-left */
+        { 25,  2, 0 },   /* top-center */
+        { 36,  2, 0 },   /* top-center-right */
+        { 47,  2, 0 },   /* top-right */
+        {  3, 16, 1 },   /* bottom-left, door north */
+        { 14, 16, 1 },   /* bottom-center-left */
+        { 25, 16, 1 },   /* bottom-center */
+        { 36, 16, 1 },   /* bottom-center-right */
+        { 47, 16, 1 },   /* bottom-right */
+    };
+    int nslots = sizeof(slots) / sizeof(slots[0]);
+
+    slot = 0;
+    for (int i = 0; i < nbuildings && slot < nslots; i++) {
+        if (!(td->services & buildings[i].svc)) continue;
+
+        Slot *s = &slots[slot++];
+        carve_building(tm, s->x, s->y, bw, bh, s->door_side);
+
+        /* Place NPC inside the building */
+        int npc_x = s->x + bw / 2;
+        int npc_y = (s->door_side == 0) ? s->y + 2 : s->y + bh - 3;
+        add_npc(tm, buildings[i].ntype, npc_x, npc_y,
+                buildings[i].glyph, buildings[i].cp, buildings[i].label);
+
+        /* Label above the door */
+        int label_y = (s->door_side == 0) ? s->y + bh : s->y - 1;
+        if (label_y >= 0 && label_y < TOWN_MAP_H) {
+            const char *lbl = buildings[i].label;
+            int lx = s->x + 1;
+            for (int c = 0; lbl[c] && lx + c < s->x + bw - 1 && lx + c < TOWN_MAP_W; c++) {
+                Tile *lt = &tm->map[label_y][lx + c];
+                if (lt->passable) {
+                    lt->glyph = lbl[c];
+                    lt->color_pair = buildings[i].cp;
+                }
+            }
+        }
+    }
+
+    /* Well -- place in the courtyard if available */
+    if (td->services & SVC_WELL) {
+        int wx = TOWN_MAP_W / 2 + 5, wy = TOWN_MAP_H / 2 + 3;
+        add_npc(tm, NPC_WELL, wx, wy, 'O', CP_BLUE, "Well");
+    }
+
+    /* A few townfolk for atmosphere */
+    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 - 3, TOWN_MAP_H / 2 + 1, '@', CP_WHITE, "Townfolk");
+    add_npc(tm, NPC_TOWNFOLK, TOWN_MAP_W / 2 + 4, TOWN_MAP_H / 2 - 1, '@', CP_WHITE, "Townfolk");
+}
+
+TownNPC *town_npc_at(TownMap *tm, int x, int y) {
+    for (int i = 0; i < tm->num_npcs; i++) {
+        if (tm->npcs[i].pos.x == x && tm->npcs[i].pos.y == y)
+            return &tm->npcs[i];
+    }
+    return NULL;
+}
+
+/* ------------------------------------------------------------------ */
+
 const TownDef *town_get_def(const char *name) {
     for (int i = 0; i < num_towns; i++) {
         if (strcmp(towns[i].name, name) == 0)

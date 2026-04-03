@@ -556,8 +556,10 @@ static void handle_overworld_input(GameState *gs, int key) {
                 gs->well_explored = false;
                 gs->confessed = false;
                 gs->beers_drunk = 0;
+                town_generate_map(&gs->town_map, td);
+                gs->town_player_pos = gs->town_map.entrance;
                 log_add(&gs->log, gs->turn, CP_WHITE,
-                         "You enter %s.", loc->name);
+                         "You enter %s. Bump into people to interact.", loc->name);
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "%s has no services available.", loc->name);
@@ -673,89 +675,89 @@ static void handle_overworld_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
+/* Town service forward declarations                                   */
+static void town_do_inn(GameState *gs);
+static void town_do_church(GameState *gs);
+static void town_do_mystic(GameState *gs);
+static void town_do_bank(GameState *gs);
+static void town_do_well(GameState *gs);
+
 /* Town menu system                                                    */
 /* ------------------------------------------------------------------ */
 
-static void town_render_menu(GameState *gs) {
-    ui_clear();
-    int term_rows, term_cols;
-    ui_get_size(&term_rows, &term_cols);
+/* Render the town interior map with NPCs */
+static void town_render(GameState *gs) {
+    TownMap *tm = &gs->town_map;
 
-    const TownDef *td = gs->current_town;
-    if (!td) return;
-
-    int row = 1;
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 2, "=== Welcome to %s ===", td->name);
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    row++;
-
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 2, "Available services:");
-    row++;
-
-    char key_char = 'a';
-    if (td->services & SVC_INN) {
-        mvprintw(row++, 4, "[%c] Inn - Rest (%dg) / Drink %s (%dg)",
-                 key_char++, td->inn_cost, td->beer_name, td->beer_cost);
-    }
-    if (td->services & SVC_CHURCH) {
-        mvprintw(row++, 4, "[%c] Church - Pray / Donate / Confession", key_char++);
-    }
-    if (td->services & SVC_EQUIP_SHOP) {
-        mvprintw(row++, 4, "[%c] Equipment Shop (not yet stocked)", key_char++);
-    }
-    if (td->services & SVC_POTION_SHOP) {
-        mvprintw(row++, 4, "[%c] Potion Shop (not yet stocked)", key_char++);
-    }
-    if (td->services & SVC_PAWN_SHOP) {
-        mvprintw(row++, 4, "[%c] Pawn Shop (not yet stocked)", key_char++);
-    }
-    if (td->services & SVC_MYSTIC) {
-        mvprintw(row++, 4, "[%c] Mystic - Have your fortune told (5g)", key_char++);
-    }
-    if (td->services & SVC_BANK) {
-        mvprintw(row++, 4, "[%c] Bank - Deposit / Withdraw gold", key_char++);
-    }
-    if (td->services & SVC_WELL) {
-        if (gs->well_explored)
-            mvprintw(row++, 4, "[%c] Well (already explored)", key_char++);
-        else
-            mvprintw(row++, 4, "[%c] Well - Climb down and explore", key_char++);
-    }
-    if (td->services & SVC_STABLE) {
-        mvprintw(row++, 4, "[%c] Stable (horses not yet available)", key_char++);
-    }
-    row++;
-    mvprintw(row++, 4, "[q] Leave %s", td->name);
-    row += 2;
-
-    /* Player status */
-    mvprintw(row++, 2, "Gold: %d  |  HP: %d/%d  |  MP: %d/%d  |  Chivalry: %d",
-             gs->gold, gs->hp, gs->max_hp, gs->mp, gs->max_mp, gs->chivalry);
-    attroff(COLOR_PAIR(CP_WHITE));
-
-    /* Message log at bottom */
-    ui_render_log(&gs->log, term_rows - 3, term_cols, 3);
-    ui_refresh();
-}
-
-/* Map a keypress to a service based on which services are available */
-static int town_key_to_service(const TownDef *td, int key) {
-    if (key < 'a' || key > 'z') return -1;
-    int target = key - 'a';
-    int idx = 0;
-    int svc_flags[] = {
-        SVC_INN, SVC_CHURCH, SVC_EQUIP_SHOP, SVC_POTION_SHOP,
-        SVC_PAWN_SHOP, SVC_MYSTIC, SVC_BANK, SVC_WELL, SVC_STABLE
-    };
-    for (int i = 0; i < 9; i++) {
-        if (td->services & svc_flags[i]) {
-            if (idx == target) return svc_flags[i];
-            idx++;
+    /* Render map tiles */
+    for (int y = 0; y < TOWN_MAP_H; y++) {
+        for (int x = 0; x < TOWN_MAP_W; x++) {
+            Tile *t = &tm->map[y][x];
+            attron(COLOR_PAIR(t->color_pair));
+            mvaddch(y, x, t->glyph);
+            attroff(COLOR_PAIR(t->color_pair));
         }
     }
-    return -1;
+
+    /* Render NPCs */
+    for (int i = 0; i < tm->num_npcs; i++) {
+        TownNPC *npc = &tm->npcs[i];
+        attron(COLOR_PAIR(npc->color_pair) | A_BOLD);
+        mvaddch(npc->pos.y, npc->pos.x, npc->glyph);
+        attroff(COLOR_PAIR(npc->color_pair) | A_BOLD);
+    }
+
+    /* Render player */
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    mvaddch(gs->town_player_pos.y, gs->town_player_pos.x, '@');
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+}
+
+/* Handle bumping into an NPC -- trigger the appropriate service */
+static void town_interact_npc(GameState *gs, TownNPC *npc) {
+    switch (npc->type) {
+    case NPC_INNKEEPER:
+        town_do_inn(gs);
+        break;
+    case NPC_PRIEST:
+        town_do_church(gs);
+        break;
+    case NPC_MYSTIC:
+        town_do_mystic(gs);
+        break;
+    case NPC_BANKER:
+        town_do_bank(gs);
+        break;
+    case NPC_WELL:
+        town_do_well(gs);
+        break;
+    case NPC_EQUIP_SHOP:
+    case NPC_POTION_SHOP:
+    case NPC_PAWN_SHOP:
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "The %s says: \"Come back when I have stock!\"", npc->label);
+        break;
+    case NPC_STABLE:
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "The stablemaster says: \"No horses available yet.\"");
+        break;
+    case NPC_TOWNFOLK:
+        {
+            const char *chatter[] = {
+                "\"Lovely day, isn't it?\"",
+                "\"Watch out for bandits on the roads.\"",
+                "\"Have you visited the inn? Best ale in England!\"",
+                "\"I heard there's treasure in the old ruins.\"",
+                "\"The King rode through here last week.\"",
+                "\"Strange lights in the forest last night...\"",
+            };
+            int n = sizeof(chatter) / sizeof(chatter[0]);
+            log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
+        }
+        break;
+    default:
+        break;
+    }
 }
 
 static void town_do_inn_rest(GameState *gs) {
@@ -1026,6 +1028,44 @@ static void town_do_well(GameState *gs) {
 }
 
 static void handle_town_input(GameState *gs, int key) {
+    TownMap *tm = &gs->town_map;
+
+    Direction dir = key_to_direction(key);
+    if (dir != DIR_NONE) {
+        int nx = gs->town_player_pos.x + dir_dx[dir];
+        int ny = gs->town_player_pos.y + dir_dy[dir];
+
+        if (nx < 0 || nx >= TOWN_MAP_W || ny < 0 || ny >= TOWN_MAP_H) return;
+
+        /* Check for NPC bump */
+        TownNPC *npc = town_npc_at(tm, nx, ny);
+        if (npc) {
+            town_interact_npc(gs, npc);
+            advance_time(gs, 1);
+            return;
+        }
+
+        /* Check for exit (walking off the bottom edge / through the gate) */
+        if (ny >= TOWN_MAP_H - 1) {
+            gs->mode = MODE_OVERWORLD;
+            gs->current_town = NULL;
+            gs->beers_drunk = 0;
+            gs->well_explored = false;
+            gs->confessed = false;
+            log_add(&gs->log, gs->turn, CP_WHITE, "You leave through the town gate.");
+            return;
+        }
+
+        Tile *target = &tm->map[ny][nx];
+        if (target->passable) {
+            gs->town_player_pos.x = nx;
+            gs->town_player_pos.y = ny;
+            advance_time(gs, 1);
+        }
+        return;
+    }
+
+    /* Leave town explicitly */
     if (key == 'q' || key == 'Q') {
         gs->mode = MODE_OVERWORLD;
         gs->current_town = NULL;
@@ -1034,35 +1074,6 @@ static void handle_town_input(GameState *gs, int key) {
         gs->confessed = false;
         log_add(&gs->log, gs->turn, CP_WHITE, "You leave the town.");
         return;
-    }
-
-    int svc = town_key_to_service(gs->current_town, key);
-    switch (svc) {
-    case SVC_INN:
-        town_do_inn(gs);
-        break;
-    case SVC_CHURCH:
-        town_do_church(gs);
-        break;
-    case SVC_MYSTIC:
-        town_do_mystic(gs);
-        break;
-    case SVC_BANK:
-        town_do_bank(gs);
-        break;
-    case SVC_WELL:
-        town_do_well(gs);
-        break;
-    case SVC_EQUIP_SHOP:
-    case SVC_POTION_SHOP:
-    case SVC_PAWN_SHOP:
-        log_add(&gs->log, gs->turn, CP_GRAY, "The shop is not yet stocked. Come back later.");
-        break;
-    case SVC_STABLE:
-        log_add(&gs->log, gs->turn, CP_GRAY, "The stable master is away. No horses available yet.");
-        break;
-    default:
-        break;
     }
 }
 
@@ -1214,8 +1225,32 @@ static void game_render(GameState *gs) {
 
     /* Render the appropriate map / screen */
     if (gs->mode == MODE_TOWN) {
-        town_render_menu(gs);
-        return;  /* town renders its own full screen */
+        ui_clear();
+        town_render(gs);
+
+        /* Town name header */
+        if (gs->current_town) {
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(0, TOWN_MAP_W + 2, "%s", gs->current_town->name);
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(2, TOWN_MAP_W + 2, "HP: %d/%d", gs->hp, gs->max_hp);
+            mvprintw(3, TOWN_MAP_W + 2, "MP: %d/%d", gs->mp, gs->max_mp);
+            mvprintw(4, TOWN_MAP_W + 2, "Gold: %d", gs->gold);
+            mvprintw(5, TOWN_MAP_W + 2, "Chiv: %d", gs->chivalry);
+            mvprintw(7, TOWN_MAP_W + 2, "Day %d %02d:%02d",
+                     gs->day, gs->hour, gs->minute);
+            mvprintw(8, TOWN_MAP_W + 2, "%s", time_of_day_name(gs->hour));
+            mvprintw(10, TOWN_MAP_W + 2, "Bump into NPCs");
+            mvprintw(11, TOWN_MAP_W + 2, "to interact.");
+            mvprintw(12, TOWN_MAP_W + 2, "q = leave town");
+            attroff(COLOR_PAIR(CP_WHITE));
+        }
+
+        ui_render_log(&gs->log, TOWN_MAP_H + 1, term_cols, 3);
+        ui_refresh();
+        return;
     }
 
     if (gs->mode == MODE_OVERWORLD) {
