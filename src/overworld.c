@@ -334,6 +334,95 @@ static void draw_lake(Overworld *ow, int cx, int cy, int radius) {
     }
 }
 
+/* Draw an island in the sea and place a boat on the nearest mainland shore */
+static void draw_island(Overworld *ow, int cx, int cy, int rx, int ry) {
+    /* Carve island shape (ellipse with noise for natural look) */
+    for (int dy = -ry - 1; dy <= ry + 1; dy++) {
+        for (int dx = -rx - 1; dx <= rx + 1; dx++) {
+            int x = cx + dx, y = cy + dy;
+            if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) continue;
+            double dist = (double)(dx*dx) / (rx*rx) + (double)(dy*dy) / (ry*ry);
+            /* Add noise to the edge for natural coastline */
+            double noise = (hash2d(x * 13, y * 7) & 0xF) / 32.0 - 0.25;
+            if (dist + noise < 1.0) {
+                /* Island terrain: mix of grass, hills, forest */
+                double n = noise2d(x, y, 8);
+                if (n > 0.65) set_hills(&ow->map[y][x]);
+                else if (n > 0.45) set_forest(&ow->map[y][x]);
+                else set_grass(&ow->map[y][x]);
+            }
+        }
+    }
+
+    /* Find nearest mainland tile and place a boat there */
+    /* Search outward from island center toward mainland */
+    int best_dist = 999999;
+    int boat_x = -1, boat_y = -1;
+    int search_r = rx + ry + 60;  /* search radius */
+    for (int dy = -search_r; dy <= search_r; dy++) {
+        for (int dx = -search_r; dx <= search_r; dx++) {
+            int x = cx + dx, y = cy + dy;
+            if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) continue;
+            Tile *t = &ow->map[y][x];
+            /* Look for a land tile adjacent to water (shore) */
+            if (!t->passable || t->type == TILE_BRIDGE) continue;
+            /* Must be on the mainland, not on this island */
+            int island_dist_sq = dx*dx + dy*dy;
+            if (island_dist_sq < (rx+3)*(ry+3)) continue;  /* still on the island */
+
+            /* Check if adjacent to water */
+            bool near_water = false;
+            for (int d = 0; d < 4; d++) {
+                int nx = x + dir_dx[d*2], ny = y + dir_dy[d*2];
+                if (nx >= 0 && nx < OW_WIDTH && ny >= 0 && ny < OW_HEIGHT) {
+                    if (ow->map[ny][nx].type == TILE_WATER)
+                        near_water = true;
+                }
+            }
+            if (near_water && island_dist_sq < best_dist) {
+                best_dist = island_dist_sq;
+                boat_x = x;
+                boat_y = y;
+            }
+        }
+    }
+
+    /* Place the boat on the mainland shore */
+    if (boat_x >= 0 && boat_y >= 0) {
+        set_tile(&ow->map[boat_y][boat_x], TILE_BRIDGE, 'B', CP_BROWN, true);
+    }
+
+    /* Also place a boat on the island shore facing the mainland */
+    for (int dy = -ry - 2; dy <= ry + 2; dy++) {
+        for (int dx = -rx - 2; dx <= rx + 2; dx++) {
+            int x = cx + dx, y = cy + dy;
+            if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) continue;
+            Tile *t = &ow->map[y][x];
+            if (!t->passable) continue;
+            /* Check if this island tile is adjacent to sea */
+            bool shore = false;
+            for (int d = 0; d < 4; d++) {
+                int nx = x + dir_dx[d*2], ny = y + dir_dy[d*2];
+                if (nx >= 0 && nx < OW_WIDTH && ny >= 0 && ny < OW_HEIGHT) {
+                    if (ow->map[ny][nx].type == TILE_WATER)
+                        shore = true;
+                }
+            }
+            if (shore) {
+                /* Pick the shore tile closest to the mainland boat */
+                if (boat_x >= 0) {
+                    int dist_to_boat = (x - boat_x)*(x - boat_x) + (y - boat_y)*(y - boat_y);
+                    if (dist_to_boat < best_dist) {
+                        best_dist = dist_to_boat;
+                        set_tile(&ow->map[y][x], TILE_BRIDGE, 'B', CP_BROWN, true);
+                    }
+                }
+                break;  /* just place one island boat */
+            }
+        }
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* Location placement                                                  */
 /* ------------------------------------------------------------------ */
@@ -452,6 +541,29 @@ void overworld_init(Overworld *ow) {
     /* Ullswater (Lake District) */
     draw_lake(ow, 155, 82, 3);
 
+    /* Step 4b: Islands -- accessible by boat (B tiles on shores) */
+
+    /* Isle of Wight -- south coast, off Hampshire */
+    draw_island(ow, 240, 215, 8, 3);
+
+    /* Isle of Man -- Irish Sea, between England and Ireland */
+    draw_island(ow, 100, 80, 6, 8);
+
+    /* Lundy Island -- Bristol Channel, small rocky island */
+    draw_island(ow, 85, 170, 3, 2);
+
+    /* Anglesey -- off northwest Wales */
+    draw_island(ow, 80, 112, 7, 5);
+
+    /* Avalon -- mystical hidden isle, southwest in the sea */
+    draw_island(ow, 40, 200, 5, 4);
+
+    /* Holy Island (Lindisfarne) -- off Northumberland coast */
+    draw_island(ow, 290, 55, 3, 2);
+
+    /* Orkney -- far north Scotland */
+    draw_island(ow, 190, 8, 6, 4);
+
     /* Step 5: Roads (scaled 1.25x) */
     draw_road(ow, 212, 162, 312, 181);   /* Camelot -> London */
     draw_road(ow, 212, 162, 194, 188);   /* Camelot -> Glastonbury */
@@ -526,6 +638,19 @@ void overworld_init(Overworld *ow) {
     /* Faerie Rings */
     ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 244, 115, 'o', CP_GREEN_BOLD);
     ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 144, 181, 'o', CP_GREEN_BOLD);
+
+    /* Island locations */
+    ow_add_location(ow, "Isle of Wight",    LOC_TOWN, 240, 215, '*', CP_WHITE);
+    ow_add_location(ow, "Isle of Man",      LOC_TOWN, 100, 80,  '*', CP_WHITE);
+    ow_add_location(ow, "Lundy Island",     LOC_LANDMARK, 85, 170, '+', CP_GRAY);
+    ow_add_location(ow, "Anglesey",         LOC_TOWN, 80, 112,  '*', CP_WHITE);
+    ow_add_location(ow, "Avalon",           LOC_LANDMARK, 40, 200, '+', CP_YELLOW_BOLD);
+    ow_add_location(ow, "Holy Island",      LOC_LANDMARK, 290, 55, '+', CP_WHITE_BOLD);
+    ow_add_location(ow, "Orkney",           LOC_TOWN, 190, 8,   '*', CP_WHITE);
+
+    /* Island dungeon entrances */
+    ow_add_location(ow, "Avalon Shrine",    LOC_DUNGEON_ENTRANCE, 42, 200, '>', CP_YELLOW);
+    ow_add_location(ow, "Orkney Barrows",   LOC_DUNGEON_ENTRANCE, 192, 9, '>', CP_GRAY);
 }
 
 Location *overworld_location_at(Overworld *ow, int x, int y) {
