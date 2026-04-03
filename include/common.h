@@ -69,6 +69,7 @@ typedef enum {
     TILE_ROAD,
     TILE_FOREST,
     TILE_HILLS,
+    TILE_MOUNTAIN,
     TILE_MARSH,
     TILE_SWAMP,
     TILE_RIVER,

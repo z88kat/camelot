@@ -82,6 +82,45 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 - High score table with morgue file character dumps
 - Game seed for challenge runs and sharing
 
+## Terrain Guide
+
+### Overworld Terrain
+| Symbol | Colour | Terrain | Passable | Notes |
+|--------|--------|---------|----------|-------|
+| `"` | Green | Grassland | Yes | Normal speed |
+| `.` | Yellow | Road | Yes | Fast travel, safest route |
+| `T` | Bright green | Forest | Yes | Slow, nature encounters, reduced visibility |
+| `^` | White | Hills | Yes | Slow, increased encounter chance |
+| `A` | Bright white | Mountains | **No** | Impassable -- go around or find a pass |
+| `,` | Green | Marsh | Yes | Very slow, chance of getting stuck |
+| `%` | Green | Swamp | Yes | Very slow, poison damage risk |
+| `~` | Blue | Sea | **No** | Impassable |
+| `=` | Blue | River | **No** | Impassable -- find a bridge (`H`) to cross |
+| `o` | Blue | Lake | **No** | Impassable -- use boat (`B`) or Walk on Water |
+| `H` | Brown | Bridge | Yes | Road speed, the only way to cross rivers |
+| `B` | Brown | Boat | Yes | Step on to sail to an island |
+
+### Overworld Locations
+| Symbol | Colour | Location Type |
+|--------|--------|---------------|
+| `*` | Various | Town (enter to visit shops, inns, etc.) |
+| `#` | White/yellow | Castle (active or abandoned) |
+| `+` | Various | Landmark (Stonehenge, Hadrian's Wall, etc.) |
+| `>` | White | Dungeon entrance (press `>` to descend) |
+| `V` | Red | Volcano (Mount Draig -- dungeon entrance) |
+| `@` | Bright white | You (the player) |
+
+### Dungeon Terrain
+| Symbol | Colour | Terrain | Notes |
+|--------|--------|---------|-------|
+| `#` | Gray | Wall | Impassable, blocks line of sight |
+| `.` | White | Floor | Standard walkable tile |
+| `+` | Brown | Closed door | Passable, blocks sight. `o` to open |
+| `/` | Brown | Open door | Passable, allows sight |
+| `>` | White | Stairs down | Press `>` to descend |
+| `<` | White | Stairs up | Press `<` to ascend |
+| `=` | Brown | Chest | May be locked or trapped |
+
 ## Keyboard Commands
 
 ### Movement

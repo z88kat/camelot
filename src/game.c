@@ -133,7 +133,8 @@ static const char *terrain_name(TileType type) {
     case TILE_ROAD:   return "Road";
     case TILE_GRASS:  return "Grassland";
     case TILE_FOREST: return "Forest";
-    case TILE_HILLS:  return "Hills";
+    case TILE_HILLS:    return "Hills";
+    case TILE_MOUNTAIN: return "Mountains";
     case TILE_MARSH:  return "Marsh";
     case TILE_SWAMP:  return "Swamp";
     case TILE_BRIDGE: return "Bridge";

@@ -22,6 +22,7 @@ static void set_tile(Tile *t, TileType type, char glyph, short color, bool pass)
 static void set_sea(Tile *t)    { set_tile(t, TILE_WATER, '~', CP_BLUE, false); }
 static void set_grass(Tile *t)  { set_tile(t, TILE_GRASS, '"', CP_GREEN, true); }
 static void set_hills(Tile *t)  { set_tile(t, TILE_HILLS, '^', CP_WHITE, true); }
+static void set_mountain(Tile *t) { set_tile(t, TILE_MOUNTAIN, 'A', CP_WHITE_BOLD, false); }
 static void set_forest(Tile *t) { set_tile(t, TILE_FOREST, 'T', CP_GREEN_BOLD, true); }
 static void set_road(Tile *t)   { set_tile(t, TILE_ROAD, '.', CP_YELLOW, true); }
 static void set_marsh(Tile *t)  { set_tile(t, TILE_MARSH, ',', CP_GREEN, true); }
@@ -155,9 +156,14 @@ static void assign_terrain(Tile *t, int x, int y) {
     double n1 = noise2d(x, y, 12);
     double n2 = noise2d(x + 1000, y + 1000, 20);
 
-    /* Scottish Highlands (y < 62) -- hilly and forested */
+    /* Scottish Highlands (y < 62) -- mountainous with forest in glens */
     if (y < 62) {
-        if (n1 > 0.65) { set_hills(t); return; }
+        /* Central Highlands spine -- impassable mountains */
+        int highland_cx = lerp(160, 200, y - 12, 50);
+        int dist_from_spine = abs(x - highland_cx);
+        if (dist_from_spine < 20 && n1 > 0.50) { set_mountain(t); return; }
+        if (dist_from_spine < 30 && n1 > 0.60) { set_hills(t); return; }
+        if (n1 > 0.70) { set_hills(t); return; }
         if (n1 > 0.45) { set_forest(t); return; }
         set_grass(t);
         return;
@@ -165,9 +171,10 @@ static void assign_terrain(Tile *t, int x, int y) {
 
     /* Northern England (y 62-106) -- Pennine hills, Lake District */
     if (y < 106) {
-        /* Pennines: central spine of hills */
+        /* Pennines: central spine of hills with occasional mountain peaks */
         int center_x = lerp(238, 250, y - 62, 44);
         int dist_from_pennines = abs(x - center_x);
+        if (dist_from_pennines < 8 && n1 > 0.60) { set_mountain(t); return; }
         if (dist_from_pennines < 19 && n1 > 0.35) { set_hills(t); return; }
 
         /* Lake District (west side, y 75-97) */
@@ -181,9 +188,11 @@ static void assign_terrain(Tile *t, int x, int y) {
         return;
     }
 
-    /* Wales (y 110-156, x < 188) -- mountainous */
+    /* Wales (y 110-156, x < 188) -- mountainous with Snowdonia */
     if (y >= 110 && y <= 156 && x < 188) {
-        if (n1 > 0.55) { set_hills(t); return; }
+        /* Snowdonia region (north Wales, y 112-130, x 85-120) -- mountain peaks */
+        if (y >= 112 && y <= 132 && x >= 85 && x <= 125 && n1 > 0.50) { set_mountain(t); return; }
+        if (n1 > 0.60) { set_hills(t); return; }
         if (n1 > 0.40 && n2 > 0.5) { set_forest(t); return; }
         set_grass(t);
         return;
