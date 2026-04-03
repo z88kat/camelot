@@ -8,17 +8,37 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 
 The game features permadeath -- when you die, your character is gone forever. But your legacy lives on: gold stored at the bank, items left at home, and your gravestone in Canterbury cathedral carry forward to future characters.
 
-## Features
+## Current State
+
+**Implemented (Phases 1-4):**
+- Overworld map of England (500x250 tiles) with procedural terrain, coastlines, rivers, lakes, mountains, islands
+- 18 towns and 14 active castles with walkable interior maps
+- 3 abandoned castles, 7 islands with boats, 10 cottages, 6 caves
+- Landmarks: Stonehenge (stat boost), Faerie Rings (random effects), Avalon, Holy Island, Hadrian's Wall, White Cliffs of Dover
+- Day/night cycle with dimming and light radius around the player
+- 30-day lunar cycle with 12 event notifications
+- Regional weather system (6 types, varies by location)
+- Town services: Inn (rest/beer), Church (pray/donate/confess/loot), Mystic, Bank, Well
+- Castle throne rooms with Kings, Queens, and Guards
+- Wandering NPCs and animals (overworld and towns)
+- Boat sailing across lakes
+- Dungeon entry/exit with test dungeon
+- Camping system, drunkenness system, terrain-based travel time
+- Minimap overview
+
+**Coming next:** Quest system, dungeon generation, FOV, combat, items, spells, save/load
+
+## Features (Planned)
 
 ### World
 - Hand-crafted overworld map of England with 10+ towns, 17 castles (14 active + 3 abandoned), landmarks, and 7+ dungeons
 - Towns with equipment shops, potion shops, inns (with beer!), churches, mystics, pawn shops, banks, and wells
-- Active castles ruled by Arthurian kings who travel the realm, and abandoned castles to explore
+- Active castles with throne rooms ruled by Arthurian kings
 - Landmarks: Stonehenge, Hadrian's Wall, White Cliffs of Dover, Avalon, Faerie Rings
 - Lakes with islands, boats, and the occasional ghost ship or Nessie encounter
 - Random cottages, caves with hermits, and overworld encounters
 - Day/night cycle with a 30-day lunar calendar and recurring events (feasts, tournaments, holy days)
-- Weather system: rain, storms, fog, snow, wind -- and rainbows after the rain
+- Weather system: rain, storms, fog, snow, wind -- regional variation across the map
 
 ### Character
 - Three classes: Knight (warrior), Wizard (spellcaster), Ranger (balanced)
@@ -88,73 +108,111 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | Symbol | Colour | Terrain | Passable | Travel Time | Notes |
 |--------|--------|---------|----------|-------------|-------|
 | `.` | Yellow | Road | Yes | 5 min | Fast travel, safest route |
-| `H` | Brown | Bridge | Yes | 5 min | Road speed, only way to cross rivers |
+| `H` | Brown | Bridge | Yes | 5 min | Only way to cross rivers |
 | `"` | Green | Grassland | Yes | 10 min | Normal open ground |
 | `T` | Bright green | Forest | Yes | 20 min | Dense undergrowth, nature encounters |
 | `^` | White | Hills | Yes | 25 min | Steep climbs, increased encounter chance |
 | `,` | Green | Marsh | Yes | 30 min | Boggy, chance of getting stuck |
 | `%` | Green | Swamp | Yes | 35 min | Exhausting, poison damage risk |
 | `A` | Bright white | Mountains | **No** | -- | Impassable -- go around or find a pass |
+| `&` | Bright green | Dense woods | **No** | -- | Impassable without Ranger/axe |
 | `~` | Blue | Sea | **No** | -- | Impassable |
-| `=` | Blue | River | **No** | -- | Impassable -- find a bridge (`H`) to cross |
-| `o` | Blue | Lake | **No** | -- | Impassable -- use boat (`B`) or Walk on Water |
-| `H` | Brown | Bridge | Yes | Road speed, the only way to cross rivers |
-| `B` | Brown | Boat | Yes | Step on to sail to an island |
+| `=` | Blue | River | **No** | -- | Impassable -- find a bridge (`H`) |
+| `o` | Blue | Lake | **No** | -- | Use boat (`B`) or Walk on Water |
+| `B` | Brown | Boat | Yes | -- | Board to sail across water |
+
+*Weather adds extra time: Rain +2, Storm +5, Snow +4, Fog +1, Wind +1 min per step.*
 
 ### Overworld Locations
 | Symbol | Colour | Location Type |
 |--------|--------|---------------|
-| `*` | Various | Town (enter to visit shops, inns, etc.) |
-| `#` | White/yellow | Castle (active or abandoned) |
-| `+` | Various | Landmark (Stonehenge, Hadrian's Wall, etc.) |
+| `*` | Various | Town (press Enter to enter) |
+| `#` | White/yellow | Castle (press Enter, locked at night) |
+| `+` | Various | Landmark (press Enter to interact) |
 | `>` | White | Dungeon entrance (press `>` to descend) |
-| `V` | Red | Volcano (Mount Draig -- dungeon entrance) |
+| `V` | Red | Volcano (dungeon entrance) |
+| `n` | Brown | Cottage |
+| `(` | Gray | Cave |
 | `@` | Bright white | You (the player) |
+
+### Overworld Creatures
+| Symbol | Colour | Creature | Behaviour |
+|--------|--------|----------|-----------|
+| `@` | White | Traveller | Walks roads, shares tips |
+| `@` | Yellow | Pilgrim | Walks roads, heading to Canterbury |
+| `@` | Green | Merchant | Walks roads, advertises wares |
+| `@` | Brown | Peasant | Wanders grassland |
+| `d` | Brown | Deer | In forests, flees when approached |
+| `s` | White | Sheep | On grassland, bleats |
+| `r` | Brown | Rabbit | On grassland, darts away |
+| `v` | Gray | Crow | Anywhere, flies away |
+
+### Town/Castle Interior
+| Symbol | Colour | Meaning |
+|--------|--------|---------|
+| `#` | Gray/brown | Wall |
+| `#` | Yellow | Throne room wall (castles) |
+| `.` | Green | Courtyard |
+| `.` | Yellow | Path / floor |
+| `/` | Brown | Open door / gate |
+| `I` | Brown | Innkeeper |
+| `P` | White | Priest |
+| `$` | Yellow | Blacksmith |
+| `!` | Magenta | Apothecary |
+| `P` | Green | Pawnbroker |
+| `?` | Magenta | Mystic |
+| `B` | Yellow | Banker |
+| `O` | Blue | Well |
+| `K` | Yellow | King (castles) |
+| `Q` | Magenta | Queen (castles) |
+| `G` | White | Guard (castles) |
+| `@` | White | Townfolk (wanders) |
+| `d` | Brown | Dog (wanders) |
+| `c` | Yellow | Cat (wanders) |
+| `k` | White | Chicken (wanders) |
 
 ### Dungeon Terrain
 | Symbol | Colour | Terrain | Notes |
 |--------|--------|---------|-------|
 | `#` | Gray | Wall | Impassable, blocks line of sight |
 | `.` | White | Floor | Standard walkable tile |
-| `+` | Brown | Closed door | Passable, blocks sight. `o` to open |
+| `+` | Brown | Closed door | Passable, blocks sight |
 | `/` | Brown | Open door | Passable, allows sight |
 | `>` | White | Stairs down | Press `>` to descend |
 | `<` | White | Stairs up | Press `<` to ascend |
-| `=` | Brown | Chest | May be locked or trapped |
 
 ## Keyboard Commands
 
-### Movement
+### Movement (all map modes)
 | Key | Action |
 |-----|--------|
 | `h` `j` `k` `l` `y` `u` `b` `n` | Move (vi-keys, 8-directional) |
 | Arrow keys | Move (4-directional) |
 | Numpad 1-9 | Move (8-directional) |
-| Shift + direction | Auto-run until interrupted |
 | `.` or `5` | Wait one turn |
-| `>` | Descend stairs |
-| `<` | Ascend stairs |
 
-### Overworld Actions
+### Overworld
 | Key | Action |
 |-----|--------|
-| `Enter` | Enter a town or castle |
+| `Enter` | Enter a town, castle, or interact with landmark |
 | `>` | Descend into a dungeon entrance |
 | `c` | Camp (rest 8 hours, restore 50% HP/MP) |
 | `M` | Minimap (full overworld overview) |
-| `d` | Dismount horse |
-| `x` | Dig (treasure maps) |
+| `q` | Quit game |
 
-### Town Menu
+### Town / Castle Interior
 | Key | Action |
 |-----|--------|
-| `a`-`i` | Select a service (inn, church, shop, etc.) |
-| `q` | Leave the town |
+| Movement keys | Walk around, bump into NPCs to interact |
+| `q` | Leave through the gate |
+
+### Town Services
 
 #### Inn
 | Key | Action |
 |-----|--------|
 | `r` | Rest until morning (costs gold, full HP/MP) |
+| `n` | Rest until nightfall (costs gold, full HP/MP) |
 | `b` | Buy a beer (local brew, risk drunkenness!) |
 | `q` | Leave the inn |
 
@@ -164,6 +222,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `p` | Pray (restore 25% HP/MP, free) |
 | `d` | Donate gold (+1 chivalry per 20g) |
 | `c` | Confession (+3 chivalry, once per visit) |
+| `l` | Loot the church (-12 chivalry! Permanently banned) |
 | `q` | Leave the church |
 
 #### Bank
@@ -175,62 +234,70 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `W` | Withdraw all gold |
 | `q` | Leave the bank |
 
-### Dungeon Actions
+#### Mystic
+Pay 5 gold for a fortune. 60% chance of +1 to a random stat, 40% chance of -1.
+
+#### Well
+Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or empty (35%).
+
+### Dungeon
 | Key | Action |
 |-----|--------|
 | `<` | Ascend stairs (return to overworld from level 1) |
 | `>` | Descend stairs |
-| `g` | Pick up item |
-| `i` | Open inventory |
-| `z` | Cast a spell |
-| `f` | Fire ranged weapon |
-| `t` | Throw an item |
-| `a` | Apply/use item on another (e.g., pour holy water) |
-| `o` | Open door |
-| `c` | Close door |
-| `s` | Search adjacent walls for secret doors |
-| `D` | Disarm trap |
-| `J` | Quest journal |
-| `S` | Save game |
+| `q` | Quit game |
 
 ### UI (all modes)
 | Key | Action |
 |-----|--------|
-| `?` | Help system |
-| `;` | Look/examine mode |
-| `@` | Full character sheet |
-| `Ctrl+P` | Message history |
-| `=` | Settings |
-| `q` | Quit (overworld/dungeon) or leave (town) |
+| `M` | Minimap (overworld only) |
+| `q` | Quit game / leave town |
 
 ## Player Guide
 
 ### Getting Started
-1. **Create your character**: choose class, gender, name, appearance, and roll your stats. Press `r` to re-roll stats until you're happy, then Enter to accept. Press `C` for cheat options (score will be 0).
-2. **Visit King Arthur**: your first task is to find Arthur in Camelot Castle's throne room. He'll grant you the quest for the Holy Grail and make you a knight.
-3. **Explore Camelot**: visit the shops to buy starting gear, the inn for food and quests, and the church for blessings. Don't forget to check your home for items left by previous characters!
+1. You start at Camelot on the overworld. Walk to the yellow `*` and press **Enter** to visit the town.
+2. Inside the town, **bump into NPCs** to interact with them -- the Innkeeper, Priest, Blacksmith, etc.
+3. Walk through the **gate** (`/` at the bottom) to leave and explore the world.
+4. Visit **Camelot Castle** `#` to meet the King in the Throne Room.
 
 ### Time & Travel
 - Time passes with every action. Each step you take advances the game clock.
 - **Dungeon movement**: 1 minute per step -- corridors are short.
 - **Overworld movement**: varies by terrain. Roads are fast (5 min/step), grassland is normal (10 min), and swamps are exhausting (35 min/step). Plan your route!
 - **Stick to roads** when possible -- they are 7x faster than swamps and have fewer encounters.
-- **Day/night cycle**: the clock drives day and night. Shops close at night, different enemies appear, and visibility drops. Watch the time on your status bar.
-- **30-day lunar cycle**: special events happen on specific days (feasts, tournaments, full moon werewolves). The current day is shown on the status bar.
+- **Day/night cycle**: shops close at night, castles lock their gates, visibility drops. The time of day is shown on your status bar: [Dawn], [Morning], [Midday], [Afternoon], [Dusk], [Evening], [Night].
+- **Weather** changes as you travel. Scotland is colder and rainier, Wales is foggy, Whitby is always raining. Weather affects travel speed.
+- **30-day lunar cycle**: special events happen on specific days. Watch for notifications at dawn: Feast Day, Market Day, Full Moon, Tournament Day, and more.
 
-### Survival Tips
-- **Eat regularly**: hunger drains your stats and eventually kills you. Buy food, pick apples from trees, and cook raw meat at campfires (you'll need a tinderbox).
-- **Watch your weight**: heavy armour and hoarded loot slow you down. Sell gems at pawn shops, stash surplus at home.
-- **Identify potions carefully**: drinking unknown potions is risky. Pay potion shops to identify them, or use the Identify spell.
-- **Save often**: press `S` to save. There's only one save slot and death is permanent.
-- **Bank your gold**: deposit gold at banks in major cities. It survives death for your next character.
+### Camping
+Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP. There's a small chance of a night ambush.
 
-### Combat Advice
-- **Know when to run**: you can always try to flee (30%+ chance). Don't fight enemies you can't beat.
-- **Use terrain**: doorways create chokepoints. Lure enemies into corridors for one-on-one fights.
-- **Rangers detect traps**: playing Ranger gives passive trap detection and lockpicking.
-- **Wizards are fragile**: rely on Shield spell and ranged magic. The Mana Shield ability at level 10 is a lifesaver.
-- **Silver weapons hurt werewolves**: keep a Silver Dagger handy for nighttime travel.
+### Boats & Lakes
+Walk onto a `B` tile to board a boat. You can then sail across lake water freely. When you step onto land, the boat is left at the shore behind you.
+
+### Towns & Castles
+- **Towns** (`*`) are open at all hours. Press Enter to enter.
+- **Castles** (`#`) are locked at night (22:00-04:59). Return at dawn, or have high chivalry (60+) to convince the guards.
+- Inside, walk around and **bump into NPCs** to use services.
+- Castles have a **Throne Room** with the King, possibly the Queen, and Guards.
+
+### Landmarks
+Press Enter on a landmark to interact:
+- **Stonehenge**: +1 to a random stat (once per game)
+- **Faerie Ring**: random effect -- stat boost, gold, MP restore, stat swap, or teleport!
+- **Avalon**: full HP/MP restore
+- **Holy Island**: +2 chivalry, full HP restore
+
+### Beer & Drunkenness
+Buy beer at any inn (2-3g per pint). Each pint increases drunkenness:
+1. Merry -- no effect
+2. Tipsy -- 10% chance of stumbling (random movement)
+3. Drunk -- 25% stumble, -1 INT, +1 STR
+4. Very drunk -- 40% stumble, -2 INT, -1 SPD, +2 STR
+5. Pass out -- wake up 8 hours later with 50% HP
+
+Drunkenness wears off over time.
 
 ### Chivalry
 Your chivalry score (0-100) determines how NPCs treat you:
@@ -238,14 +305,14 @@ Your chivalry score (0-100) determines how NPCs treat you:
 - **Below 30**: King Arthur won't speak with you
 - **40+**: Lady of the Lake may offer Excalibur
 - **50+**: eligible for the Princess quest
-- **60+**: best prices and quests at castles
+- **60+**: castle gates open at night, best prices
 - **70+**: The Siege Perilous legendary artifact won't harm you
 
-Raise chivalry by: rescuing damsels, completing quests, donating at churches, praying at shrines.
-Lower chivalry by: attacking innocents, stealing, looting shrines, witch tasks, killing priests.
+Raise chivalry by: donating at churches, confession, visiting Holy Island.
+Lower chivalry by: looting churches (-12), drinking too much, bad choices.
 
 ### The Holy Grail
-The Grail is hidden in a random dungeon each game. Gather hints from inn NPCs (beware -- some are red herrings!). Merlin and King Pellam always give truthful hints. The Carbonek shrine reveals the exact location. Defeat Mordred to claim it, then return it to Arthur (chivalry 30+ required).
+The Grail is hidden in a random dungeon each game. Gather hints from inn NPCs (beware -- some are red herrings!). Merlin and King Pellam always give truthful hints. Defeat Mordred to claim it, then return it to Arthur (chivalry 30+ required).
 
 ### The True Ending
 Rescue the princess from the Evil Sorcerer's tower, then visit her at her father's castle. Accept her marriage proposal for the game's true ending -- you become King/Queen with a +10000 score bonus.
@@ -256,13 +323,14 @@ Rescue the princess from the Evil Sorcerer's tower, then visit her at her father
 make          # Build the game
 ./camelot     # Run the game
 make clean    # Clean build files
+./camelot -s 12345   # Start with a specific seed
 ```
 
 Requires: C compiler (clang/gcc), ncurses library, 256-colour terminal recommended.
 
 ## Data Files
 
-All game content (monsters, items, spells, quests, etc.) is defined in CSV files under `data/`. Edit these to rebalance the game, add new content, or create mods -- no recompilation needed.
+All game content (monsters, items, spells, quests, etc.) will be defined in CSV files under `data/`. Edit these to rebalance the game, add new content, or create mods -- no recompilation needed.
 
 ## License
 

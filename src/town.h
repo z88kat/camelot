@@ -42,6 +42,9 @@ typedef enum {
     NPC_STABLE,
     NPC_WELL,       /* not really an NPC, but interactive */
     NPC_TOWNFOLK,    /* flavour NPC */
+    NPC_KING,        /* castle ruler */
+    NPC_QUEEN,       /* castle queen */
+    NPC_GUARD,       /* castle guard */
     NPC_DOG,         /* wanders, harmless */
     NPC_CAT,         /* wanders, harmless */
     NPC_CHICKEN      /* wanders, harmless */

@@ -955,6 +955,44 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
         }
         break;
+    case NPC_KING:
+        {
+            const char *msgs[] = {
+                "The King nods gravely. \"Seek the Holy Grail, brave knight.\"",
+                "\"England needs heroes. Do not fail us.\"",
+                "\"Have you news from the road? Speak!\"",
+                "\"Prove your worth and you shall sit at the Round Table.\"",
+                "\"Be vigilant. Dark forces stir in the land.\"",
+            };
+            int n = sizeof(msgs) / sizeof(msgs[0]);
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "%s", msgs[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_QUEEN:
+        {
+            const char *msgs[] = {
+                "The Queen smiles warmly. \"You are always welcome here.\"",
+                "\"The court whispers of your deeds, brave one.\"",
+                "\"Please, bring peace to our troubled land.\"",
+                "\"My lord the King places great faith in you.\"",
+            };
+            int n = sizeof(msgs) / sizeof(msgs[0]);
+            log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD, "%s", msgs[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_GUARD:
+        {
+            const char *msgs[] = {
+                "The guard salutes. \"All is well, m'lord.\"",
+                "\"Move along. The King's peace must be kept.\"",
+                "\"I've heard bandits roam the northern roads.\"",
+                "\"Stay out of trouble within these walls.\"",
+                "\"The castle is secure. Rest easy.\"",
+            };
+            int n = sizeof(msgs) / sizeof(msgs[0]);
+            log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, n - 1)]);
+        }
+        break;
     case NPC_DOG:
         {
             const char *barks[] = {

@@ -256,19 +256,24 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
     };
     int nbuildings = sizeof(buildings) / sizeof(buildings[0]);
 
-    /* Layout positions: top-left, top-right, mid-left, mid-right, etc. */
+    /* Layout positions: top-left, top-right, mid-left, mid-right, etc.
+       Castles have a throne room at the top, so shift top buildings down. */
+    bool is_castle_layout = (strncmp(td->name, "Castle", 6) == 0 ||
+                             strcmp(td->name, "Camelot Castle") == 0);
+    int top_y = is_castle_layout ? 9 : 2;  /* push down if throne room present */
+
     typedef struct { int x, y, door_side; } Slot;
     Slot slots[] = {
-        {  3,  2, 0 },   /* top-left, door south */
-        { 14,  2, 0 },   /* top-center-left */
-        { 25,  2, 0 },   /* top-center */
-        { 36,  2, 0 },   /* top-center-right */
-        { 47,  2, 0 },   /* top-right */
-        {  3, 16, 1 },   /* bottom-left, door north */
-        { 14, 16, 1 },   /* bottom-center-left */
-        { 25, 16, 1 },   /* bottom-center */
-        { 36, 16, 1 },   /* bottom-center-right */
-        { 47, 16, 1 },   /* bottom-right */
+        {  3, top_y, 0 },   /* top-left, door south */
+        { 14, top_y, 0 },   /* top-center-left */
+        { 25, top_y, 0 },   /* top-center */
+        { 36, top_y, 0 },   /* top-center-right */
+        { 47, top_y, 0 },   /* top-right */
+        {  3, 17, 1 },      /* bottom-left, door north */
+        { 14, 17, 1 },      /* bottom-center-left */
+        { 25, 17, 1 },      /* bottom-center */
+        { 36, 17, 1 },      /* bottom-center-right */
+        { 47, 17, 1 },      /* bottom-right */
     };
     int nslots = sizeof(slots) / sizeof(slots[0]);
 
@@ -304,6 +309,75 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
     if (td->services & SVC_WELL) {
         int wx = TOWN_MAP_W / 2 + 5, wy = TOWN_MAP_H / 2 + 3;
         add_npc(tm, NPC_WELL, wx, wy, 'O', CP_BLUE, "Well", false);
+    }
+
+    /* Castle-specific: add a throne room with King, Queen, and guards */
+    bool is_castle = (strncmp(td->name, "Castle", 6) == 0 ||
+                      strcmp(td->name, "Camelot Castle") == 0);
+    if (is_castle) {
+        /* Throne room -- large room at top center of map */
+        int tr_x = TOWN_MAP_W / 2 - 8;
+        int tr_y = 1;
+        int tr_w = 16, tr_h = 7;
+
+        /* Build throne room walls */
+        for (int by = tr_y; by < tr_y + tr_h; by++) {
+            for (int bx = tr_x; bx < tr_x + tr_w; bx++) {
+                if (bx < 0 || bx >= TOWN_MAP_W || by < 0 || by >= TOWN_MAP_H) continue;
+                if (by == tr_y || by == tr_y + tr_h - 1 || bx == tr_x || bx == tr_x + tr_w - 1) {
+                    tm_set(&tm->map[by][bx], TILE_WALL, '#', CP_YELLOW, false);
+                } else {
+                    tm_set(&tm->map[by][bx], TILE_FLOOR, '.', CP_YELLOW, true);
+                }
+            }
+        }
+
+        /* Throne room door at bottom center */
+        int door_x = tr_x + tr_w / 2;
+        tm_set(&tm->map[tr_y + tr_h - 1][door_x], TILE_DOOR_OPEN, '/', CP_YELLOW, true);
+
+        /* Throne (decorative) */
+        int throne_x = tr_x + tr_w / 2;
+        int throne_y = tr_y + 1;
+        tm_set(&tm->map[throne_y][throne_x], TILE_FLOOR, '_', CP_YELLOW_BOLD, true);
+
+        /* Label "Throne Room" above the door */
+        const char *thr_label = "Throne Room";
+        int lx = tr_x + 2;
+        int ly = tr_y + tr_h;
+        if (ly < TOWN_MAP_H) {
+            for (int c = 0; thr_label[c] && lx + c < tr_x + tr_w - 1; c++) {
+                Tile *lt = &tm->map[ly][lx + c];
+                if (lt->passable) {
+                    lt->glyph = thr_label[c];
+                    lt->color_pair = CP_YELLOW_BOLD;
+                }
+            }
+        }
+
+        /* King on the throne */
+        add_npc(tm, NPC_KING, throne_x, throne_y + 1, 'K', CP_YELLOW_BOLD, "King", false);
+
+        /* Queen beside the throne (50% chance present) */
+        if (rng_chance(50)) {
+            add_npc(tm, NPC_QUEEN, throne_x - 2, throne_y + 1, 'Q', CP_MAGENTA_BOLD, "Queen", false);
+        }
+
+        /* Guards at the throne room entrance */
+        add_npc(tm, NPC_GUARD, door_x - 1, tr_y + tr_h - 2, 'G', CP_WHITE, "Guard", false);
+        add_npc(tm, NPC_GUARD, door_x + 1, tr_y + tr_h - 2, 'G', CP_WHITE, "Guard", false);
+
+        /* Additional guards wandering the courtyard */
+        for (int g = 0; g < rng_range(1, 3); g++) {
+            for (int tries = 0; tries < 50; tries++) {
+                int rx = rng_range(3, TOWN_MAP_W - 4);
+                int ry = rng_range(tr_y + tr_h + 1, TOWN_MAP_H - 4);
+                if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
+                    add_npc(tm, NPC_GUARD, rx, ry, 'G', CP_WHITE, "Guard", true);
+                    break;
+                }
+            }
+        }
     }
 
     /* Random townfolk (2-5) */
