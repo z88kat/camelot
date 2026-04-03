@@ -1850,6 +1850,50 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Message history (P = Shift+P) */
+    if (key == 'P') {
+        ui_clear();
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+
+        int total = gs->log.count;
+        int page_size = term_rows - 3;
+        int offset = 0;
+
+        while (1) {
+            ui_clear();
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvprintw(0, 1, "-- Message History (%d messages) -- [Up/Down to scroll, q to close]", total);
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+            for (int i = 0; i < page_size && (offset + i) < total; i++) {
+                const LogEntry *entry = log_get(&gs->log, offset + i);
+                if (entry) {
+                    attron(COLOR_PAIR(entry->color_pair));
+                    mvprintw(2 + i, 1, "[%4d] %.*s",
+                             entry->turn, term_cols - 10, entry->text);
+                    attroff(COLOR_PAIR(entry->color_pair));
+                }
+            }
+
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(term_rows - 1, 1, "Showing %d-%d of %d",
+                     offset + 1,
+                     (offset + page_size < total) ? offset + page_size : total,
+                     total);
+            attroff(COLOR_PAIR(CP_GRAY));
+
+            ui_refresh();
+            int hkey = ui_getkey();
+            if (hkey == 'q' || hkey == 'Q' || hkey == 27 || hkey == 'P') break;
+            if ((hkey == KEY_DOWN || hkey == 'j') && offset + page_size < total) offset++;
+            if ((hkey == KEY_UP || hkey == 'k') && offset > 0) offset--;
+            if (hkey == KEY_NPAGE) { offset += page_size; if (offset + page_size > total) offset = total - page_size; if (offset < 0) offset = 0; }
+            if (hkey == KEY_PPAGE) { offset -= page_size; if (offset < 0) offset = 0; }
+        }
+        return;
+    }
+
     /* Wait */
     if (key == '.' || key == '5') {
         int wait_mins = (gs->mode == MODE_OVERWORLD) ? 10 : 1;

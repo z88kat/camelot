@@ -251,6 +251,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | Key | Action |
 |-----|--------|
 | `M` | Minimap (overworld only) |
+| `P` | Message history (scroll with Up/Down, q to close) |
 | `q` | Quit game / leave town |
 
 ## Player Guide
