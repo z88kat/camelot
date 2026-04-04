@@ -668,6 +668,29 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
         }
     }
 
+    /* Place 1-2 magic circles per level */
+    {
+        int num_circles = rng_range(1, 2);
+        for (int c = 0; c < num_circles; c++) {
+            for (int tries = 0; tries < 200; tries++) {
+                int cx = rng_range(5, MAP_WIDTH - 6);
+                int cy = rng_range(5, MAP_HEIGHT - 6);
+                if (level->tiles[cy][cx].type != TILE_FLOOR) continue;
+                if (level->tiles[cy][cx].glyph != '.') continue;  /* not water/rubble */
+
+                /* Pick a color for the circle */
+                short colors[] = { CP_WHITE, CP_BLUE, CP_YELLOW, CP_RED,
+                                   CP_GREEN, CP_CYAN, CP_MAGENTA };
+                short cp = colors[rng_range(0, 6)];
+
+                level->tiles[cy][cx].glyph = '(';
+                level->tiles[cy][cx].color_pair = cp;
+                /* Still passable -- effect triggers on step */
+                break;
+            }
+        }
+    }
+
     /* Hide solid rock -- only show walls adjacent to open space */
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {

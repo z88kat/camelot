@@ -557,8 +557,48 @@ static void handle_overworld_input(GameState *gs, int key) {
                 creature->pos.x += rng_range(-8, 8);
                 creature->pos.y += rng_range(-4, 4);
                 break;
+            case OW_NPC_DRUID:
+                {
+                    int druid_roll = rng_range(1, 100);
+                    if (druid_roll <= 30) {
+                        /* Pickpocket */
+                        int stolen = rng_range(10, 30);
+                        if (gs->gold >= stolen) {
+                            gs->gold -= stolen;
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "A druid's hand brushes your coin purse... -%dg!", stolen);
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "A druid eyes your purse but finds nothing worth taking.");
+                        }
+                    } else if (druid_roll <= 50) {
+                        int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                        const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                        int pick = rng_range(0, 3);
+                        (*stats[pick])++;
+                        log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                 "The druid places a hand on your brow. \"Be blessed.\" +1 %s!", names[pick]);
+                    } else if (druid_roll <= 70) {
+                        gs->mp = gs->max_mp;
+                        log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                 "The druid chants softly. Your mana is restored!");
+                    } else {
+                        const char *lore[] = {
+                            "\"The circles hold ancient power. Step wisely.\"",
+                            "\"The stones remember what men forget.\"",
+                            "\"Seek the green circles -- they offer safe passage.\"",
+                            "\"Beware the red glow... it burns.\"",
+                            "\"Nature gives, and nature takes.\"",
+                        };
+                        int n = sizeof(lore) / sizeof(lore[0]);
+                        log_add(&gs->log, gs->turn, CP_GREEN, "%s", lore[rng_range(0, n - 1)]);
+                    }
+                }
+                break;
             }
-            /* Don't block movement -- player walks through */
+            /* Swap positions -- creature moves to where player was */
+            creature->pos.x = gs->player_pos.x;
+            creature->pos.y = gs->player_pos.y;
         }
 
         if (!passable) {
@@ -685,6 +725,10 @@ static void handle_overworld_input(GameState *gs, int key) {
             case LOC_CAVE:
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "A dark cave entrance in the hillside. Press Enter to explore.");
+                break;
+            case LOC_MAGIC_CIRCLE:
+                log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                         "A magic circle glows on the ground! Press Enter to step inside.");
                 break;
             default:
                 /* Check for player home by name */
@@ -900,6 +944,56 @@ static void handle_overworld_input(GameState *gs, int key) {
             ui_getkey();
 
             log_add(&gs->log, gs->turn, CP_BROWN, "You leave the cottage.");
+
+        } else if (loc && loc->type == LOC_MAGIC_CIRCLE) {
+            if (loc->visited) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The magic circle has faded. Its power is spent.");
+            } else {
+                loc->visited = true;
+                int circle_roll = rng_range(1, 100);
+
+                if (circle_roll <= 25) {
+                    gs->hp = gs->max_hp;
+                    gs->mp = gs->max_mp;
+                    log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                             "The circle flares white! HP and MP fully restored!");
+                } else if (circle_roll <= 45) {
+                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                    int pick = rng_range(0, 3);
+                    (*stats[pick])++;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "Ancient power flows through you! +1 %s!", names[pick]);
+                } else if (circle_roll <= 60) {
+                    int gold = rng_range(30, 100);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "The circle shimmers and gold appears! +%d gold!", gold);
+                } else if (circle_roll <= 75) {
+                    /* Teleport to another magic circle */
+                    for (int i = 0; i < gs->overworld->num_locations; i++) {
+                        Location *other = &gs->overworld->locations[i];
+                        if (other->type == LOC_MAGIC_CIRCLE && other != loc) {
+                            gs->player_pos = other->pos;
+                            log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                     "The circle pulses green! You are teleported to another circle!");
+                            break;
+                        }
+                    }
+                } else if (circle_roll <= 88) {
+                    int dmg = rng_range(5, 12);
+                    gs->hp -= dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The circle erupts in flame! -%d HP!", dmg);
+                } else {
+                    gs->chivalry += 3;
+                    if (gs->chivalry > 100) gs->chivalry = 100;
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "The circle hums with nature's blessing. +3 chivalry.");
+                }
+            }
 
         } else if (loc && loc->type == LOC_CAVE) {
             if (loc->visited) {
@@ -2129,6 +2223,82 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     };
                     int n = sizeof(water_msgs) / sizeof(water_msgs[0]);
                     log_add(&gs->log, gs->turn, CP_BLUE, "%s", water_msgs[rng_range(0, n - 1)]);
+                }
+
+                /* Magic circle effect */
+                if (tiles[ny][nx].glyph == '(') {
+                    int circle_roll = rng_range(1, 100);
+
+                    if (circle_roll <= 20) {
+                        /* Circle of Healing */
+                        gs->hp = gs->max_hp;
+                        log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                                 "A Circle of Healing! White light surrounds you. HP fully restored!");
+                    } else if (circle_roll <= 35) {
+                        /* Circle of Mana */
+                        gs->mp = gs->max_mp;
+                        log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                                 "A Circle of Mana! Blue energy flows into you. MP fully restored!");
+                    } else if (circle_roll <= 50) {
+                        /* Circle of Blessing */
+                        int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                        const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                        int pick = rng_range(0, 3);
+                        (*stats[pick])++;
+                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                 "A Circle of Blessing! Golden light! +1 %s!", names[pick]);
+                    } else if (circle_roll <= 60) {
+                        /* Circle of Gold */
+                        int gold = rng_range(20, 80);
+                        gs->gold += gold;
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "A Circle of Gold! Coins materialize! +%d gold!", gold);
+                    } else if (circle_roll <= 70) {
+                        /* Circle of Teleportation */
+                        DungeonLevel *dl = current_dungeon_level(gs);
+                        for (int t = 0; t < 200; t++) {
+                            int tx = rng_range(3, MAP_WIDTH - 4);
+                            int ty = rng_range(3, MAP_HEIGHT - 4);
+                            if (dl->tiles[ty][tx].type == TILE_FLOOR &&
+                                dl->tiles[ty][tx].glyph == '.') {
+                                gs->player_pos = (Vec2){ tx, ty };
+                                break;
+                            }
+                        }
+                        log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                 "A Circle of Teleportation! The world spins!");
+                    } else if (circle_roll <= 80) {
+                        /* Circle of Fire */
+                        int dmg = rng_range(8, 15);
+                        gs->hp -= dmg;
+                        if (gs->hp < 1) gs->hp = 1;
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "A Circle of Fire! Flames erupt! -%d HP!", dmg);
+                    } else if (circle_roll <= 88) {
+                        /* Circle of Draining */
+                        int drain = gs->mp / 2;
+                        gs->mp -= drain;
+                        log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                 "A Circle of Draining! Your mana is siphoned away! -%d MP!", drain);
+                    } else if (circle_roll <= 95) {
+                        /* Circle of Confusion */
+                        gs->drunk_turns += 15;
+                        gs->beers_drunk = 2;  /* triggers stumbling */
+                        log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                 "A Circle of Confusion! Your mind reels! Disoriented!");
+                    } else {
+                        /* Circle of Warding */
+                        gs->hp += 20;
+                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                        gs->mp += 10;
+                        if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                        log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                                 "A Circle of Warding! A protective aura surrounds you!");
+                    }
+
+                    /* Circle fades after use */
+                    tiles[ny][nx].glyph = '.';
+                    tiles[ny][nx].color_pair = CP_WHITE;
                 }
 
                 /* Room entry flavour messages */

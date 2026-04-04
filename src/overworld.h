@@ -17,7 +17,8 @@ typedef enum {
     LOC_DUNGEON_ENTRANCE,
     LOC_COTTAGE,
     LOC_CAVE,
-    LOC_VOLCANO
+    LOC_VOLCANO,
+    LOC_MAGIC_CIRCLE
 } LocationType;
 
 /* A named location on the overworld */
@@ -43,7 +44,8 @@ typedef enum {
     OW_NPC_DEER,
     OW_NPC_SHEEP,
     OW_NPC_RABBIT,
-    OW_NPC_CROW
+    OW_NPC_CROW,
+    OW_NPC_DRUID
 } OWCreatureType;
 
 typedef struct {

@@ -717,6 +717,14 @@ void overworld_init(Overworld *ow) {
     ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 244, 115, 'o', CP_GREEN_BOLD);
     ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 144, 181, 'o', CP_GREEN_BOLD);
 
+    /* Magic Circles on overworld */
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 215, 158, '(', CP_CYAN_BOLD);  /* near Camelot for testing */
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 120, 170, '(', CP_GREEN_BOLD);
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 300, 90,  '(', CP_WHITE_BOLD);
+    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 195, 55,  '(', CP_BLUE);
+
     /* Island locations */
     ow_add_location(ow, "Isle of Wight",    LOC_TOWN, 240, 215, '*', CP_WHITE);
     ow_add_location(ow, "Isle of Man",      LOC_TOWN, 100, 80,  '*', CP_WHITE);
@@ -838,6 +846,34 @@ void overworld_spawn_creatures(Overworld *ow) {
         spawn_creature(ow, OW_NPC_RABBIT, 'r', CP_BROWN, "Rabbit", TILE_GRASS);
     for (int i = 0; i < 5; i++)
         spawn_creature(ow, OW_NPC_CROW, 'v', CP_GRAY, "Crow", TILE_NONE);  /* anywhere on land */
+
+    /* Druids near magic circles and Stonehenge */
+    for (int i = 0; i < ow->num_locations; i++) {
+        Location *loc = &ow->locations[i];
+        if (loc->type == LOC_MAGIC_CIRCLE ||
+            strcmp(loc->name, "Stonehenge") == 0) {
+            /* Place 1-2 druids near this location */
+            int num_druids = rng_range(1, 2);
+            for (int d = 0; d < num_druids; d++) {
+                if (ow->num_creatures >= MAX_OW_CREATURES) break;
+                for (int tries = 0; tries < 50; tries++) {
+                    int dx = loc->pos.x + rng_range(-5, 5);
+                    int dy = loc->pos.y + rng_range(-5, 5);
+                    if (dx < 1 || dx >= OW_WIDTH - 1 || dy < 1 || dy >= OW_HEIGHT - 1) continue;
+                    if (!ow->map[dy][dx].passable) continue;
+                    if (overworld_location_at(ow, dx, dy)) continue;
+
+                    OWCreature *c = &ow->creatures[ow->num_creatures++];
+                    c->type = OW_NPC_DRUID;
+                    c->pos = (Vec2){ dx, dy };
+                    c->glyph = 'D';
+                    c->color_pair = CP_GREEN_BOLD;
+                    snprintf(c->name, MAX_NAME, "Druid");
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void overworld_move_creatures(Overworld *ow, Vec2 player_pos) {
