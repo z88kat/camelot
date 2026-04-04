@@ -8,6 +8,7 @@
 #include "quest.h"
 #include "map.h"
 #include "fov.h"
+#include "item.h"
 
 /* Weather types */
 typedef enum {
@@ -64,6 +65,11 @@ typedef struct {
     int        chivalry;
     int        xp;
     int        kills;
+
+    /* Inventory & Equipment */
+    Item       inventory[MAX_INVENTORY]; /* 26 slots a-z */
+    int        num_items;               /* items in inventory */
+    Item       equipment[NUM_SLOTS];    /* equipped items */
 
     /* Time */
     int        turn;

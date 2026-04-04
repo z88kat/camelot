@@ -10,7 +10,7 @@
 - [x] **Phase 6** -- Dungeon Generation (BSP, traps, magic circles, multiple dungeons + volcano)
 - [x] **Phase 7** -- Field of View & Fog of War
 - [x] **Phase 8** -- Enemies, Combat, Message Log (80+ monsters, werewolves, vampires, mad knights)
-- [ ] **Phase 9** -- Items & Inventory (100+ items, weight system, 50 potions, 22 rings, 12 artifacts, 20 gems, 40 food)
+- [x] **Phase 9** -- Items & Inventory (100+ items, weight system, 50 potions, 22 rings, 12 artifacts, 20 gems, 40 food)
 - [ ] **Phase 10** -- Enemy AI & Pathfinding (A*, FSM, type-specific behaviours)
 - [ ] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
 - [ ] **Phase 12** -- Dungeon Bosses & The Holy Grail (Round Table membership)

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "entity.h"
+#include "item.h"
 
 /* Trap types */
 typedef enum {
@@ -42,6 +43,8 @@ typedef struct {
     int      num_stairs_down;
     Entity   monsters[MAX_MONSTERS_PER_LEVEL];
     int      num_monsters;
+    Item     ground_items[MAX_GROUND_ITEMS];
+    int      num_ground_items;
     bool     generated;  /* has this level been generated? */
     int      depth;      /* 0 = first level */
 } DungeonLevel;

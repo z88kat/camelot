@@ -184,7 +184,8 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         return;
     }
 
-    int damage = gs->str + rng_range(-2, 2) - target->def;
+    int weapon_pow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
+    int damage = gs->str + weapon_pow + rng_range(-2, 2) - target->def;
     if (damage < 1) damage = 1;
 
     /* Critical hit: 10% chance, 2x damage */
@@ -244,7 +245,10 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
         return;
     }
 
-    int damage = attacker->str + rng_range(-2, 2) - gs->def;
+    int armor_pow = 0;
+    for (int s = SLOT_ARMOR; s <= SLOT_GLOVES; s++)
+        if (gs->equipment[s].template_id >= 0) armor_pow += gs->equipment[s].power;
+    int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow;
     if (damage < 1) damage = 1;
 
     gs->hp -= damage;
@@ -368,6 +372,41 @@ static void dungeon_enemy_turns(GameState *gs) {
 
             e->pos.x = nx;
             e->pos.y = ny;
+            break;
+        }
+    }
+}
+
+/* Spawn items on a dungeon level */
+static void dungeon_spawn_items(DungeonLevel *dl) {
+    int num_items = rng_range(3, 8 + dl->depth);
+    if (num_items > MAX_GROUND_ITEMS) num_items = MAX_GROUND_ITEMS;
+
+    int tcount;
+    const ItemTemplate *tmps = item_get_templates(&tcount);
+    dl->num_ground_items = 0;
+
+    for (int i = 0; i < num_items && dl->num_ground_items < MAX_GROUND_ITEMS; i++) {
+        /* Pick a depth-appropriate item */
+        int best = -1, best_w = 0;
+        for (int tries = 0; tries < 20; tries++) {
+            int ti = rng_range(0, tcount - 1);
+            if (tmps[ti].min_depth > dl->depth) continue;
+            if (tmps[ti].max_depth > 0 && tmps[ti].max_depth < dl->depth) continue;
+            int w = tmps[ti].rarity;
+            if (w > best_w) { best = ti; best_w = w; }
+        }
+        if (best < 0) continue;
+
+        /* Find a floor tile */
+        for (int tries = 0; tries < 200; tries++) {
+            int x = rng_range(3, MAP_WIDTH - 4);
+            int y = rng_range(3, MAP_HEIGHT - 4);
+            if (!dl->tiles[y][x].passable) continue;
+            if (dl->tiles[y][x].glyph != '.') continue;
+
+            dl->ground_items[dl->num_ground_items] = item_create(best, x, y);
+            dl->num_ground_items++;
             break;
         }
     }
@@ -1658,6 +1697,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             map_generate(dl, 0, num_levels);
             entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                    dl->tiles, 0, dl->stairs_up[0]);
+            dungeon_spawn_items(dl);
             /* Level feeling based on monster danger */
             {
                 int danger = 0;
@@ -2520,6 +2560,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 map_generate(dl, next, gs->dungeon->max_depth);
                 entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                        dl->tiles, next, dl->stairs_up[0]);
+                dungeon_spawn_items(dl);
             }
             /* Land at matching stairs up */
             Vec2 landing = (stair_idx < dl->num_stairs_up) ?
@@ -2637,6 +2678,34 @@ static void handle_dungeon_input(GameState *gs, int key) {
                      "You find nothing unusual.");
         }
         advance_time(gs, 1);
+        return;
+    }
+
+    /* Pickup item (g key) */
+    if (key == 'g') {
+        DungeonLevel *dl = current_dungeon_level(gs);
+        if (!dl) return;
+        for (int i = 0; i < dl->num_ground_items; i++) {
+            Item *it = &dl->ground_items[i];
+            if (!it->on_ground) continue;
+            if (it->pos.x != gs->player_pos.x || it->pos.y != gs->player_pos.y) continue;
+
+            if (gs->num_items >= MAX_INVENTORY) {
+                log_add(&gs->log, gs->turn, CP_RED, "Your inventory is full!");
+                return;
+            }
+            /* Add to inventory */
+            gs->inventory[gs->num_items] = *it;
+            gs->inventory[gs->num_items].on_ground = false;
+            gs->inventory[gs->num_items].pos = (Vec2){ -1, -1 };
+            gs->num_items++;
+            it->on_ground = false;
+            log_add(&gs->log, gs->turn, CP_CYAN,
+                     "You pick up: %s", it->name);
+            advance_time(gs, 1);
+            return;
+        }
+        log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing here to pick up.");
         return;
     }
 
@@ -3104,6 +3173,111 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Inventory screen (i key) -- works in all modes */
+    if (key == 'i') {
+        ui_clear();
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+        int row = 1;
+
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "=== Inventory ===");
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        row++;
+
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "Equipped:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        const char *slot_names[] = { "Weapon", "Armor", "Shield", "Helmet", "Boots", "Gloves", "Ring 1", "Ring 2" };
+        for (int s = 0; s < NUM_SLOTS; s++) {
+            if (gs->equipment[s].template_id >= 0) {
+                attron(COLOR_PAIR(gs->equipment[s].color_pair));
+                mvprintw(row++, 4, "%-8s: %s (pow:%d)",
+                         slot_names[s], gs->equipment[s].name, gs->equipment[s].power);
+                attroff(COLOR_PAIR(gs->equipment[s].color_pair));
+            } else {
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row++, 4, "%-8s: (empty)", slot_names[s]);
+                attroff(COLOR_PAIR(CP_GRAY));
+            }
+        }
+        row++;
+
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "Bag (%d/%d):", gs->num_items, MAX_INVENTORY);
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        if (gs->num_items == 0) {
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "(empty)");
+            attroff(COLOR_PAIR(CP_GRAY));
+        }
+        for (int ii = 0; ii < gs->num_items && row < term_rows - 4; ii++) {
+            Item *it = &gs->inventory[ii];
+            if (it->template_id < 0) continue;
+            attron(COLOR_PAIR(it->color_pair));
+            mvprintw(row++, 4, "%c) %s [%s] pow:%d val:%dg",
+                     'a' + ii, it->name, item_type_name(it->type),
+                     it->power, it->value);
+            attroff(COLOR_PAIR(it->color_pair));
+        }
+        row++;
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row++, 2, "Press a-z to select, then: e=equip d=drop u=use | q=close");
+        attroff(COLOR_PAIR(CP_WHITE));
+        ui_refresh();
+
+        int ikey = ui_getkey();
+        if (ikey >= 'a' && ikey <= 'z') {
+            int idx = ikey - 'a';
+            if (idx < gs->num_items && gs->inventory[idx].template_id >= 0) {
+                Item *sel = &gs->inventory[idx];
+                mvprintw(row, 4, "Selected: %s  [e]quip [d]rop [u]se [q]cancel", sel->name);
+                ui_refresh();
+                int akey = ui_getkey();
+                if (akey == 'e') {
+                    EquipSlot slot = item_get_slot(sel->type);
+                    if (slot == SLOT_NONE) {
+                        log_add(&gs->log, gs->turn, CP_GRAY, "You can't equip that.");
+                    } else {
+                        Item old_equip = gs->equipment[slot];
+                        gs->equipment[slot] = *sel;
+                        gs->equipment[slot].on_ground = false;
+                        if (old_equip.template_id >= 0) {
+                            *sel = old_equip;
+                            log_add(&gs->log, gs->turn, CP_WHITE,
+                                     "Equipped %s. Unequipped %s.", gs->equipment[slot].name, old_equip.name);
+                        } else {
+                            for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                            log_add(&gs->log, gs->turn, CP_WHITE, "Equipped %s.", gs->equipment[slot].name);
+                        }
+                    }
+                } else if (akey == 'd') {
+                    log_add(&gs->log, gs->turn, CP_WHITE, "Dropped %s.", sel->name);
+                    for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                    gs->inventory[--gs->num_items].template_id = -1;
+                } else if (akey == 'u') {
+                    if (sel->type == ITYPE_POTION) {
+                        gs->hp += sel->power;
+                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                        log_add(&gs->log, gs->turn, CP_GREEN, "You drink the %s. +%d HP!", sel->name, sel->power);
+                        for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                    } else if (sel->type == ITYPE_FOOD) {
+                        gs->hp += sel->power / 2;
+                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                        log_add(&gs->log, gs->turn, CP_GREEN, "You eat the %s. Delicious!", sel->name);
+                        for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_GRAY, "You can't use that.");
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     /* Quest journal (J = Shift+J) */
     if (key == 'J') {
         ui_clear();
@@ -3279,6 +3453,7 @@ void game_init(GameState *gs) {
     /* Initialize overworld (heap allocated due to size) */
     gs->overworld = calloc(1, sizeof(Overworld));
     entity_init();
+    item_init();
     overworld_init(gs->overworld);
     overworld_spawn_creatures(gs->overworld);
     town_init();
@@ -3289,6 +3464,33 @@ void game_init(GameState *gs) {
     gs->ow_player_pos = gs->player_pos;
     gs->dungeon = NULL;
     gs->has_torch = true;  /* start with a torch for testing */
+
+    /* Initialize inventory -- empty */
+    gs->num_items = 0;
+    for (int i = 0; i < MAX_INVENTORY; i++) gs->inventory[i].template_id = -1;
+    for (int i = 0; i < NUM_SLOTS; i++) gs->equipment[i].template_id = -1;
+
+    /* Give player starting gear */
+    {
+        int tcount;
+        const ItemTemplate *tmps = item_get_templates(&tcount);
+        /* Find and equip a Rusty Sword and Leather Armor */
+        for (int i = 0; i < tcount; i++) {
+            if (strcmp(tmps[i].name, "Rusty Sword") == 0 && gs->equipment[SLOT_WEAPON].template_id < 0) {
+                gs->equipment[SLOT_WEAPON] = item_create(i, -1, -1);
+                gs->equipment[SLOT_WEAPON].on_ground = false;
+            }
+            if (strcmp(tmps[i].name, "Leather Armor") == 0 && gs->equipment[SLOT_ARMOR].template_id < 0) {
+                gs->equipment[SLOT_ARMOR] = item_create(i, -1, -1);
+                gs->equipment[SLOT_ARMOR].on_ground = false;
+            }
+            if (strcmp(tmps[i].name, "Bread") == 0 && gs->num_items < 3) {
+                gs->inventory[gs->num_items] = item_create(i, -1, -1);
+                gs->inventory[gs->num_items].on_ground = false;
+                gs->num_items++;
+            }
+        }
+    }
 
     /* Log */
     log_init(&gs->log);
@@ -3521,6 +3723,33 @@ static void game_render(GameState *gs) {
                         /* Outer edge: dimmer */
                         else if (dist_sq <= FOV_RADIUS * FOV_RADIUS) {
                             /* Leave as-is -- normal colour at edge of torchlight */
+                        }
+                    }
+                }
+            }
+
+            /* Render ground items (visible in FOV) */
+            {
+                DungeonLevel *dl_items = current_dungeon_level(gs);
+                if (dl_items) {
+                    int icam_x = gs->player_pos.x - map_view_width / 2;
+                    int icam_y = gs->player_pos.y - map_view_height / 2;
+                    if (icam_x < 0) icam_x = 0;
+                    if (icam_y < 0) icam_y = 0;
+                    if (icam_x + map_view_width > MAP_WIDTH) icam_x = MAP_WIDTH - map_view_width;
+                    if (icam_y + map_view_height > MAP_HEIGHT) icam_y = MAP_HEIGHT - map_view_height;
+
+                    for (int i = 0; i < dl_items->num_ground_items; i++) {
+                        Item *it = &dl_items->ground_items[i];
+                        if (!it->on_ground) continue;
+                        if (!dl_items->tiles[it->pos.y][it->pos.x].visible) continue;
+
+                        int sx = it->pos.x - icam_x;
+                        int sy = it->pos.y - icam_y;
+                        if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
+                            attron(COLOR_PAIR(it->color_pair) | A_BOLD);
+                            mvaddch(sy, sx, it->glyph);
+                            attroff(COLOR_PAIR(it->color_pair) | A_BOLD);
                         }
                     }
                 }
