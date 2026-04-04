@@ -135,6 +135,24 @@ static void check_traps(GameState *gs) {
 
         if (gs->hp < 1) gs->hp = 1;  /* don't die from traps yet (death in Phase 13) */
     }
+
+    /* Passive trap detection -- chance to spot nearby traps */
+    for (int i = 0; i < dl->num_traps; i++) {
+        Trap *t = &dl->traps[i];
+        if (t->triggered || t->revealed) continue;
+        int dx = abs(t->pos.x - gs->player_pos.x);
+        int dy = abs(t->pos.y - gs->player_pos.y);
+        if (dx <= 2 && dy <= 2) {
+            /* 10% base chance to notice a nearby trap */
+            if (rng_chance(10)) {
+                t->revealed = true;
+                dl->tiles[t->pos.y][t->pos.x].glyph = '^';
+                dl->tiles[t->pos.y][t->pos.x].color_pair = CP_RED;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You notice a trap on the floor! (^)");
+            }
+        }
+    }
 }
 
 /* Stub for old function -- no longer used */
@@ -2177,20 +2195,76 @@ static void handle_dungeon_input(GameState *gs, int key) {
     /* Search for secret doors */
     if (key == 's') {
         log_add(&gs->log, gs->turn, CP_WHITE, "You search the walls...");
-        /* Check all adjacent walls for hidden doors (5% chance per wall tile) */
+        bool found_any = false;
         for (int d = 0; d < 8; d++) {
             int sx = gs->player_pos.x + dir_dx[d];
             int sy = gs->player_pos.y + dir_dy[d];
-            if (sx > 0 && sx < MAP_WIDTH - 1 && sy > 0 && sy < MAP_HEIGHT - 1) {
-                if (tiles[sy][sx].type == TILE_WALL && rng_chance(5)) {
-                    tiles[sy][sx].type = TILE_DOOR_CLOSED;
-                    tiles[sy][sx].glyph = '+';
-                    tiles[sy][sx].color_pair = CP_BROWN;
-                    tiles[sy][sx].passable = false;  /* closed door -- walk into to open */
-                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                             "You find a hidden door!");
-                }
+            if (sx < 1 || sx >= MAP_WIDTH - 1 || sy < 1 || sy >= MAP_HEIGHT - 1) continue;
+            if (tiles[sy][sx].type != TILE_WALL) continue;
+
+            /* Only reveal a door if there's a floor tile on the OTHER side */
+            /* Check the tile beyond this wall (opposite direction from player) */
+            int bx = sx + (sx - gs->player_pos.x);
+            int by = sy + (sy - gs->player_pos.y);
+            if (bx < 1 || bx >= MAP_WIDTH - 1 || by < 1 || by >= MAP_HEIGHT - 1) continue;
+
+            bool floor_beyond = (tiles[by][bx].type == TILE_FLOOR);
+            if (floor_beyond && rng_chance(15)) {
+                tiles[sy][sx].type = TILE_DOOR_CLOSED;
+                tiles[sy][sx].glyph = '+';
+                tiles[sy][sx].color_pair = CP_BROWN;
+                tiles[sy][sx].passable = false;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "You find a hidden door!");
+                found_any = true;
             }
+        }
+        if (!found_any) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You find nothing unusual.");
+        }
+        advance_time(gs, 1);
+        return;
+    }
+
+    /* Disarm trap */
+    if (key == 'D') {
+        DungeonLevel *dl = current_dungeon_level(gs);
+        if (!dl) return;
+        bool found = false;
+        for (int i = 0; i < dl->num_traps; i++) {
+            Trap *t = &dl->traps[i];
+            if (t->triggered || !t->revealed) continue;
+            int dx = abs(t->pos.x - gs->player_pos.x);
+            int dy = abs(t->pos.y - gs->player_pos.y);
+            if (dx <= 1 && dy <= 1) {
+                /* Attempt disarm: INT + SPD check */
+                int skill = gs->intel + gs->spd;
+                int difficulty = rng_range(5, 15);
+                if (skill >= difficulty) {
+                    t->triggered = true;
+                    dl->tiles[t->pos.y][t->pos.x].glyph = '.';
+                    dl->tiles[t->pos.y][t->pos.x].color_pair = CP_WHITE;
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "You carefully disarm the trap!");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "You fail to disarm the trap! It triggers!");
+                    t->triggered = true;
+                    /* Trigger the trap damage */
+                    int dmg = rng_range(3, 8);
+                    gs->hp -= dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The trap goes off! -%d HP", dmg);
+                }
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "There are no visible traps nearby to disarm.");
         }
         advance_time(gs, 1);
         return;
@@ -2223,6 +2297,45 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     };
                     int n = sizeof(water_msgs) / sizeof(water_msgs[0]);
                     log_add(&gs->log, gs->turn, CP_BLUE, "%s", water_msgs[rng_range(0, n - 1)]);
+                }
+
+                /* Lava damage */
+                if (tiles[ny][nx].glyph == '^' && tiles[ny][nx].color_pair == CP_RED_BOLD) {
+                    int dmg = rng_range(5, 10);
+                    gs->hp -= dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    const char *lava_msgs[] = {
+                        "You step on molten rock! Your feet burn! (-%d HP)",
+                        "Lava scorches your boots! The heat is unbearable! (-%d HP)",
+                        "The ground glows red-hot beneath you! (-%d HP)",
+                    };
+                    int n = sizeof(lava_msgs) / sizeof(lava_msgs[0]);
+                    log_add(&gs->log, gs->turn, CP_RED_BOLD, lava_msgs[rng_range(0, n - 1)], dmg);
+                }
+
+                /* Ice -- slippery, chance to slide an extra tile */
+                if (tiles[ny][nx].glyph == '_' && tiles[ny][nx].color_pair == CP_CYAN) {
+                    if (rng_chance(30)) {
+                        /* Slide one extra tile in the same direction */
+                        int sx = nx + dir_dx[dir];
+                        int sy = ny + dir_dy[dir];
+                        if (sx > 0 && sx < MAP_WIDTH - 1 && sy > 0 && sy < MAP_HEIGHT - 1 &&
+                            tiles[sy][sx].passable) {
+                            gs->player_pos.x = sx;
+                            gs->player_pos.y = sy;
+                            log_add(&gs->log, gs->turn, CP_CYAN,
+                                     "You slip on the ice and slide!");
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_CYAN,
+                                     "You slip on the ice and crash into the wall!");
+                            gs->hp -= 1;
+                            if (gs->hp < 1) gs->hp = 1;
+                        }
+                    } else {
+                        if (rng_chance(40))
+                            log_add(&gs->log, gs->turn, CP_CYAN,
+                                     "The floor is slippery with ice. You tread carefully.");
+                    }
                 }
 
                 /* Magic circle effect */

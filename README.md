@@ -315,11 +315,32 @@ Walk onto a `B` tile to board a boat. You can then sail across lake water freely
 - **From level 2 onwards**, each level has **2 sets of stairs** up and down, giving you multiple routes.
 - Walk into closed doors `+` to auto-open them, or press `o` + direction. Press `c` + direction to close.
 - Press `s` to search adjacent walls for **secret doors** (5% chance per wall tile).
-- **Traps** are hidden on floor tiles. Stepping on one triggers it (damage, teleport, mana drain, etc.). Revealed traps show as `^` red.
+- **Traps** are hidden on floor tiles. Stepping on one triggers it (damage, teleport, mana drain, etc.). Revealed traps show as `^` red. You have a 10% passive chance to spot traps within 2 tiles. Press `D` adjacent to a revealed trap to disarm it (INT + SPD check).
 - The **deepest level** has an **exit portal** `0` (cyan) -- step on it to teleport back to the overworld instantly.
 - Press `<` on stairs up to ascend. On level 1, ascending returns you to the overworld.
 - Press `M` for a **dungeon minimap** showing the full level layout.
 - Levels are **persistent** -- if you go back up, everything is exactly as you left it.
+
+#### Room Variety
+Dungeons contain 10 different room shapes: rectangles, pillared halls, circular caverns, cross-shaped rooms, L-shaped rooms, jagged caverns with rubble, multi-chamber caves, and pillared temples with altars. Corridors come in 3 styles: L-shaped, winding/twisting, and S-curves.
+
+#### Hazards
+- **Shallow water** (`~` blue): -1 HP per step. Cold and filthy.
+- **Lava** (`^` bright red): 5-10 HP per step! Appears on deeper levels (3+).
+- **Ice** (`_` cyan): 30% chance to slip and slide an extra tile. May crash into walls.
+
+#### Magic Circles
+Coloured `(` glyphs on the floor. Step on one for a random effect (single use):
+- Healing (full HP), Mana (full MP), Blessing (+1 stat), Gold, Teleportation
+- Dangerous: Fire damage, Mana drain, Confusion
+
+#### Secret Rooms
+Some levels contain hidden rooms with golden floors and treasure chests. They are not connected to any corridor -- you cannot walk to them normally. Three ways to find them:
+1. **Search walls** (`s`) -- if a secret door is nearby in the wall, you'll reveal it
+2. **Teleport trap** -- a trap may randomly land you inside a secret room
+3. **Magic circle teleportation** -- a teleport circle may drop you there
+
+Secret rooms appear ~30% of the time, more often on deeper levels. Keep searching those walls!
 
 ### Towns & Castles
 - **Towns** (`*`) are open at all hours. Press Enter to enter.

@@ -269,7 +269,9 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
 
     /* Title */
     attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    const char *title = "-- Map of England -- (press any key to close)";
+    const char *title = (map_w > 200) ?
+        "-- Map of England -- (press any key to close)" :
+        "-- Dungeon Map -- (press any key to close)";
     mvprintw(0, (term_cols - (int)strlen(title)) / 2, "%s", title);
     attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
 

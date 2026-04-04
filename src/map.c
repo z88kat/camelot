@@ -668,6 +668,158 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
         }
     }
 
+    /* Occasionally place lava pools (deeper levels) or ice patches */
+    if (depth >= 3 && rng_chance(40)) {
+        /* Lava pool */
+        for (int tries = 0; tries < 100; tries++) {
+            int lx = rng_range(5, MAP_WIDTH - 6);
+            int ly = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[ly][lx].type != TILE_FLOOR) continue;
+
+            int rad = rng_range(1, 3);
+            for (int fy = ly - rad; fy <= ly + rad; fy++) {
+                for (int fx = lx - rad; fx <= lx + rad; fx++) {
+                    if (fx < 1 || fx >= MAP_WIDTH - 1 || fy < 1 || fy >= MAP_HEIGHT - 1) continue;
+                    if (level->tiles[fy][fx].type != TILE_FLOOR) continue;
+                    double dx = (double)(fx - lx) / rad;
+                    double dy = (double)(fy - ly) / rad;
+                    if (dx*dx + dy*dy < 0.9) {
+                        level->tiles[fy][fx].glyph = '^';
+                        level->tiles[fy][fx].color_pair = CP_RED_BOLD;
+                        /* Still passable but will hurt */
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    if (rng_chance(25)) {
+        /* Ice patch */
+        for (int tries = 0; tries < 100; tries++) {
+            int ix = rng_range(5, MAP_WIDTH - 6);
+            int iy = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[iy][ix].type != TILE_FLOOR) continue;
+
+            int rad = rng_range(2, 4);
+            for (int fy = iy - rad; fy <= iy + rad; fy++) {
+                for (int fx = ix - rad; fx <= ix + rad; fx++) {
+                    if (fx < 1 || fx >= MAP_WIDTH - 1 || fy < 1 || fy >= MAP_HEIGHT - 1) continue;
+                    if (level->tiles[fy][fx].type != TILE_FLOOR) continue;
+                    if (level->tiles[fy][fx].glyph != '.') continue;
+                    double dx = (double)(fx - ix) / rad;
+                    double dy = (double)(fy - iy) / rad;
+                    if (dx*dx + dy*dy < 0.8) {
+                        level->tiles[fy][fx].glyph = '_';
+                        level->tiles[fy][fx].color_pair = CP_CYAN;
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    /* Secret rooms -- hidden rooms with no corridor, accessed via secret doors or teleport */
+    /* ~30% chance per level, more likely on deeper levels */
+    if (rng_chance(30 + depth * 5)) {
+        /* Find a spot in solid rock (all walls, no adjacent floor) */
+        for (int tries = 0; tries < 500; tries++) {
+            int sr_w = rng_range(4, 7);
+            int sr_h = rng_range(3, 5);
+            int sr_x = rng_range(3, MAP_WIDTH - sr_w - 3);
+            int sr_y = rng_range(3, MAP_HEIGHT - sr_h - 3);
+
+            /* Check the area is all solid wall */
+            bool all_wall = true;
+            for (int cy = sr_y - 1; cy <= sr_y + sr_h && all_wall; cy++)
+                for (int cx = sr_x - 1; cx <= sr_x + sr_w && all_wall; cx++) {
+                    if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) continue;
+                    if (level->tiles[cy][cx].type != TILE_WALL) all_wall = false;
+                }
+            if (!all_wall) continue;
+
+            /* Carve the secret room */
+            for (int cy = sr_y; cy < sr_y + sr_h; cy++)
+                for (int cx = sr_x; cx < sr_x + sr_w; cx++) {
+                    Tile *t = &level->tiles[cy][cx];
+                    t->type = TILE_FLOOR;
+                    t->glyph = '.';
+                    t->color_pair = CP_YELLOW;  /* golden floor to hint it's special */
+                    t->passable = true;
+                    t->blocks_sight = false;
+                }
+
+            /* Place treasure in the secret room */
+            int tcx = sr_x + sr_w / 2;
+            int tcy = sr_y + sr_h / 2;
+            level->tiles[tcy][tcx].glyph = '=';
+            level->tiles[tcy][tcx].color_pair = CP_YELLOW_BOLD;
+
+            /* Place a secret door on one wall adjacent to existing corridors/rooms.
+               Scan the room border for a wall tile that has floor on the outside. */
+            bool door_placed = false;
+            /* Try all four walls of the room */
+            int walls[4][3] = {
+                { sr_x - 1,         sr_y + sr_h / 2, 0 },  /* left wall */
+                { sr_x + sr_w,      sr_y + sr_h / 2, 0 },  /* right wall */
+                { sr_x + sr_w / 2,  sr_y - 1,        0 },  /* top wall */
+                { sr_x + sr_w / 2,  sr_y + sr_h,     0 },  /* bottom wall */
+            };
+            for (int w = 0; w < 4 && !door_placed; w++) {
+                int wx = walls[w][0], wy = walls[w][1];
+                if (wx < 1 || wx >= MAP_WIDTH - 1 || wy < 1 || wy >= MAP_HEIGHT - 1) continue;
+
+                /* Check if outside this wall point is near an existing corridor/room */
+                int outside_x = wx + (w == 0 ? -1 : w == 1 ? 1 : 0);
+                int outside_y = wy + (w == 2 ? -1 : w == 3 ? 1 : 0);
+                if (outside_x < 1 || outside_x >= MAP_WIDTH - 1 ||
+                    outside_y < 1 || outside_y >= MAP_HEIGHT - 1) continue;
+
+                /* Search outward for a floor tile (up to 5 tiles away) */
+                bool found_floor __attribute__((unused)) = false;
+                int dx = (w == 0) ? -1 : (w == 1) ? 1 : 0;
+                int dy = (w == 2) ? -1 : (w == 3) ? 1 : 0;
+                for (int dist = 1; dist <= 5; dist++) {
+                    int fx = wx + dx * dist;
+                    int fy = wy + dy * dist;
+                    if (fx < 1 || fx >= MAP_WIDTH - 1 || fy < 1 || fy >= MAP_HEIGHT - 1) break;
+                    if (level->tiles[fy][fx].type == TILE_FLOOR &&
+                        level->tiles[fy][fx].color_pair != CP_YELLOW) {
+                        /* Carve a short passage from secret door to existing floor */
+                        for (int p = 0; p < dist; p++) {
+                            int px = wx + dx * p;
+                            int py = wy + dy * p;
+                            level->tiles[py][px].type = TILE_WALL;
+                            level->tiles[py][px].glyph = '#';
+                            level->tiles[py][px].color_pair = CP_GRAY;
+                            level->tiles[py][px].passable = false;
+                        }
+                        /* The first tile (at the room border) is the secret door */
+                        /* It looks like a wall but is actually a closed door */
+                        level->tiles[wy][wx].type = TILE_WALL;  /* looks like wall */
+                        level->tiles[wy][wx].glyph = '#';
+                        level->tiles[wy][wx].color_pair = CP_GRAY;
+                        level->tiles[wy][wx].passable = false;
+                        /* The 's' search command can reveal it as a door */
+
+                        found_floor = true;
+                        door_placed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (door_placed) {
+                /* Add a flavour hint -- golden floor visible only from inside */
+                break;  /* one secret room per level */
+            } else {
+                /* Couldn't connect -- undo the room (teleport can still reach it) */
+                /* Leave the room carved -- teleport traps and magic circles can reach it */
+                break;
+            }
+        }
+    }
+
     /* Place 1-2 magic circles per level */
     {
         int num_circles = rng_range(1, 2);
