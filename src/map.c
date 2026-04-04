@@ -631,6 +631,103 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
     #undef FIND_FLOOR
     #undef PLACE_STAIR
 
+    /* Special room decorations -- find rooms and add features */
+    /* Scan for room centers (floor tiles with many open neighbours) and decorate some */
+    {
+        int decorated = 0;
+        for (int tries = 0; tries < 300 && decorated < 3; tries++) {
+            int rx = rng_range(5, MAP_WIDTH - 6);
+            int ry = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[ry][rx].type != TILE_FLOOR) continue;
+            if (level->tiles[ry][rx].glyph != '.') continue;
+
+            /* Check it's in a room (many floor neighbours) */
+            int open = 0;
+            for (int dy = -2; dy <= 2; dy++)
+                for (int dx = -2; dx <= 2; dx++) {
+                    int cx = rx + dx, cy = ry + dy;
+                    if (cx > 0 && cx < MAP_WIDTH - 1 && cy > 0 && cy < MAP_HEIGHT - 1 &&
+                        level->tiles[cy][cx].type == TILE_FLOOR) open++;
+                }
+            if (open < 16) continue;  /* needs to be in a real room */
+
+            int room_type = rng_range(0, 3);
+
+            if (room_type == 0) {
+                /* Temple -- altar in center, candle glyphs */
+                level->tiles[ry][rx].glyph = '_';
+                level->tiles[ry][rx].color_pair = CP_YELLOW_BOLD;
+                /* Candles around altar */
+                int candle_pos[][2] = {{-1,-1},{1,-1},{-1,1},{1,1}};
+                for (int c = 0; c < 4; c++) {
+                    int cx = rx + candle_pos[c][0];
+                    int cy = ry + candle_pos[c][1];
+                    if (cx > 0 && cx < MAP_WIDTH-1 && cy > 0 && cy < MAP_HEIGHT-1 &&
+                        level->tiles[cy][cx].type == TILE_FLOOR &&
+                        level->tiles[cy][cx].glyph == '.') {
+                        level->tiles[cy][cx].glyph = '*';
+                        level->tiles[cy][cx].color_pair = CP_YELLOW;
+                    }
+                }
+                decorated++;
+            } else if (room_type == 1) {
+                /* Library -- bookshelves along walls */
+                for (int dy = -3; dy <= 3; dy++)
+                    for (int dx = -3; dx <= 3; dx++) {
+                        int bx = rx + dx, by = ry + dy;
+                        if (bx < 1 || bx >= MAP_WIDTH-1 || by < 1 || by >= MAP_HEIGHT-1) continue;
+                        if (level->tiles[by][bx].type != TILE_FLOOR) continue;
+                        /* Place bookshelves against walls */
+                        bool adj_wall = false;
+                        for (int d = 0; d < 4; d++) {
+                            int wx = bx + dir_dx[d*2], wy = by + dir_dy[d*2];
+                            if (wx >= 0 && wx < MAP_WIDTH && wy >= 0 && wy < MAP_HEIGHT &&
+                                level->tiles[wy][wx].type == TILE_WALL) adj_wall = true;
+                        }
+                        if (adj_wall && rng_chance(60)) {
+                            level->tiles[by][bx].glyph = '|';
+                            level->tiles[by][bx].color_pair = CP_BROWN;
+                        }
+                    }
+                /* Reading desk in center */
+                level->tiles[ry][rx].glyph = '=';
+                level->tiles[ry][rx].color_pair = CP_BROWN;
+                decorated++;
+            } else if (room_type == 2) {
+                /* Crypt -- coffins in rows */
+                for (int row = -2; row <= 2; row += 2) {
+                    for (int col = -2; col <= 2; col += 2) {
+                        int cx = rx + col, cy = ry + row;
+                        if (cx > 0 && cx < MAP_WIDTH-1 && cy > 0 && cy < MAP_HEIGHT-1 &&
+                            level->tiles[cy][cx].type == TILE_FLOOR &&
+                            level->tiles[cy][cx].glyph == '.') {
+                            level->tiles[cy][cx].glyph = '-';
+                            level->tiles[cy][cx].color_pair = CP_GRAY;
+                        }
+                    }
+                }
+                decorated++;
+            } else {
+                /* Treasure room -- gold piles and a chest */
+                level->tiles[ry][rx].glyph = '=';
+                level->tiles[ry][rx].color_pair = CP_YELLOW_BOLD;
+                /* Gold piles around it */
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        int gx = rx + dx, gy = ry + dy;
+                        if (gx > 0 && gx < MAP_WIDTH-1 && gy > 0 && gy < MAP_HEIGHT-1 &&
+                            level->tiles[gy][gx].type == TILE_FLOOR &&
+                            level->tiles[gy][gx].glyph == '.' && rng_chance(50)) {
+                            level->tiles[gy][gx].glyph = '$';
+                            level->tiles[gy][gx].color_pair = CP_YELLOW;
+                        }
+                    }
+                decorated++;
+            }
+        }
+    }
+
     /* Flood some rooms with shallow water (~20% of floor tiles in affected rooms) */
     {
         /* Pick 1-3 random spots and flood a radius around them */
@@ -725,6 +822,32 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                 }
             }
             break;
+        }
+    }
+
+    /* Scatter 1-3 standalone chests in rooms */
+    {
+        int num_chests = rng_range(1, 3);
+        for (int c = 0; c < num_chests; c++) {
+            for (int tries = 0; tries < 200; tries++) {
+                int cx = rng_range(3, MAP_WIDTH - 4);
+                int cy = rng_range(3, MAP_HEIGHT - 4);
+                if (level->tiles[cy][cx].type != TILE_FLOOR) continue;
+                if (level->tiles[cy][cx].glyph != '.') continue;
+                /* Make sure it's in a room not a corridor */
+                int open = 0;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int nx = cx + dx, ny = cy + dy;
+                        if (nx > 0 && nx < MAP_WIDTH-1 && ny > 0 && ny < MAP_HEIGHT-1 &&
+                            level->tiles[ny][nx].type == TILE_FLOOR) open++;
+                    }
+                if (open < 5) continue;
+
+                level->tiles[cy][cx].glyph = '=';
+                level->tiles[cy][cx].color_pair = CP_BROWN;
+                break;
+            }
         }
     }
 
@@ -826,6 +949,105 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                 /* Leave the room carved -- teleport traps and magic circles can reach it */
                 break;
             }
+        }
+    }
+
+    /* Fungal growth patches -- poison risk */
+    if (rng_chance(35)) {
+        for (int tries = 0; tries < 100; tries++) {
+            int fx = rng_range(5, MAP_WIDTH - 6);
+            int fy = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[fy][fx].type != TILE_FLOOR) continue;
+            if (level->tiles[fy][fx].glyph != '.') continue;
+
+            int rad = rng_range(2, 4);
+            for (int dy = -rad; dy <= rad; dy++)
+                for (int dx = -rad; dx <= rad; dx++) {
+                    int gx = fx + dx, gy = fy + dy;
+                    if (gx < 1 || gx >= MAP_WIDTH-1 || gy < 1 || gy >= MAP_HEIGHT-1) continue;
+                    if (level->tiles[gy][gx].type != TILE_FLOOR) continue;
+                    if (level->tiles[gy][gx].glyph != '.') continue;
+                    if (dx*dx + dy*dy > rad*rad) continue;
+                    if (rng_chance(60)) {
+                        level->tiles[gy][gx].glyph = '"';
+                        level->tiles[gy][gx].color_pair = CP_GREEN;
+                    }
+                }
+            break;
+        }
+    }
+
+    /* Rubble patches -- impassable, blocks corridors */
+    if (rng_chance(30)) {
+        for (int tries = 0; tries < 100; tries++) {
+            int rx = rng_range(5, MAP_WIDTH - 6);
+            int ry = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[ry][rx].type != TILE_FLOOR) continue;
+            if (level->tiles[ry][rx].glyph != '.') continue;
+
+            /* Place a small cluster of rubble */
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int bx = rx + dx, by = ry + dy;
+                    if (bx < 1 || bx >= MAP_WIDTH-1 || by < 1 || by >= MAP_HEIGHT-1) continue;
+                    if (level->tiles[by][bx].type != TILE_FLOOR) continue;
+                    if (level->tiles[by][bx].glyph != '.') continue;
+                    if (rng_chance(50)) {
+                        level->tiles[by][bx].glyph = '%';
+                        level->tiles[by][bx].color_pair = CP_BROWN;
+                        level->tiles[by][bx].passable = false;
+                    }
+                }
+            break;
+        }
+    }
+
+    /* Crystal formations -- glowing, visual interest */
+    if (rng_chance(20)) {
+        for (int tries = 0; tries < 100; tries++) {
+            int cx = rng_range(5, MAP_WIDTH - 6);
+            int cy = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[cy][cx].type != TILE_FLOOR) continue;
+            if (level->tiles[cy][cx].glyph != '.') continue;
+
+            /* Small cluster of crystals */
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int kx = cx + dx, ky = cy + dy;
+                    if (kx < 1 || kx >= MAP_WIDTH-1 || ky < 1 || ky >= MAP_HEIGHT-1) continue;
+                    if (level->tiles[ky][kx].type != TILE_FLOOR) continue;
+                    if (level->tiles[ky][kx].glyph != '.') continue;
+                    if (rng_chance(40)) {
+                        level->tiles[ky][kx].glyph = '*';
+                        level->tiles[ky][kx].color_pair = CP_CYAN_BOLD;
+                    }
+                }
+            break;
+        }
+    }
+
+    /* Deep water pool -- impassable */
+    if (rng_chance(20)) {
+        for (int tries = 0; tries < 100; tries++) {
+            int wx = rng_range(5, MAP_WIDTH - 6);
+            int wy = rng_range(5, MAP_HEIGHT - 6);
+            if (level->tiles[wy][wx].type != TILE_FLOOR) continue;
+            if (level->tiles[wy][wx].glyph != '.') continue;
+
+            int rad = rng_range(1, 2);
+            for (int dy = -rad; dy <= rad; dy++)
+                for (int dx = -rad; dx <= rad; dx++) {
+                    int px = wx + dx, py = wy + dy;
+                    if (px < 1 || px >= MAP_WIDTH-1 || py < 1 || py >= MAP_HEIGHT-1) continue;
+                    if (level->tiles[py][px].type != TILE_FLOOR) continue;
+                    if (level->tiles[py][px].glyph != '.') continue;
+                    if (dx*dx + dy*dy <= rad*rad) {
+                        level->tiles[py][px].glyph = '~';
+                        level->tiles[py][px].color_pair = CP_BLUE;
+                        level->tiles[py][px].passable = false;  /* deep water -- can't walk */
+                    }
+                }
+            break;
         }
     }
 

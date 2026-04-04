@@ -2303,6 +2303,28 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     log_add(&gs->log, gs->turn, CP_BLUE, "%s", water_msgs[rng_range(0, n - 1)]);
                 }
 
+                /* Fungal growth -- poison risk */
+                if (tiles[ny][nx].glyph == '"' && tiles[ny][nx].color_pair == CP_GREEN) {
+                    if (rng_chance(20)) {
+                        int dmg = rng_range(1, 3);
+                        gs->hp -= dmg;
+                        if (gs->hp < 1) gs->hp = 1;
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "Fungal spores burst as you step through! You feel sick. (-%d HP)", dmg);
+                    } else if (rng_chance(15)) {
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "Strange mushrooms crunch underfoot. The air smells foul.");
+                    }
+                }
+
+                /* Crystal formation -- visual only for now */
+                if (tiles[ny][nx].glyph == '*' && tiles[ny][nx].color_pair == CP_CYAN_BOLD) {
+                    if (rng_chance(20)) {
+                        log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                                 "The crystals hum softly, casting eerie light across the chamber.");
+                    }
+                }
+
                 /* Lava damage */
                 if (tiles[ny][nx].glyph == '^' && tiles[ny][nx].color_pair == CP_RED_BOLD) {
                     int dmg = rng_range(5, 10);
@@ -2339,6 +2361,125 @@ static void handle_dungeon_input(GameState *gs, int key) {
                         if (rng_chance(40))
                             log_add(&gs->log, gs->turn, CP_CYAN,
                                      "The floor is slippery with ice. You tread carefully.");
+                    }
+                }
+
+                /* Special room interactions */
+                /* Altar -- pray for blessing */
+                if (tiles[ny][nx].glyph == '_' && tiles[ny][nx].color_pair == CP_YELLOW_BOLD) {
+                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                    int pick = rng_range(0, 3);
+                    (*stats[pick])++;
+                    gs->hp = gs->max_hp;
+                    tiles[ny][nx].glyph = '.';  /* altar used up */
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "You kneel at the altar. A divine light! +1 %s, HP restored!", names[pick]);
+                }
+                /* Gold pile -- pick up */
+                if (tiles[ny][nx].glyph == '$') {
+                    int gold = rng_range(5, 20);
+                    gs->gold += gold;
+                    tiles[ny][nx].glyph = '.';
+                    tiles[ny][nx].color_pair = CP_WHITE;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You pick up %d gold coins!", gold);
+                }
+                /* Treasure room chest (golden) */
+                if (tiles[ny][nx].glyph == '=' && tiles[ny][nx].color_pair == CP_YELLOW_BOLD) {
+                    int gold = rng_range(20, 60);
+                    gs->gold += gold;
+                    tiles[ny][nx].glyph = '.';
+                    tiles[ny][nx].color_pair = CP_WHITE;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "You open the treasure chest! Found %d gold!", gold);
+                }
+                /* Regular dungeon chest (brown) -- may be trapped */
+                if (tiles[ny][nx].glyph == '=' && tiles[ny][nx].color_pair == CP_BROWN) {
+                    tiles[ny][nx].glyph = '.';
+                    tiles[ny][nx].color_pair = CP_WHITE;
+
+                    if (rng_chance(20)) {
+                        /* Trapped! */
+                        int trap_type = rng_range(0, 2);
+                        if (trap_type == 0) {
+                            int dmg = rng_range(5, 10);
+                            gs->hp -= dmg;
+                            if (gs->hp < 1) gs->hp = 1;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "The chest is trapped! A dart hits you! -%d HP", dmg);
+                        } else if (trap_type == 1) {
+                            int dmg = rng_range(3, 8);
+                            gs->hp -= dmg;
+                            if (gs->hp < 1) gs->hp = 1;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "The chest explodes! -%d HP", dmg);
+                        } else {
+                            gs->mp -= gs->mp / 3;
+                            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                     "Gas pours from the chest! You feel confused and drained.");
+                        }
+                        /* Still get some loot */
+                        int gold = rng_range(5, 15);
+                        gs->gold += gold;
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "You salvage %d gold from the wreckage.", gold);
+                    } else {
+                        /* Normal loot */
+                        int gold = rng_range(10, 40);
+                        gs->gold += gold;
+                        int bonus = rng_range(0, 3);
+                        if (bonus == 0) {
+                            gs->hp += 10;
+                            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "You open the chest! %d gold and a healing draught! (+10 HP)", gold);
+                        } else if (bonus == 1) {
+                            gs->mp += 8;
+                            if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "You open the chest! %d gold and a mana vial! (+8 MP)", gold);
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "You open the chest! Found %d gold!", gold);
+                        }
+                    }
+                }
+                /* Bookshelf -- read for lore */
+                if (tiles[ny][nx].glyph == '|') {
+                    if (rng_chance(30)) {
+                        const char *lore[] = {
+                            "An old tome reads: \"Beware the dragon's breath...\"",
+                            "A scroll mentions a hidden treasure near Stonehenge.",
+                            "You read about the legend of Excalibur and the Lady of the Lake.",
+                            "A dusty book describes ancient trap mechanisms.",
+                            "Notes in the margin: \"The portal lies at the bottom.\"",
+                            "A map fragment shows a secret passage behind the altar.",
+                            "You find a prayer to ward off undead spirits.",
+                        };
+                        int n = sizeof(lore) / sizeof(lore[0]);
+                        log_add(&gs->log, gs->turn, CP_BROWN, "%s", lore[rng_range(0, n - 1)]);
+                    }
+                }
+                /* Coffin -- search for treasure or danger */
+                if (tiles[ny][nx].glyph == '-' && tiles[ny][nx].color_pair == CP_GRAY) {
+                    if (rng_chance(40)) {
+                        int gold = rng_range(5, 15);
+                        gs->gold += gold;
+                        tiles[ny][nx].glyph = '.';
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "You search the coffin and find %d gold!", gold);
+                    } else if (rng_chance(30)) {
+                        int dmg = rng_range(3, 8);
+                        gs->hp -= dmg;
+                        if (gs->hp < 1) gs->hp = 1;
+                        tiles[ny][nx].glyph = '.';
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "Something lunges from the coffin! -%d HP!", dmg);
+                    } else {
+                        tiles[ny][nx].glyph = '.';
+                        log_add(&gs->log, gs->turn, CP_GRAY,
+                                 "The coffin is empty. Just dust and bones.");
                     }
                 }
 
@@ -2485,7 +2626,15 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 }
                 advance_time(gs, 1);
             } else {
-                log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
+                if (target->glyph == '~' && !target->passable) {
+                    log_add(&gs->log, gs->turn, CP_BLUE,
+                             "Deep water blocks your path. You cannot swim across.");
+                } else if (target->glyph == '%') {
+                    log_add(&gs->log, gs->turn, CP_BROWN,
+                             "Rubble blocks the passage. You'd need a pickaxe to clear it.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
+                }
             }
         }
         return;
