@@ -673,10 +673,20 @@ static void handle_overworld_input(GameState *gs, int key) {
                 gs->well_explored = false;
                 gs->confessed = false;
                 gs->beers_drunk = 0;
-                town_generate_map(&gs->town_map, td);
+                bool has_quest = (quest_find_available(&gs->quests, td->name, gs->chivalry) != NULL);
+                town_generate_map(&gs->town_map, td, has_quest);
                 gs->town_player_pos = gs->town_map.entrance;
                 log_add(&gs->log, gs->turn, CP_WHITE,
                          "You enter %s. Bump into people to interact.", loc->name);
+
+                /* Check if a delivery quest completes here */
+                Quest *dq = quest_check_delivery(&gs->quests, td->name);
+                if (dq) {
+                    dq->state = QUEST_COMPLETE;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "Quest complete: %s! Return to %s for your reward.",
+                             dq->name, dq->giver_town);
+                }
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "%s has no services available.", loc->name);
@@ -1271,6 +1281,81 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD, "%s", msgs[rng_range(0, n - 1)]);
         }
         break;
+    case NPC_QUEST_GIVER:
+        {
+            /* Find available quest for this town */
+            Quest *q = quest_find_available(&gs->quests,
+                                             gs->current_town->name, gs->chivalry);
+            if (q) {
+                ui_clear();
+                int row = 2;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(row++, 2, "=== Quest Available ===");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                row++;
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(row++, 4, "A stranger approaches you in the inn.");
+                row++;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(row++, 4, "\"%s\"", q->name);
+                attroff(COLOR_PAIR(CP_YELLOW));
+                row++;
+                /* Word-wrap description */
+                const char *desc = q->description;
+                int dx = 4, max_w = 60;
+                while (*desc) {
+                    int len = (int)strlen(desc);
+                    if (len > max_w) len = max_w;
+                    mvprintw(row++, dx, "%.*s", len, desc);
+                    desc += len;
+                }
+                row++;
+                mvprintw(row++, 4, "Reward: %d gold", q->gold_reward);
+                if (q->stat_reward >= 0) {
+                    const char *sn[] = { "+1 STR", "+1 DEF", "+1 INT", "+1 SPD" };
+                    mvprintw(row++, 4, "Bonus: %s", sn[q->stat_reward]);
+                }
+                row++;
+                mvprintw(row++, 4, "[a] Accept quest");
+                mvprintw(row++, 4, "[d] Decline");
+                attroff(COLOR_PAIR(CP_WHITE));
+                ui_refresh();
+
+                int qkey = ui_getkey();
+                if (qkey == 'a') {
+                    q->state = QUEST_ACTIVE;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "Quest accepted: %s", q->name);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "You decline the quest.");
+                }
+            } else {
+                /* Check if any completed quests can be turned in here */
+                bool turned_in = false;
+                for (int qi = 0; qi < gs->quests.num_quests; qi++) {
+                    Quest *cq = &gs->quests.quests[qi];
+                    if (cq->state == QUEST_COMPLETE &&
+                        strcmp(cq->giver_town, gs->current_town->name) == 0) {
+                        cq->state = QUEST_TURNED_IN;
+                        gs->gold += cq->gold_reward;
+                        if (cq->stat_reward >= 0) {
+                            int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                            (*stats[cq->stat_reward])++;
+                        }
+                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                 "Quest turned in: %s! +%dg", cq->name, cq->gold_reward);
+                        turned_in = true;
+                        break;
+                    }
+                }
+                if (!turned_in) {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "\"I have nothing for you right now. Check other inns.\"");
+                }
+            }
+        }
+        break;
     case NPC_GUARD:
         {
             const char *msgs[] = {
@@ -1850,6 +1935,84 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Quest journal (J = Shift+J) */
+    if (key == 'J') {
+        ui_clear();
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+
+        int row = 1;
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "=== Quest Journal ===");
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        row++;
+
+        int active = 0, completed = 0;
+        /* Active quests */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "Active Quests:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        for (int i = 0; i < gs->quests.num_quests && row < term_rows - 4; i++) {
+            Quest *q = &gs->quests.quests[i];
+            if (q->state == QUEST_ACTIVE) {
+                attron(COLOR_PAIR(CP_YELLOW));
+                const char *tname = (q->type == QTYPE_DELIVERY) ? "Deliver" :
+                                    (q->type == QTYPE_FETCH) ? "Fetch" : "Kill";
+                mvprintw(row++, 4, "[%s] %s", tname, q->name);
+                attroff(COLOR_PAIR(CP_YELLOW));
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(row++, 6, "%s", q->description);
+                if (q->type == QTYPE_DELIVERY)
+                    mvprintw(row++, 6, "Deliver to: %s  |  Return to: %s", q->target_town, q->giver_town);
+                else if (q->type == QTYPE_FETCH)
+                    mvprintw(row++, 6, "Location: %s  |  Return to: %s", q->target_dungeon, q->giver_town);
+                else
+                    mvprintw(row++, 6, "Return to: %s", q->giver_town);
+                mvprintw(row++, 6, "Reward: %dg", q->gold_reward);
+                attroff(COLOR_PAIR(CP_WHITE));
+                row++;
+                active++;
+            } else if (q->state == QUEST_COMPLETE) {
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(row++, 4, "[DONE] %s -- return to %s for reward!", q->name, q->giver_town);
+                attroff(COLOR_PAIR(CP_GREEN));
+                active++;
+            }
+        }
+        if (active == 0) {
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "No active quests. Visit inns to find quest givers (!).");
+            attroff(COLOR_PAIR(CP_GRAY));
+        }
+
+        row++;
+        /* Completed quests */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "Completed Quests:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        for (int i = 0; i < gs->quests.num_quests && row < term_rows - 2; i++) {
+            Quest *q = &gs->quests.quests[i];
+            if (q->state == QUEST_TURNED_IN) {
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(row++, 4, "[DONE] %s (+%dg)", q->name, q->gold_reward);
+                attroff(COLOR_PAIR(CP_GREEN));
+                completed++;
+            }
+        }
+        if (completed == 0) {
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "None yet.");
+            attroff(COLOR_PAIR(CP_GRAY));
+        }
+
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(term_rows - 1, 2, "Press any key to close.");
+        attroff(COLOR_PAIR(CP_GRAY));
+        ui_refresh();
+        ui_getkey();
+        return;
+    }
+
     /* Message history (P = Shift+P) */
     if (key == 'P') {
         ui_clear();
@@ -1949,6 +2112,7 @@ void game_init(GameState *gs) {
     overworld_init(gs->overworld);
     overworld_spawn_creatures(gs->overworld);
     town_init();
+    quest_init(&gs->quests);
 
     /* Place player at Camelot (scaled coordinates) */
     gs->player_pos = (Vec2){ 212, 162 };

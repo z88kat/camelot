@@ -5,6 +5,7 @@
 #include "log.h"
 #include "overworld.h"
 #include "town.h"
+#include "quest.h"
 
 /* Weather types */
 typedef enum {
@@ -51,6 +52,9 @@ typedef struct {
     Vec2       town_player_pos;  /* player position inside town */
     bool       well_explored;    /* has the well been explored this visit? */
     bool       confessed;        /* has player confessed at church this visit? */
+    /* Quests */
+    QuestLog   quests;
+
     bool       stonehenge_used;  /* has player used Stonehenge this game? */
     bool       church_looted;    /* has player looted a church? */
     int        weight, max_weight;

@@ -6,7 +6,7 @@
 - [x] **Phase 2** -- Overworld Map of England (terrain, towns, landmarks, castles, cottages, caves)
 - [x] **Phase 3** -- Day/Night Cycle, Weather, Horses & Overworld Encounters
 - [x] **Phase 4** -- Towns: Shops, Inns (beer!), Mystics, Churches, Banks, Pawn Shops, Wells
-- [ ] **Phase 5** -- Quest System (10-15 side quests, journal)
+- [x] **Phase 5** -- Quest System (10-15 side quests, journal)
 - [ ] **Phase 6** -- Dungeon Generation (BSP, traps, magic circles, multiple dungeons + volcano)
 - [ ] **Phase 7** -- Field of View & Fog of War
 - [ ] **Phase 8** -- Enemies, Combat, Message Log (80+ monsters, werewolves, vampires, mad knights)

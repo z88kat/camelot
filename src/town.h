@@ -45,6 +45,7 @@ typedef enum {
     NPC_KING,        /* castle ruler */
     NPC_QUEEN,       /* castle queen */
     NPC_GUARD,       /* castle guard */
+    NPC_QUEST_GIVER, /* quest NPC in inn */
     NPC_DOG,         /* wanders, harmless */
     NPC_CAT,         /* wanders, harmless */
     NPC_CHICKEN      /* wanders, harmless */
@@ -82,8 +83,9 @@ int town_count(void);
 /* Get town def by index. */
 const TownDef *town_get_by_index(int idx);
 
-/* Generate a town interior map based on its services. */
-void town_generate_map(TownMap *tm, const TownDef *td);
+/* Generate a town interior map based on its services.
+   has_quest_giver: if true, place a quest NPC (!) in the inn. */
+void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver);
 
 /* Get the NPC at a position, or NULL. */
 TownNPC *town_npc_at(TownMap *tm, int x, int y);

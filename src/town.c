@@ -211,7 +211,7 @@ static void add_npc(TownMap *tm, TownNPCType type, int x, int y,
     snprintf(npc->label, MAX_NAME, "%s", label);
 }
 
-void town_generate_map(TownMap *tm, const TownDef *td) {
+void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
     memset(tm, 0, sizeof(*tm));
 
     /* Fill with outdoor ground (courtyard) */
@@ -289,6 +289,12 @@ void town_generate_map(TownMap *tm, const TownDef *td) {
         int npc_y = (s->door_side == 0) ? s->y + 2 : s->y + bh - 3;
         add_npc(tm, buildings[i].ntype, npc_x, npc_y,
                 buildings[i].glyph, buildings[i].cp, buildings[i].label, false);
+
+        /* Place quest giver next to innkeeper */
+        if (buildings[i].svc == SVC_INN && has_quest_giver) {
+            add_npc(tm, NPC_QUEST_GIVER, npc_x + 2, npc_y, '!', CP_YELLOW_BOLD,
+                    "Quest Giver", false);
+        }
 
         /* Label above the door */
         int label_y = (s->door_side == 0) ? s->y + bh : s->y - 1;
