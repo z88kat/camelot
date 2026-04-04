@@ -62,6 +62,8 @@ typedef struct {
     bool       church_looted;    /* has player looted a church? */
     int        weight, max_weight;
     int        chivalry;
+    int        xp;
+    int        kills;
 
     /* Time */
     int        turn;

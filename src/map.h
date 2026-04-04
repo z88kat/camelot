@@ -2,6 +2,7 @@
 #define MAP_H
 
 #include "common.h"
+#include "entity.h"
 
 /* Trap types */
 typedef enum {
@@ -39,6 +40,8 @@ typedef struct {
     Vec2     stairs_down[2]; /* up to 2 sets of stairs down */
     int      num_stairs_up;
     int      num_stairs_down;
+    Entity   monsters[MAX_MONSTERS_PER_LEVEL];
+    int      num_monsters;
     bool     generated;  /* has this level been generated? */
     int      depth;      /* 0 = first level */
 } DungeonLevel;

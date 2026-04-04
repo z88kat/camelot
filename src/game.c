@@ -159,6 +159,115 @@ static void check_traps(GameState *gs) {
 void game_init_test_map(GameState *gs) { (void)gs; }
 
 /* Recompute FOV for the current dungeon level */
+/* Find a monster at position on current dungeon level */
+static Entity *monster_at(GameState *gs, int x, int y) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return NULL;
+    for (int i = 0; i < dl->num_monsters; i++) {
+        Entity *e = &dl->monsters[i];
+        if (e->alive && e->pos.x == x && e->pos.y == y)
+            return e;
+    }
+    return NULL;
+}
+
+/* Player attacks a monster */
+static void combat_attack_monster(GameState *gs, Entity *target) {
+    int damage = gs->str + rng_range(-2, 2) - target->def;
+    if (damage < 0) damage = 0;
+
+    target->hp -= damage;
+
+    if (damage > 0) {
+        log_add(&gs->log, gs->turn, CP_WHITE,
+                 "You hit the %s for %d damage!", target->name, damage);
+    } else {
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "You attack the %s but deal no damage.", target->name);
+    }
+
+    if (target->hp <= 0) {
+        target->alive = false;
+        gs->xp += target->xp_reward;
+        gs->kills++;
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "The %s is slain! +%d XP", target->name, target->xp_reward);
+    }
+}
+
+/* Monster attacks the player */
+static void combat_monster_attacks(GameState *gs, Entity *attacker) {
+    int damage = attacker->str + rng_range(-2, 2) - gs->def;
+    if (damage < 0) damage = 0;
+
+    gs->hp -= damage;
+
+    if (damage > 0) {
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "The %s hits you for %d damage!", attacker->name, damage);
+    } else {
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "The %s attacks but you block it.", attacker->name);
+    }
+
+    if (gs->hp <= 0) {
+        gs->hp = 0;
+        log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                 "You have been slain by the %s!", attacker->name);
+        /* TODO: death screen in Phase 13 */
+        gs->hp = 1;  /* prevent death for now */
+    }
+}
+
+/* Process enemy turns -- simple chase AI */
+static void dungeon_enemy_turns(GameState *gs) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return;
+
+    for (int i = 0; i < dl->num_monsters; i++) {
+        Entity *e = &dl->monsters[i];
+        if (!e->alive) continue;
+
+        /* Only act if within FOV radius + a few tiles (awake range) */
+        int dx = e->pos.x - gs->player_pos.x;
+        int dy = e->pos.y - gs->player_pos.y;
+        int dist_sq = dx * dx + dy * dy;
+        if (dist_sq > (FOV_RADIUS + 5) * (FOV_RADIUS + 5)) continue;
+
+        /* If adjacent to player, attack */
+        if (abs(dx) <= 1 && abs(dy) <= 1) {
+            combat_monster_attacks(gs, e);
+            continue;
+        }
+
+        /* Move toward player (simple: step in direction that reduces distance) */
+        int step_x = 0, step_y = 0;
+        if (dx > 0) step_x = -1;
+        else if (dx < 0) step_x = 1;
+        if (dy > 0) step_y = -1;
+        else if (dy < 0) step_y = 1;
+
+        /* Try to move, prefer diagonal, fall back to cardinal */
+        int attempts[3][2] = {
+            { e->pos.x + step_x, e->pos.y + step_y },  /* diagonal */
+            { e->pos.x + step_x, e->pos.y },            /* horizontal */
+            { e->pos.x, e->pos.y + step_y },             /* vertical */
+        };
+
+        for (int a = 0; a < 3; a++) {
+            int nx = attempts[a][0], ny = attempts[a][1];
+            if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) continue;
+            if (!dl->tiles[ny][nx].passable) continue;
+            if (nx == gs->player_pos.x && ny == gs->player_pos.y) continue;
+            if (monster_at(gs, nx, ny)) continue;
+
+            e->pos.x = nx;
+            e->pos.y = ny;
+            break;
+        }
+    }
+}
+
 static void dungeon_update_fov(GameState *gs) {
     if (!gs->dungeon) return;
     DungeonLevel *dl = current_dungeon_level(gs);
@@ -1385,6 +1494,8 @@ static void handle_overworld_input(GameState *gs, int key) {
             /* Generate first level */
             DungeonLevel *dl = &gs->dungeon->levels[0];
             map_generate(dl, 0, num_levels);
+            entity_spawn_monsters(dl->monsters, &dl->num_monsters,
+                                   dl->tiles, 0, dl->stairs_up[0]);
 
             /* Place player next to stairs up */
             Vec2 su = dl->stairs_up[0];
@@ -2231,6 +2342,8 @@ static void handle_dungeon_input(GameState *gs, int key) {
             DungeonLevel *dl = current_dungeon_level(gs);
             if (!dl->generated) {
                 map_generate(dl, next, gs->dungeon->max_depth);
+                entity_spawn_monsters(dl->monsters, &dl->num_monsters,
+                                       dl->tiles, next, dl->stairs_up[0]);
             }
             /* Land at matching stairs up */
             Vec2 landing = (stair_idx < dl->num_stairs_up) ?
@@ -2415,6 +2528,15 @@ static void handle_dungeon_input(GameState *gs, int key) {
         int ny = gs->player_pos.y + dir_dy[dir];
 
         if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+            /* Check for monster -- bump to attack */
+            Entity *mon = monster_at(gs, nx, ny);
+            if (mon) {
+                combat_attack_monster(gs, mon);
+                advance_time(gs, 1);
+                dungeon_enemy_turns(gs);
+                return;
+            }
+
             Tile *target = &tiles[ny][nx];
             if (target->passable) {
                 gs->player_pos.x = nx;
@@ -2422,6 +2544,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 advance_time(gs, 1);
                 check_traps(gs);
                 dungeon_update_fov(gs);
+                dungeon_enemy_turns(gs);
 
                 /* Shallow water damage */
                 if (tiles[ny][nx].glyph == '~') {
@@ -3155,6 +3278,34 @@ static void game_render(GameState *gs) {
         if (dtiles) {
             ui_render_map_generic((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
                                   gs->player_pos, map_view_width, map_view_height);
+
+            /* Render monsters visible in FOV */
+            {
+                DungeonLevel *dl = current_dungeon_level(gs);
+                if (dl) {
+                    int cam_x = gs->player_pos.x - map_view_width / 2;
+                    int cam_y = gs->player_pos.y - map_view_height / 2;
+                    if (cam_x < 0) cam_x = 0;
+                    if (cam_y < 0) cam_y = 0;
+                    if (cam_x + map_view_width > MAP_WIDTH) cam_x = MAP_WIDTH - map_view_width;
+                    if (cam_y + map_view_height > MAP_HEIGHT) cam_y = MAP_HEIGHT - map_view_height;
+
+                    for (int i = 0; i < dl->num_monsters; i++) {
+                        Entity *e = &dl->monsters[i];
+                        if (!e->alive) continue;
+                        /* Only show if tile is visible (in FOV) */
+                        if (!dl->tiles[e->pos.y][e->pos.x].visible) continue;
+
+                        int sx = e->pos.x - cam_x;
+                        int sy = e->pos.y - cam_y;
+                        if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
+                            attron(COLOR_PAIR(e->color_pair) | A_BOLD);
+                            mvaddch(sy, sx, e->glyph);
+                            attroff(COLOR_PAIR(e->color_pair) | A_BOLD);
+                        }
+                    }
+                }
+            }
 
             /* Torch light effect -- tint visible tiles near player yellow */
             if (gs->has_torch) {
