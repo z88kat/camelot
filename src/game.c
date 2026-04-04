@@ -2116,6 +2116,21 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 advance_time(gs, 1);
                 check_traps(gs);
 
+                /* Shallow water damage */
+                if (tiles[ny][nx].glyph == '~') {
+                    gs->hp -= 1;
+                    if (gs->hp < 1) gs->hp = 1;
+                    const char *water_msgs[] = {
+                        "You wade through freezing water. The cold bites at your legs. (-1 HP)",
+                        "Filthy water splashes around your feet. It stings. (-1 HP)",
+                        "The icy water soaks through your boots. (-1 HP)",
+                        "You shiver as you slosh through the murky water. (-1 HP)",
+                        "Something brushes your ankle in the dark water... (-1 HP)",
+                    };
+                    int n = sizeof(water_msgs) / sizeof(water_msgs[0]);
+                    log_add(&gs->log, gs->turn, CP_BLUE, "%s", water_msgs[rng_range(0, n - 1)]);
+                }
+
                 /* Room entry flavour messages */
                 /* Trigger when stepping into an open area (many floor neighbours) */
                 {
