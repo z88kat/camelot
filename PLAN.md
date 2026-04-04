@@ -18,7 +18,7 @@
 - [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
 
 ### Data Files Checklist
-- [ ] `data/monsters.csv`
+- [x] `data/monsters.csv`
 - [ ] `data/items.csv`
 - [ ] `data/potions.csv`
 - [ ] `data/food.csv`

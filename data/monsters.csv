@@ -1,0 +1,112 @@
+# Monster definitions for Knights of Camelot
+# name,glyph,color,hp,str,def,spd,xp,min_depth,max_depth,category,frequency,group,ai_flags,drop
+# color: brown,gray,green,yellow,red,white,cyan,magenta
+# category: beast,bandit,undead,dark_knight,magical,dragon,troll,boss
+# group: single,small,large
+# ai_flags: pipe-separated list of: flee,erratic,ranged,doors (or none)
+# drop: none,gold,gold_large
+#
+# ===== Beasts -- early game =====
+Giant Rat,r,brown,6,3,1,4,5,0,3,beast,5,small,flee|erratic,none
+Bat Swarm,b,gray,4,2,0,6,3,0,4,beast,5,large,erratic,none
+Adder,s,green,5,4,1,5,6,0,3,beast,4,single,flee,none
+Wild Boar,B,brown,10,5,2,3,8,1,5,beast,3,single,none,none
+Wolf,w,gray,10,5,2,5,10,1,5,beast,4,small,flee,none
+Giant Spider,S,green,12,6,2,4,12,2,6,beast,3,single,none,none
+Bear,U,brown,18,8,3,3,18,3,7,beast,2,single,none,none
+Giant Beetle,a,green,8,4,4,2,7,1,4,beast,4,small,erratic,none
+Stag,s,brown,8,3,1,6,4,0,3,beast,3,single,flee,none
+Rabid Dog,d,brown,9,5,1,5,7,0,4,beast,3,single,erratic,none
+#
+# ===== Bandits & Outlaws =====
+Bandit,p,yellow,12,5,3,4,10,1,5,bandit,4,small,flee|doors,gold
+Cutthroat,p,red,14,7,2,5,14,2,6,bandit,3,single,flee,gold
+Highwayman,p,yellow,16,6,4,4,16,3,7,bandit,2,single,doors,gold
+Poacher,p,green,11,5,2,5,9,1,4,bandit,3,single,flee|ranged,gold
+Rogue Archer,p,cyan,13,6,2,5,13,2,6,bandit,2,single,ranged,gold
+Smuggler,p,gray,14,5,3,4,12,2,5,bandit,2,single,flee|doors,gold
+Deserter,p,brown,16,7,4,3,15,3,6,bandit,2,single,doors,gold
+Bandit Chief,P,yellow,22,8,5,4,25,4,8,bandit,1,single,doors,gold_large
+#
+# ===== Undead =====
+Skeleton,z,white,10,5,3,3,10,2,6,undead,4,small,none,gold
+Zombie,Z,green,14,6,2,2,12,2,6,undead,4,small,none,none
+Ghoul,g,cyan,16,7,3,4,16,3,7,undead,3,single,none,gold
+Ghost,G,white,12,6,1,5,14,3,8,undead,3,single,erratic,gold
+Wight,W,white,20,8,4,3,22,4,8,undead,2,single,none,gold
+Wraith,W,cyan,18,9,2,5,25,5,9,undead,2,single,erratic,gold
+Spectre,G,cyan,15,7,1,6,20,5,9,undead,2,single,erratic,gold
+Revenant,R,red,22,9,5,3,28,5,9,undead,2,single,doors,gold
+Barrow-Wight,W,gray,24,9,5,3,30,5,10,undead,1,single,none,gold_large
+Skeleton Knight,Z,white,25,10,6,3,30,6,10,undead,1,single,doors,gold_large
+Bone Dragon,D,white,45,14,7,3,60,9,15,undead,1,single,ranged,gold_large
+Death Knight,D,red,35,12,8,4,50,8,15,undead,1,single,doors,gold_large
+#
+# ===== Dark Knights & Warriors =====
+Dark Squire,q,red,15,6,5,3,14,3,7,dark_knight,3,single,doors,gold
+Mercenary,q,yellow,20,8,5,4,20,4,8,dark_knight,2,single,doors,gold
+Rogue Knight,K,red,25,9,7,3,28,5,9,dark_knight,2,single,doors,gold_large
+Iron Golem,I,gray,35,12,10,1,40,7,12,dark_knight,1,single,doors,gold_large
+Black Knight,K,red,30,10,8,3,35,6,10,dark_knight,1,single,doors,gold_large
+Fallen Paladin,K,magenta,35,11,9,3,45,7,12,dark_knight,1,single,doors,gold_large
+#
+# ===== Magical Creatures =====
+Imp,i,red,8,4,1,7,8,2,6,magical,3,small,erratic|ranged,none
+Dark Monk,m,magenta,18,7,5,3,20,4,8,magical,2,single,ranged,gold
+Hellhound,h,red,20,9,3,6,24,5,9,magical,2,single,ranged,none
+Witch,W,green,16,6,3,4,18,4,8,magical,2,single,ranged|flee,gold
+Evil Sorcerer,S,magenta,24,9,4,4,30,6,10,magical,1,single,ranged|flee,gold_large
+Necromancer,N,magenta,20,7,3,3,25,6,10,magical,1,single,ranged,gold_large
+Enchantress,E,magenta,18,6,3,5,22,5,9,magical,1,single,ranged|flee,gold
+Warlock,W,magenta,22,8,4,4,28,6,10,magical,1,single,ranged|flee,gold_large
+Shadow Fiend,F,magenta,25,10,3,5,32,7,12,magical,1,single,erratic,gold_large
+Demon,&,red,38,13,6,4,55,9,15,magical,1,single,ranged|doors,gold_large
+#
+# ===== Dragons =====
+Dragon Whelp,d,red,15,7,4,4,18,4,8,dragon,2,single,ranged,gold_large
+Young Drake,d,red,22,9,5,4,28,5,9,dragon,1,single,ranged,gold_large
+Fire Drake,D,red,30,12,6,3,40,7,12,dragon,1,single,ranged,gold_large
+Ice Drake,D,cyan,28,11,6,3,38,7,12,dragon,1,single,ranged,gold_large
+Wyvern,W,red,28,10,5,5,35,6,11,dragon,1,single,ranged|flee,gold_large
+Red Dragon,D,red,50,15,10,3,80,10,15,dragon,1,single,ranged,gold_large
+Black Dragon,D,magenta,55,16,9,3,90,11,15,dragon,1,single,ranged,gold_large
+#
+# ===== Faerie & Forest =====
+Will-o-Wisp,o,cyan,6,3,0,8,8,2,6,beast,2,single,erratic,none
+Pixie Swarm,x,magenta,5,3,0,7,6,2,6,beast,3,large,erratic,none
+Redcap,c,red,14,7,3,5,15,3,7,beast,2,single,none,gold
+Spriggan,k,green,12,6,2,4,12,3,7,beast,2,single,erratic,gold
+Green Man,G,green,20,8,5,3,22,4,8,beast,1,single,none,gold
+Treant,Y,green,30,10,8,1,30,5,9,beast,1,single,none,gold_large
+Bog Hag,H,green,18,7,3,3,18,4,8,magical,1,single,ranged,gold
+Forest Troll,T,green,28,10,5,2,28,4,8,troll,2,single,doors,gold
+#
+# ===== Water Creatures =====
+Giant Pike,f,cyan,10,5,2,4,10,2,6,beast,2,single,none,none
+Nixie,n,cyan,8,4,1,6,8,2,6,beast,2,small,erratic,none
+Water Serpent,s,cyan,14,6,2,5,14,3,7,beast,2,single,none,gold
+Kelpie,k,cyan,18,8,3,5,20,4,8,beast,1,single,erratic,gold
+Merfolk Warrior,m,cyan,16,7,4,4,16,3,7,beast,2,single,none,gold
+Giant Crab,C,red,15,6,6,2,14,3,7,beast,2,single,none,gold
+Drowned Knight,K,cyan,22,8,5,3,24,5,9,undead,1,single,doors,gold
+Sea Serpent,S,cyan,30,11,5,4,35,6,11,beast,1,single,none,gold_large
+#
+# ===== Giants & Trolls =====
+Hill Troll,T,green,25,9,5,2,25,4,8,troll,2,single,doors,gold
+Cave Troll,T,brown,30,11,6,2,32,5,10,troll,2,single,doors,gold
+Ogre,O,brown,28,10,4,2,28,5,9,troll,2,single,none,gold
+Frost Giant,H,cyan,38,13,7,2,45,7,12,troll,1,single,none,gold_large
+Ettins,E,brown,32,11,5,2,35,6,10,troll,1,single,none,gold_large
+Cyclops,C,gray,35,13,6,2,40,7,12,troll,1,single,none,gold_large
+Stone Giant,H,gray,40,14,8,1,50,8,15,troll,1,single,none,gold_large
+#
+# ===== Mythical & Boss =====
+Werewolf,W,gray,25,10,4,6,30,4,10,beast,1,single,flee,gold
+Alpha Werewolf,W,red,35,13,5,6,45,7,12,beast,1,single,none,gold_large
+Questing Beast,Q,yellow,35,11,6,5,40,6,10,boss,1,single,erratic,gold_large
+Green Knight,K,green,40,12,9,3,50,7,11,boss,1,single,doors,gold_large
+Manticore,M,red,30,11,5,5,35,6,10,boss,1,single,ranged,gold_large
+Griffin,G,yellow,32,10,6,6,38,6,10,boss,1,single,ranged,gold_large
+Basilisk,B,green,28,9,5,3,32,6,10,boss,1,single,none,gold_large
+Chimera,C,red,38,13,6,4,48,8,12,boss,1,single,ranged,gold_large
+Mordred,M,magenta,60,18,12,4,100,12,15,boss,1,single,ranged|doors,gold_large

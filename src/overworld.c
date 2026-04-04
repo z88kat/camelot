@@ -859,6 +859,94 @@ void overworld_spawn_creatures(Overworld *ow) {
     for (int i = 0; i < 5; i++)
         spawn_creature(ow, OW_NPC_CROW, 'v', CP_GRAY, "Crow", TILE_NONE);  /* anywhere on land */
 
+    /* Hostile creatures on the overworld */
+    /* Bandits on roads */
+    for (int i = 0; i < 6; i++) {
+        if (ow->num_creatures >= MAX_OW_CREATURES) break;
+        for (int tries = 0; tries < 300; tries++) {
+            int x = rng_range(30, OW_WIDTH - 30);
+            int y = rng_range(20, OW_HEIGHT - 20);
+            if (!ow->map[y][x].passable) continue;
+            if (ow->map[y][x].type != TILE_ROAD && ow->map[y][x].type != TILE_GRASS) continue;
+            OWCreature *c = &ow->creatures[ow->num_creatures++];
+            c->type = OW_ENEMY_BANDIT;
+            c->pos = (Vec2){ x, y };
+            c->glyph = 'p';
+            c->color_pair = CP_RED;
+            snprintf(c->name, MAX_NAME, "Bandit");
+            c->hostile = true;
+            c->hp = 12; c->max_hp = 12;
+            c->str = 5; c->def = 3;
+            c->xp_reward = 10;
+            break;
+        }
+    }
+
+    /* Wolves in forests */
+    for (int i = 0; i < 5; i++) {
+        if (ow->num_creatures >= MAX_OW_CREATURES) break;
+        for (int tries = 0; tries < 300; tries++) {
+            int x = rng_range(30, OW_WIDTH - 30);
+            int y = rng_range(20, OW_HEIGHT - 20);
+            if (!ow->map[y][x].passable) continue;
+            if (ow->map[y][x].type != TILE_FOREST) continue;
+            OWCreature *c = &ow->creatures[ow->num_creatures++];
+            c->type = OW_ENEMY_WOLF;
+            c->pos = (Vec2){ x, y };
+            c->glyph = 'w';
+            c->color_pair = CP_RED;
+            snprintf(c->name, MAX_NAME, "Wolf");
+            c->hostile = true;
+            c->hp = 10; c->max_hp = 10;
+            c->str = 5; c->def = 2;
+            c->xp_reward = 10;
+            break;
+        }
+    }
+
+    /* Wild boars in hills */
+    for (int i = 0; i < 4; i++) {
+        if (ow->num_creatures >= MAX_OW_CREATURES) break;
+        for (int tries = 0; tries < 300; tries++) {
+            int x = rng_range(30, OW_WIDTH - 30);
+            int y = rng_range(20, OW_HEIGHT - 20);
+            if (!ow->map[y][x].passable) continue;
+            if (ow->map[y][x].type != TILE_HILLS) continue;
+            OWCreature *c = &ow->creatures[ow->num_creatures++];
+            c->type = OW_ENEMY_BOAR;
+            c->pos = (Vec2){ x, y };
+            c->glyph = 'B';
+            c->color_pair = CP_RED;
+            snprintf(c->name, MAX_NAME, "Wild Boar");
+            c->hostile = true;
+            c->hp = 10; c->max_hp = 10;
+            c->str = 5; c->def = 2;
+            c->xp_reward = 8;
+            break;
+        }
+    }
+
+    /* Skeletons near abandoned castles and graveyards */
+    for (int i = 0; i < 3; i++) {
+        if (ow->num_creatures >= MAX_OW_CREATURES) break;
+        for (int tries = 0; tries < 300; tries++) {
+            int x = rng_range(30, OW_WIDTH - 30);
+            int y = rng_range(20, OW_HEIGHT - 20);
+            if (!ow->map[y][x].passable) continue;
+            OWCreature *c = &ow->creatures[ow->num_creatures++];
+            c->type = OW_ENEMY_SKELETON;
+            c->pos = (Vec2){ x, y };
+            c->glyph = 'z';
+            c->color_pair = CP_RED;
+            snprintf(c->name, MAX_NAME, "Skeleton");
+            c->hostile = true;
+            c->hp = 10; c->max_hp = 10;
+            c->str = 5; c->def = 3;
+            c->xp_reward = 10;
+            break;
+        }
+    }
+
     /* Druids near magic circles and Stonehenge */
     for (int i = 0; i < ow->num_locations; i++) {
         Location *loc = &ow->locations[i];

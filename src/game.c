@@ -780,7 +780,63 @@ static void handle_overworld_input(GameState *gs, int key) {
 
         /* Check for creature bump before passability */
         OWCreature *creature = overworld_creature_at(gs->overworld, nx, ny);
-        if (creature && passable) {
+        if (creature && creature->hostile && passable) {
+            /* Overworld combat! */
+            int hit_chance = 70 + gs->str - creature->def * 2;
+            if (hit_chance < 20) hit_chance = 20;
+            if (hit_chance > 95) hit_chance = 95;
+
+            if (rng_chance(hit_chance)) {
+                int damage = gs->str + rng_range(-2, 2) - creature->def;
+                if (damage < 1) damage = 1;
+                bool crit = rng_chance(10);
+                if (crit) damage *= 2;
+
+                creature->hp -= damage;
+                if (crit) {
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "CRITICAL! You hit the %s for %d!", creature->name, damage);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "You hit the %s for %d damage.", creature->name, damage);
+                }
+
+                if (creature->hp <= 0) {
+                    gs->xp += creature->xp_reward;
+                    gs->kills++;
+                    int gold = rng_range(3, 15);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "The %s is slain! +%d XP, +%dg", creature->name, creature->xp_reward, gold);
+                    /* Remove creature by moving it off map */
+                    creature->pos = (Vec2){ -1, -1 };
+                    creature->hostile = false;
+                }
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "You swing at the %s but miss!", creature->name);
+            }
+
+            /* Enemy counterattack if still alive */
+            if (creature->hp > 0) {
+                int ehit = 60 + creature->str - gs->def * 2;
+                if (ehit < 10) ehit = 10;
+                if (rng_chance(ehit)) {
+                    int edmg = creature->str + rng_range(-2, 2) - gs->def;
+                    if (edmg < 1) edmg = 1;
+                    gs->hp -= edmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The %s strikes back for %d damage!", creature->name, edmg);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "The %s attacks but you dodge!", creature->name);
+                }
+            }
+            advance_time(gs, 5);
+            return;
+        }
+        if (creature && !creature->hostile && passable) {
             switch (creature->type) {
             case OW_NPC_TRAVELLER:
                 {
@@ -842,6 +898,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                 creature->pos.x += rng_range(-8, 8);
                 creature->pos.y += rng_range(-4, 4);
                 break;
+            default: break;  /* hostile types handled above */
             case OW_NPC_DRUID:
                 {
                     int druid_roll = rng_range(1, 100);
@@ -3221,6 +3278,7 @@ void game_init(GameState *gs) {
 
     /* Initialize overworld (heap allocated due to size) */
     gs->overworld = calloc(1, sizeof(Overworld));
+    entity_init();
     overworld_init(gs->overworld);
     overworld_spawn_creatures(gs->overworld);
     town_init();

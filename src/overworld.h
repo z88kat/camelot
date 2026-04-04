@@ -47,7 +47,12 @@ typedef enum {
     OW_NPC_SHEEP,
     OW_NPC_RABBIT,
     OW_NPC_CROW,
-    OW_NPC_DRUID
+    OW_NPC_DRUID,
+    /* Hostile creatures */
+    OW_ENEMY_BANDIT,
+    OW_ENEMY_WOLF,
+    OW_ENEMY_BOAR,
+    OW_ENEMY_SKELETON
 } OWCreatureType;
 
 typedef struct {
@@ -56,9 +61,13 @@ typedef struct {
     char           glyph;
     short          color_pair;
     char           name[MAX_NAME];
+    bool           hostile;
+    int            hp, max_hp;
+    int            str, def;
+    int            xp_reward;
 } OWCreature;
 
-#define MAX_OW_CREATURES 40
+#define MAX_OW_CREATURES 60
 
 /* Overworld state -- allocated on heap due to size */
 typedef struct {

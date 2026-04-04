@@ -46,8 +46,17 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 - Magical deer (10% chance of +1 stat on touch)
 - Rainbow event after rain (race to find pot of gold, 100-500g)
 - Cottages and caves reset after 5-20 days for revisiting
+- 85 monster types loaded from data/monsters.csv (beasts, bandits, undead, knights, magical, dragons, trolls, bosses)
+- Bump-to-attack combat with hit/miss rolls and 10% critical hits
+- Monster AI: energy/speed system, flee at low HP, erratic movement, ranged attacks, door opening
+- Monster gold drops on kill, XP tracking
+- Level feelings on dungeon entry ("This seems quiet" to "DEADLY!")
+- Timed monster respawning (every 80 turns outside FOV)
+- Overworld enemies: bandits on roads, wolves in forests, boars in hills, skeletons
+- Maze regions in deeper dungeon levels
+- Reachability validation (flood-fill ensures all stairs are connected)
 
-**Coming next:** Combat, items, spells, save/load
+**Coming next:** Items/inventory, spells, character classes, save/load
 
 ## Features (Planned)
 
@@ -171,6 +180,10 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `r` | Brown | Rabbit | On grassland, darts away |
 | `v` | Gray | Crow | Anywhere, flies away |
 | `D` | Bright green | Druid | Near magic circles/Stonehenge. 30% pickpocket, or blessing/lore |
+| `p` | Red | Bandit | HOSTILE -- roads/grassland. Bump to fight |
+| `w` | Red | Wolf | HOSTILE -- forests. Bump to fight |
+| `B` | Red | Wild Boar | HOSTILE -- hills. Bump to fight |
+| `z` | Red | Skeleton | HOSTILE -- scattered. Bump to fight |
 
 ### Town/Castle Interior
 | Symbol | Colour | Meaning |
@@ -421,6 +434,24 @@ Seven historical abbeys (`A` white) are scattered across England. Press Enter to
 
 ### Magical Deer
 Deer (`d` brown) roam the forests. When you bump into one, there's a **10% chance** it glows with golden light and grants **+1 to a random stat**!
+
+### Combat
+- **Bump-to-attack**: walk into an enemy to attack. Both overworld (red creatures) and dungeon monsters.
+- **Hit chance**: 70% base + your STR - enemy DEF*2 (min 15%, max 95%). You can miss!
+- **Critical hits**: 10% chance for double damage. "CRITICAL HIT!"
+- **Damage**: your STR + random(-2,2) - enemy DEF (minimum 1).
+- **Monster AI varies by type**:
+  - Fast monsters (bats, imps) act more often due to the speed/energy system
+  - Slow monsters (trolls, giants) sometimes skip turns
+  - Some flee when wounded (rats, wolves, warlocks)
+  - Some move erratically (bats, wraiths, imps)
+  - Some attack at range (imps, warlocks, dragons, monks)
+  - Some can open doors while chasing you (bandits, knights, trolls)
+- **Gold drops**: bandits drop 3-15g, knights and dragons drop 15-50g
+- **Level feelings**: on entering a dungeon level, you get a warning: "This seems quiet" to "This level is DEADLY!"
+- **Respawning**: a new monster spawns outside your view every ~80 turns. Cleared levels don't stay safe.
+- **Overworld combat**: red-coloured creatures (bandits, wolves, boars, skeletons) are hostile. Bump to fight, same combat rules.
+- **85 monster types** loaded from `data/monsters.csv` -- edit the file to add or rebalance monsters.
 
 ### Beer & Drunkenness
 Buy beer at any inn (2-3g per pint). Each pint increases drunkenness:

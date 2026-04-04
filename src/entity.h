@@ -70,6 +70,9 @@ typedef struct {
     DropType drop;
 } MonsterTemplate;
 
+/* Initialize monster templates (load from CSV or use defaults). */
+void entity_init(void);
+
 /* Get the monster template table. */
 const MonsterTemplate *entity_get_templates(int *count);
 

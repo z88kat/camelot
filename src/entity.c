@@ -64,10 +64,113 @@ static const MonsterTemplate templates[] = {
     { "Stone Giant",   'H', CP_GRAY,    40, 14, 8, 1, 50, 8, 15, MCAT_TROLL,  1, SPAWN_SINGLE,      0,                                   DROP_GOLD_LARGE },
 };
 
-static const int num_templates = sizeof(templates) / sizeof(templates[0]);
+static const int num_builtin_templates = sizeof(templates) / sizeof(templates[0]);
+
+/* Dynamic templates loaded from CSV */
+static MonsterTemplate loaded_templates[128];
+static int num_loaded = 0;
+static bool csv_loaded = false;
+
+static short parse_color(const char *s) {
+    if (strcmp(s, "brown") == 0) return CP_BROWN;
+    if (strcmp(s, "gray") == 0) return CP_GRAY;
+    if (strcmp(s, "green") == 0) return CP_GREEN;
+    if (strcmp(s, "yellow") == 0) return CP_YELLOW;
+    if (strcmp(s, "red") == 0) return CP_RED;
+    if (strcmp(s, "white") == 0) return CP_WHITE;
+    if (strcmp(s, "cyan") == 0) return CP_CYAN;
+    if (strcmp(s, "magenta") == 0) return CP_MAGENTA;
+    return CP_WHITE;
+}
+
+static MonsterCategory parse_category(const char *s) {
+    if (strcmp(s, "beast") == 0) return MCAT_BEAST;
+    if (strcmp(s, "bandit") == 0) return MCAT_BANDIT;
+    if (strcmp(s, "undead") == 0) return MCAT_UNDEAD;
+    if (strcmp(s, "dark_knight") == 0) return MCAT_DARK_KNIGHT;
+    if (strcmp(s, "magical") == 0) return MCAT_MAGICAL;
+    if (strcmp(s, "dragon") == 0) return MCAT_DRAGON;
+    if (strcmp(s, "troll") == 0) return MCAT_TROLL;
+    if (strcmp(s, "boss") == 0) return MCAT_BOSS;
+    return MCAT_BEAST;
+}
+
+static SpawnGroup parse_group(const char *s) {
+    if (strcmp(s, "small") == 0) return SPAWN_SMALL_GROUP;
+    if (strcmp(s, "large") == 0) return SPAWN_LARGE_GROUP;
+    return SPAWN_SINGLE;
+}
+
+static uint32_t parse_ai_flags(const char *s) {
+    uint32_t flags = 0;
+    if (strstr(s, "flee")) flags |= AI_FLEES_LOW_HP;
+    if (strstr(s, "erratic")) flags |= AI_ERRATIC;
+    if (strstr(s, "ranged")) flags |= AI_RANGED_ATTACK;
+    if (strstr(s, "doors")) flags |= AI_OPENS_DOORS;
+    return flags;
+}
+
+static DropType parse_drop(const char *s) {
+    if (strcmp(s, "gold") == 0) return DROP_GOLD;
+    if (strcmp(s, "gold_large") == 0) return DROP_GOLD_LARGE;
+    return DROP_NONE;
+}
+
+void entity_init(void) {
+    FILE *f = fopen("data/monsters.csv", "r");
+    if (!f) {
+        csv_loaded = false;
+        return;
+    }
+
+    num_loaded = 0;
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        /* Skip comments and empty lines */
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+
+        /* Remove trailing newline */
+        line[strcspn(line, "\n\r")] = 0;
+
+        /* Parse CSV: name,glyph,color,hp,str,def,spd,xp,min,max,cat,freq,group,ai,drop */
+        char name[64], color[16], cat[16], grp[16], ai[64], drop[16];
+        char glyph;
+        int hp, str, def, spd, xp, min_d, max_d, freq;
+
+        int n = sscanf(line, "%63[^,],%c,%15[^,],%d,%d,%d,%d,%d,%d,%d,%15[^,],%d,%15[^,],%63[^,],%15s",
+                       name, &glyph, color, &hp, &str, &def, &spd, &xp,
+                       &min_d, &max_d, cat, &freq, grp, ai, drop);
+        if (n < 15) continue;
+
+        if (num_loaded >= 128) break;
+        MonsterTemplate *mt = &loaded_templates[num_loaded];
+        snprintf(mt->name, MAX_NAME, "%s", name);
+        mt->glyph = glyph;
+        mt->color_pair = parse_color(color);
+        mt->hp = hp;
+        mt->str = str;
+        mt->def = def;
+        mt->spd = spd;
+        mt->xp_reward = xp;
+        mt->min_depth = min_d;
+        mt->max_depth = max_d;
+        mt->category = parse_category(cat);
+        mt->frequency = freq;
+        mt->group = parse_group(grp);
+        mt->ai_flags = parse_ai_flags(ai);
+        mt->drop = parse_drop(drop);
+        num_loaded++;
+    }
+    fclose(f);
+    csv_loaded = (num_loaded > 0);
+}
 
 const MonsterTemplate *entity_get_templates(int *count) {
-    *count = num_templates;
+    if (csv_loaded) {
+        *count = num_loaded;
+        return loaded_templates;
+    }
+    *count = num_builtin_templates;
     return templates;
 }
 
@@ -128,11 +231,13 @@ void entity_spawn_monsters(Entity monsters[], int *num_monsters,
     *num_monsters = 0;
 
     /* Build weighted list of valid templates */
+    int total_templates;
+    const MonsterTemplate *all_templates = entity_get_templates(&total_templates);
     const MonsterTemplate *valid[64];
     int weights[64];
     int num_valid = 0;
-    for (int i = 0; i < num_templates; i++) {
-        const MonsterTemplate *mt = &templates[i];
+    for (int i = 0; i < total_templates; i++) {
+        const MonsterTemplate *mt = &all_templates[i];
 
         /* Depth check with soft edges: 5% out-of-depth chance */
         bool in_range = (depth >= mt->min_depth &&
@@ -269,14 +374,16 @@ bool entity_spawn_one(Entity monsters[], int *num_monsters,
     if (*num_monsters >= MAX_MONSTERS_PER_LEVEL) return false;
 
     /* Build valid list */
+    int total_t;
+    const MonsterTemplate *all_t = entity_get_templates(&total_t);
     const MonsterTemplate *valid[64];
     int weights[64];
     int num_valid = 0;
-    for (int i = 0; i < num_templates; i++) {
-        if (depth >= templates[i].min_depth &&
-            (templates[i].max_depth == 0 || depth <= templates[i].max_depth)) {
-            valid[num_valid] = &templates[i];
-            weights[num_valid] = templates[i].frequency;
+    for (int i = 0; i < total_t; i++) {
+        if (depth >= all_t[i].min_depth &&
+            (all_t[i].max_depth == 0 || depth <= all_t[i].max_depth)) {
+            valid[num_valid] = &all_t[i];
+            weights[num_valid] = all_t[i].frequency;
             num_valid++;
             if (num_valid >= 64) break;
         }
