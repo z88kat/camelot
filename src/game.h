@@ -7,6 +7,7 @@
 #include "town.h"
 #include "quest.h"
 #include "map.h"
+#include "fov.h"
 
 /* Weather types */
 typedef enum {
@@ -46,6 +47,7 @@ typedef struct {
     int        str, def, intel, spd;
     int        gold;
     bool       in_boat;     /* currently sailing across water */
+    bool       has_torch;   /* carrying a lit torch */
     int        beers_drunk; /* current drunkenness counter */
     int        drunk_turns; /* turns of drunkenness remaining */
     const TownDef *current_town; /* town we're currently in (NULL if not in town) */

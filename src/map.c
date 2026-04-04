@@ -544,8 +544,8 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
             t->color_pair = CP_GRAY;
             t->passable = false;
             t->blocks_sight = true;
-            t->visible = true;
-            t->revealed = true;
+            t->visible = false;
+            t->revealed = false;
         }
     }
 

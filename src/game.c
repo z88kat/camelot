@@ -158,6 +158,15 @@ static void check_traps(GameState *gs) {
 /* Stub for old function -- no longer used */
 void game_init_test_map(GameState *gs) { (void)gs; }
 
+/* Recompute FOV for the current dungeon level */
+static void dungeon_update_fov(GameState *gs) {
+    if (!gs->dungeon) return;
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return;
+    int radius = gs->has_torch ? FOV_RADIUS : 2;
+    fov_compute((Tile *)dl->tiles, MAP_WIDTH, MAP_HEIGHT, gs->player_pos, radius);
+}
+
 /* ------------------------------------------------------------------ */
 /* Direction helpers                                                    */
 /* ------------------------------------------------------------------ */
@@ -1378,6 +1387,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
 
             gs->mode = MODE_DUNGEON;
+            dungeon_update_fov(gs);
             log_add(&gs->log, gs->turn, CP_WHITE,
                      "You descend into %s... (%d levels deep)", loc->name, num_levels);
         } else {
@@ -2147,6 +2157,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     gs->player_pos = upper->stairs_down[0];
                 log_add(&gs->log, gs->turn, CP_WHITE,
                          "You ascend to level %d.", gs->dungeon->current_level + 1);
+                dungeon_update_fov(gs);
             }
             return;
         }
@@ -2195,6 +2206,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
             }
             log_add(&gs->log, gs->turn, CP_WHITE,
                      "You descend to level %d of %d.", next + 1, gs->dungeon->max_depth);
+            dungeon_update_fov(gs);
             return;
         } else if (t->type == TILE_PORTAL) {
             /* Exit portal -- return to overworld */
@@ -2226,6 +2238,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     door->blocks_sight = false;
                     door->passable = true;
                     log_add(&gs->log, gs->turn, CP_WHITE, "You open the door.");
+                    dungeon_update_fov(gs);
                 } else if (door->type == TILE_DOOR_LOCKED) {
                     log_add(&gs->log, gs->turn, CP_RED,
                              "The door is locked! Try bashing it (walk into it) or find a key.");
@@ -2252,6 +2265,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     door->glyph = '+';
                     door->blocks_sight = true;
                     log_add(&gs->log, gs->turn, CP_WHITE, "You close the door.");
+                    dungeon_update_fov(gs);
                 } else {
                     log_add(&gs->log, gs->turn, CP_GRAY, "There's no open door there.");
                 }
@@ -2292,6 +2306,20 @@ static void handle_dungeon_input(GameState *gs, int key) {
                      "You find nothing unusual.");
         }
         advance_time(gs, 1);
+        return;
+    }
+
+    /* Toggle torch (T key) */
+    if (key == 'T') {
+        gs->has_torch = !gs->has_torch;
+        if (gs->has_torch) {
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "You light your torch. The dungeon glows with warm light.");
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You extinguish your torch. Darkness closes in...");
+        }
+        dungeon_update_fov(gs);
         return;
     }
 
@@ -2351,6 +2379,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 gs->player_pos.y = ny;
                 advance_time(gs, 1);
                 check_traps(gs);
+                dungeon_update_fov(gs);
 
                 /* Shallow water damage */
                 if (tiles[ny][nx].glyph == '~') {
@@ -2671,6 +2700,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_WHITE, "You push open the door.");
                 advance_time(gs, 1);
                 check_traps(gs);
+                dungeon_update_fov(gs);
             } else if (target->type == TILE_DOOR_LOCKED) {
                 /* Locked door -- attempt to bash it open */
                 int difficulty = rng_range(6, 14);
@@ -2684,6 +2714,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     gs->player_pos.y = ny;
                     log_add(&gs->log, gs->turn, CP_YELLOW,
                              "You smash the locked door open with brute force!");
+                    dungeon_update_fov(gs);
                 } else {
                     log_add(&gs->log, gs->turn, CP_RED,
                              "The door is locked! You shoulder it but it holds firm. (Need more STR)");
@@ -2915,6 +2946,7 @@ void game_init(GameState *gs) {
     gs->player_pos = (Vec2){ 212, 162 };
     gs->ow_player_pos = gs->player_pos;
     gs->dungeon = NULL;
+    gs->has_torch = true;  /* start with a torch for testing */
 
     /* Log */
     log_init(&gs->log);
@@ -3081,6 +3113,50 @@ static void game_render(GameState *gs) {
         if (dtiles) {
             ui_render_map_generic((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
                                   gs->player_pos, map_view_width, map_view_height);
+
+            /* Torch light effect -- tint visible tiles near player yellow */
+            if (gs->has_torch) {
+                int cam_x = gs->player_pos.x - map_view_width / 2;
+                int cam_y = gs->player_pos.y - map_view_height / 2;
+                if (cam_x < 0) cam_x = 0;
+                if (cam_y < 0) cam_y = 0;
+                if (cam_x + map_view_width > MAP_WIDTH) cam_x = MAP_WIDTH - map_view_width;
+                if (cam_y + map_view_height > MAP_HEIGHT) cam_y = MAP_HEIGHT - map_view_height;
+
+                int px = gs->player_pos.x - cam_x;
+                int py = gs->player_pos.y - cam_y;
+
+                for (int vy = 0; vy < map_view_height; vy++) {
+                    for (int vx = 0; vx < map_view_width; vx++) {
+                        int mx = cam_x + vx, my = cam_y + vy;
+                        if (mx < 0 || mx >= MAP_WIDTH || my < 0 || my >= MAP_HEIGHT) continue;
+                        Tile *t = &dtiles[my][mx];
+                        if (!t->visible) continue;
+
+                        int dx = vx - px, dy = vy - py;
+                        int dist_sq = dx * dx + dy * dy;
+
+                        /* Inner glow: bright yellow close to player */
+                        if (dist_sq <= 4) {
+                            chtype ch = mvinch(vy, vx);
+                            if ((ch & A_CHARTEXT) != '@') {
+                                mvaddch(vy, vx, (ch & A_CHARTEXT) | COLOR_PAIR(CP_YELLOW) | A_BOLD);
+                            }
+                        }
+                        /* Warm tint in mid range */
+                        else if (dist_sq <= 25) {
+                            chtype ch = mvinch(vy, vx);
+                            if ((ch & A_CHARTEXT) != '@') {
+                                mvaddch(vy, vx, (ch & A_CHARTEXT) | COLOR_PAIR(CP_YELLOW));
+                            }
+                        }
+                        /* Outer edge: dimmer */
+                        else if (dist_sq <= FOV_RADIUS * FOV_RADIUS) {
+                            /* Leave as-is -- normal colour at edge of torchlight */
+                        }
+                    }
+                }
+            }
         }
     }
 
