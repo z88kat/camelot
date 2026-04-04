@@ -171,51 +171,92 @@ static Entity *monster_at(GameState *gs, int x, int y) {
     return NULL;
 }
 
-/* Player attacks a monster */
+/* Player attacks a monster -- with hit/miss and crits */
 static void combat_attack_monster(GameState *gs, Entity *target) {
+    /* Hit chance: 70% base + player STR - monster DEF*2 */
+    int hit_chance = 70 + gs->str - target->def * 2;
+    if (hit_chance < 15) hit_chance = 15;
+    if (hit_chance > 95) hit_chance = 95;
+
+    if (!rng_chance(hit_chance)) {
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "You swing at the %s but miss!", target->name);
+        return;
+    }
+
     int damage = gs->str + rng_range(-2, 2) - target->def;
-    if (damage < 0) damage = 0;
+    if (damage < 1) damage = 1;
+
+    /* Critical hit: 10% chance, 2x damage */
+    bool crit = rng_chance(10);
+    if (crit) {
+        damage *= 2;
+        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                 "CRITICAL HIT! You smash the %s for %d damage!", target->name, damage);
+    } else {
+        log_add(&gs->log, gs->turn, CP_WHITE,
+                 "You hit the %s for %d damage.", target->name, damage);
+    }
 
     target->hp -= damage;
-
-    if (damage > 0) {
-        log_add(&gs->log, gs->turn, CP_WHITE,
-                 "You hit the %s for %d damage!", target->name, damage);
-    } else {
-        log_add(&gs->log, gs->turn, CP_GRAY,
-                 "You attack the %s but deal no damage.", target->name);
-    }
 
     if (target->hp <= 0) {
         target->alive = false;
         gs->xp += target->xp_reward;
         gs->kills++;
         log_add(&gs->log, gs->turn, CP_YELLOW,
-                 "The %s is slain! +%d XP", target->name, target->xp_reward);
+                 "The %s is slain! +%d XP (Kills: %d)", target->name, target->xp_reward, gs->kills);
+
+        /* Monster drops */
+        DungeonLevel *dl = current_dungeon_level(gs);
+        if (dl) {
+            /* Find template to get drop type */
+            int tcount;
+            const MonsterTemplate *tmps = entity_get_templates(&tcount);
+            for (int ti = 0; ti < tcount; ti++) {
+                if (tmps[ti].glyph == target->glyph && tmps[ti].hp == target->max_hp - rng_range(-2,2)) {
+                    /* Close enough match */
+                    if (tmps[ti].drop == DROP_GOLD) {
+                        int gold = rng_range(3, 15);
+                        gs->gold += gold;
+                        log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold.", gold);
+                    } else if (tmps[ti].drop == DROP_GOLD_LARGE) {
+                        int gold = rng_range(15, 50);
+                        gs->gold += gold;
+                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "You find %d gold!", gold);
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
-/* Monster attacks the player */
+/* Monster attacks the player -- with hit/miss */
 static void combat_monster_attacks(GameState *gs, Entity *attacker) {
+    int hit_chance = 60 + attacker->str - gs->def * 2;
+    if (hit_chance < 10) hit_chance = 10;
+    if (hit_chance > 90) hit_chance = 90;
+
+    if (!rng_chance(hit_chance)) {
+        log_add(&gs->log, gs->turn, CP_GRAY,
+                 "The %s attacks but you dodge!", attacker->name);
+        return;
+    }
+
     int damage = attacker->str + rng_range(-2, 2) - gs->def;
-    if (damage < 0) damage = 0;
+    if (damage < 1) damage = 1;
 
     gs->hp -= damage;
 
-    if (damage > 0) {
-        log_add(&gs->log, gs->turn, CP_RED,
-                 "The %s hits you for %d damage!", attacker->name, damage);
-    } else {
-        log_add(&gs->log, gs->turn, CP_GRAY,
-                 "The %s attacks but you block it.", attacker->name);
-    }
+    log_add(&gs->log, gs->turn, CP_RED,
+             "The %s hits you for %d damage!", attacker->name, damage);
 
     if (gs->hp <= 0) {
         gs->hp = 0;
         log_add(&gs->log, gs->turn, CP_RED_BOLD,
                  "You have been slain by the %s!", attacker->name);
-        /* TODO: death screen in Phase 13 */
-        gs->hp = 1;  /* prevent death for now */
+        gs->hp = 1;  /* prevent death for now -- death screen in Phase 13 */
     }
 }
 
@@ -224,15 +265,71 @@ static void dungeon_enemy_turns(GameState *gs) {
     DungeonLevel *dl = current_dungeon_level(gs);
     if (!dl) return;
 
+    /* Timed spawning: every ~80 turns, spawn a new monster outside FOV */
+    if (gs->turn % 80 == 0) {
+        int radius = gs->has_torch ? FOV_RADIUS : 2;
+        if (entity_spawn_one(dl->monsters, &dl->num_monsters,
+                              dl->tiles, dl->depth, gs->player_pos, radius)) {
+            /* Spawned silently -- player won't know */
+        }
+    }
+
     for (int i = 0; i < dl->num_monsters; i++) {
         Entity *e = &dl->monsters[i];
         if (!e->alive) continue;
 
-        /* Only act if within FOV radius + a few tiles (awake range) */
+        /* Only act if within awake range */
         int dx = e->pos.x - gs->player_pos.x;
         int dy = e->pos.y - gs->player_pos.y;
         int dist_sq = dx * dx + dy * dy;
         if (dist_sq > (FOV_RADIUS + 5) * (FOV_RADIUS + 5)) continue;
+
+        /* Energy system: accumulate energy based on speed, act when >= 30 */
+        e->energy += e->spd * 10;
+        if (e->energy < 30) continue;
+        e->energy -= 30;
+
+        /* AI: Erratic monsters sometimes move randomly */
+        if ((e->ai_flags & AI_ERRATIC) && rng_chance(25)) {
+            int rd = rng_range(0, 7);
+            int nx = e->pos.x + dir_dx[rd];
+            int ny = e->pos.y + dir_dy[rd];
+            if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
+                dl->tiles[ny][nx].passable && !monster_at(gs, nx, ny) &&
+                !(nx == gs->player_pos.x && ny == gs->player_pos.y)) {
+                e->pos.x = nx;
+                e->pos.y = ny;
+            }
+            continue;
+        }
+
+        /* AI: Flee when HP low */
+        if ((e->ai_flags & AI_FLEES_LOW_HP) && e->hp * 4 < e->max_hp) {
+            /* Run away from player */
+            int step_x = (dx > 0) ? 1 : (dx < 0) ? -1 : 0;
+            int step_y = (dy > 0) ? 1 : (dy < 0) ? -1 : 0;
+            int nx = e->pos.x + step_x;
+            int ny = e->pos.y + step_y;
+            if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
+                dl->tiles[ny][nx].passable && !monster_at(gs, nx, ny)) {
+                e->pos.x = nx;
+                e->pos.y = ny;
+            }
+            continue;
+        }
+
+        /* AI: Ranged attack at distance 2-5 */
+        if ((e->ai_flags & AI_RANGED_ATTACK) && dist_sq >= 4 && dist_sq <= 25) {
+            if (rng_chance(50)) {
+                int damage = e->str / 2 + rng_range(-1, 2) - gs->def / 2;
+                if (damage < 1) damage = 1;
+                gs->hp -= damage;
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "The %s hurls an attack at you! -%d HP", e->name, damage);
+                if (gs->hp <= 0) { gs->hp = 1; }
+                continue;
+            }
+        }
 
         /* If adjacent to player, attack */
         if (abs(dx) <= 1 && abs(dy) <= 1) {
@@ -240,24 +337,32 @@ static void dungeon_enemy_turns(GameState *gs) {
             continue;
         }
 
-        /* Move toward player (simple: step in direction that reduces distance) */
+        /* Chase player */
         int step_x = 0, step_y = 0;
         if (dx > 0) step_x = -1;
         else if (dx < 0) step_x = 1;
         if (dy > 0) step_y = -1;
         else if (dy < 0) step_y = 1;
 
-        /* Try to move, prefer diagonal, fall back to cardinal */
         int attempts[3][2] = {
-            { e->pos.x + step_x, e->pos.y + step_y },  /* diagonal */
-            { e->pos.x + step_x, e->pos.y },            /* horizontal */
-            { e->pos.x, e->pos.y + step_y },             /* vertical */
+            { e->pos.x + step_x, e->pos.y + step_y },
+            { e->pos.x + step_x, e->pos.y },
+            { e->pos.x, e->pos.y + step_y },
         };
 
         for (int a = 0; a < 3; a++) {
             int nx = attempts[a][0], ny = attempts[a][1];
             if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) continue;
-            if (!dl->tiles[ny][nx].passable) continue;
+            Tile *t = &dl->tiles[ny][nx];
+            /* Monsters with AI_OPENS_DOORS can open closed doors */
+            if (t->type == TILE_DOOR_CLOSED && (e->ai_flags & AI_OPENS_DOORS)) {
+                t->type = TILE_DOOR_OPEN;
+                t->glyph = '/';
+                t->blocks_sight = false;
+                t->passable = true;
+                break;
+            }
+            if (!t->passable) continue;
             if (nx == gs->player_pos.x && ny == gs->player_pos.y) continue;
             if (monster_at(gs, nx, ny)) continue;
 
@@ -1496,6 +1601,20 @@ static void handle_overworld_input(GameState *gs, int key) {
             map_generate(dl, 0, num_levels);
             entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                    dl->tiles, 0, dl->stairs_up[0]);
+            /* Level feeling based on monster danger */
+            {
+                int danger = 0;
+                for (int mi = 0; mi < dl->num_monsters; mi++)
+                    danger += dl->monsters[mi].xp_reward;
+                if (danger < 100)
+                    log_add(&gs->log, gs->turn, CP_WHITE, "This seems a quiet level.");
+                else if (danger < 250)
+                    log_add(&gs->log, gs->turn, CP_YELLOW, "You sense danger nearby.");
+                else if (danger < 500)
+                    log_add(&gs->log, gs->turn, CP_RED, "You feel anxious about this level.");
+                else
+                    log_add(&gs->log, gs->turn, CP_RED_BOLD, "This level is DEADLY. Tread carefully!");
+            }
 
             /* Place player next to stairs up */
             Vec2 su = dl->stairs_up[0];
@@ -3279,34 +3398,6 @@ static void game_render(GameState *gs) {
             ui_render_map_generic((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
                                   gs->player_pos, map_view_width, map_view_height);
 
-            /* Render monsters visible in FOV */
-            {
-                DungeonLevel *dl = current_dungeon_level(gs);
-                if (dl) {
-                    int cam_x = gs->player_pos.x - map_view_width / 2;
-                    int cam_y = gs->player_pos.y - map_view_height / 2;
-                    if (cam_x < 0) cam_x = 0;
-                    if (cam_y < 0) cam_y = 0;
-                    if (cam_x + map_view_width > MAP_WIDTH) cam_x = MAP_WIDTH - map_view_width;
-                    if (cam_y + map_view_height > MAP_HEIGHT) cam_y = MAP_HEIGHT - map_view_height;
-
-                    for (int i = 0; i < dl->num_monsters; i++) {
-                        Entity *e = &dl->monsters[i];
-                        if (!e->alive) continue;
-                        /* Only show if tile is visible (in FOV) */
-                        if (!dl->tiles[e->pos.y][e->pos.x].visible) continue;
-
-                        int sx = e->pos.x - cam_x;
-                        int sy = e->pos.y - cam_y;
-                        if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
-                            attron(COLOR_PAIR(e->color_pair) | A_BOLD);
-                            mvaddch(sy, sx, e->glyph);
-                            attroff(COLOR_PAIR(e->color_pair) | A_BOLD);
-                        }
-                    }
-                }
-            }
-
             /* Torch light effect -- tint visible tiles near player yellow */
             if (gs->has_torch) {
                 int cam_x = gs->player_pos.x - map_view_width / 2;
@@ -3346,6 +3437,33 @@ static void game_render(GameState *gs) {
                         /* Outer edge: dimmer */
                         else if (dist_sq <= FOV_RADIUS * FOV_RADIUS) {
                             /* Leave as-is -- normal colour at edge of torchlight */
+                        }
+                    }
+                }
+            }
+
+            /* Render monsters AFTER torch tint so they keep their colours */
+            {
+                DungeonLevel *dl2 = current_dungeon_level(gs);
+                if (dl2) {
+                    int mcam_x = gs->player_pos.x - map_view_width / 2;
+                    int mcam_y = gs->player_pos.y - map_view_height / 2;
+                    if (mcam_x < 0) mcam_x = 0;
+                    if (mcam_y < 0) mcam_y = 0;
+                    if (mcam_x + map_view_width > MAP_WIDTH) mcam_x = MAP_WIDTH - map_view_width;
+                    if (mcam_y + map_view_height > MAP_HEIGHT) mcam_y = MAP_HEIGHT - map_view_height;
+
+                    for (int i = 0; i < dl2->num_monsters; i++) {
+                        Entity *e = &dl2->monsters[i];
+                        if (!e->alive) continue;
+                        if (!dl2->tiles[e->pos.y][e->pos.x].visible) continue;
+
+                        int sx = e->pos.x - mcam_x;
+                        int sy = e->pos.y - mcam_y;
+                        if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
+                            attron(COLOR_PAIR(e->color_pair) | A_BOLD);
+                            mvaddch(sy, sx, e->glyph);
+                            attroff(COLOR_PAIR(e->color_pair) | A_BOLD);
                         }
                     }
                 }

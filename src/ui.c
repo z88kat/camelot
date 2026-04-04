@@ -286,6 +286,12 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
 
             Tile *t = &map[my * map_w + mx];
 
+            /* For dungeon minimaps, only show revealed tiles */
+            if (map_w <= 200 && !t->revealed) {
+                mvaddch(off_y + sy, off_x + sx, ' ');
+                continue;
+            }
+
             /* Determine what to draw: prioritise locations */
             char ch = t->glyph;
             short cp = t->color_pair;

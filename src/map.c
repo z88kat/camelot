@@ -551,7 +551,9 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
 
     /* BSP generate rooms */
     BSPNode *root = bsp_create(1, 1, MAP_WIDTH - 2, MAP_HEIGHT - 2);
-    bsp_split(root, 6);  /* more splits for larger map = more rooms */
+    /* Scale BSP depth by dungeon depth -- deeper levels have more rooms */
+    int bsp_depth = 5 + (depth >= 5 ? 1 : 0) + (depth >= 10 ? 1 : 0);
+    bsp_split(root, bsp_depth);
     bsp_carve_rooms(root, level->tiles);
     bsp_connect(root, level->tiles);
 
@@ -1097,6 +1099,160 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                 /* Solid rock -- show as empty space */
                 level->tiles[y][x].glyph = ' ';
                 level->tiles[y][x].color_pair = CP_DEFAULT;
+            }
+        }
+    }
+
+    /* Maze region on deeper levels (depth >= 4) -- fill one area with a maze */
+    if (depth >= 4 && rng_chance(40 + depth * 5)) {
+        /* Find a rectangular area of solid wall to carve a maze into */
+        int mw = rng_range(15, 25);
+        int mh = rng_range(10, 18);
+        if (mw % 2 == 0) mw++;  /* odd dimensions for maze */
+        if (mh % 2 == 0) mh++;
+        int mx = rng_range(5, MAP_WIDTH - mw - 5);
+        int my = rng_range(5, MAP_HEIGHT - mh - 5);
+
+        /* DFS maze carver */
+        /* Initialize maze area as walls */
+        for (int cy = my; cy < my + mh; cy++)
+            for (int cx = mx; cx < mx + mw; cx++) {
+                if (cx > 0 && cx < MAP_WIDTH - 1 && cy > 0 && cy < MAP_HEIGHT - 1) {
+                    level->tiles[cy][cx].type = TILE_WALL;
+                    level->tiles[cy][cx].glyph = '#';
+                    level->tiles[cy][cx].color_pair = CP_GRAY;
+                    level->tiles[cy][cx].passable = false;
+                    level->tiles[cy][cx].blocks_sight = true;
+                }
+            }
+
+        /* Carve maze passages using DFS */
+        typedef struct { int x, y; } MPos;
+        MPos stack[500];
+        int sp = 0;
+        int sx = mx + 1, sy = my + 1;
+        level->tiles[sy][sx].type = TILE_FLOOR;
+        level->tiles[sy][sx].glyph = '.';
+        level->tiles[sy][sx].color_pair = CP_WHITE;
+        level->tiles[sy][sx].passable = true;
+        level->tiles[sy][sx].blocks_sight = false;
+        stack[sp++] = (MPos){ sx, sy };
+
+        while (sp > 0) {
+            MPos cur = stack[sp - 1];
+            /* Check 4 directions (step 2 tiles at a time for maze) */
+            int dirs[4][2] = {{0,-2},{0,2},{-2,0},{2,0}};
+            /* Shuffle directions */
+            for (int i = 3; i > 0; i--) {
+                int j = rng_range(0, i);
+                int tx = dirs[i][0]; int ty = dirs[i][1];
+                dirs[i][0] = dirs[j][0]; dirs[i][1] = dirs[j][1];
+                dirs[j][0] = tx; dirs[j][1] = ty;
+            }
+
+            bool found = false;
+            for (int d = 0; d < 4; d++) {
+                int nx = cur.x + dirs[d][0];
+                int ny = cur.y + dirs[d][1];
+                int wx = cur.x + dirs[d][0] / 2;
+                int wy = cur.y + dirs[d][1] / 2;
+                if (nx <= mx || nx >= mx + mw - 1 || ny <= my || ny >= my + mh - 1) continue;
+                if (level->tiles[ny][nx].passable) continue;
+
+                /* Carve passage */
+                level->tiles[wy][wx].type = TILE_FLOOR;
+                level->tiles[wy][wx].glyph = '.';
+                level->tiles[wy][wx].color_pair = CP_WHITE;
+                level->tiles[wy][wx].passable = true;
+                level->tiles[wy][wx].blocks_sight = false;
+                level->tiles[ny][nx].type = TILE_FLOOR;
+                level->tiles[ny][nx].glyph = '.';
+                level->tiles[ny][nx].color_pair = CP_WHITE;
+                level->tiles[ny][nx].passable = true;
+                level->tiles[ny][nx].blocks_sight = false;
+
+                if (sp < 500) stack[sp++] = (MPos){ nx, ny };
+                found = true;
+                break;
+            }
+            if (!found) sp--;
+        }
+
+        /* Connect maze to nearest room */
+        for (int side = 0; side < 4; side++) {
+            int bx, by, bdx, bdy;
+            switch (side) {
+            case 0: bx = mx + mw / 2; by = my;        bdx = 0; bdy = -1; break;
+            case 1: bx = mx + mw / 2; by = my + mh -1; bdx = 0; bdy = 1; break;
+            case 2: bx = mx;          by = my + mh / 2; bdx = -1; bdy = 0; break;
+            default: bx = mx + mw - 1; by = my + mh / 2; bdx = 1; bdy = 0; break;
+            }
+            /* Walk outward to find existing floor */
+            for (int step = 0; step < 10; step++) {
+                int fx = bx + bdx * step, fy = by + bdy * step;
+                if (fx < 1 || fx >= MAP_WIDTH - 1 || fy < 1 || fy >= MAP_HEIGHT - 1) break;
+                if (level->tiles[fy][fx].type == TILE_FLOOR &&
+                    level->tiles[fy][fx].color_pair != CP_WHITE) {
+                    /* Found existing room -- carve connection */
+                    for (int s = 0; s <= step; s++) {
+                        int cx2 = bx + bdx * s, cy2 = by + bdy * s;
+                        level->tiles[cy2][cx2].type = TILE_FLOOR;
+                        level->tiles[cy2][cx2].glyph = '.';
+                        level->tiles[cy2][cx2].color_pair = CP_WHITE;
+                        level->tiles[cy2][cx2].passable = true;
+                        level->tiles[cy2][cx2].blocks_sight = false;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /* Reachability validation: ensure stairs are connected */
+    {
+        /* Flood fill from stairs_up[0] */
+        static bool visited[MAP_HEIGHT][MAP_WIDTH];
+        memset(visited, 0, sizeof(visited));
+
+        typedef struct { int x, y; } FPos;
+        static FPos queue[MAP_WIDTH * MAP_HEIGHT / 4];
+        int qhead = 0, qtail = 0;
+
+        int sx = level->stairs_up[0].x, sy = level->stairs_up[0].y;
+        visited[sy][sx] = true;
+        queue[qtail++] = (FPos){ sx, sy };
+
+        while (qhead < qtail) {
+            FPos cur = queue[qhead++];
+            for (int d = 0; d < 4; d++) {
+                int nx = cur.x + dir_dx[d * 2];
+                int ny = cur.y + dir_dy[d * 2];
+                if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+                if (visited[ny][nx]) continue;
+                if (!level->tiles[ny][nx].passable) continue;
+                visited[ny][nx] = true;
+                if (qtail < MAP_WIDTH * MAP_HEIGHT / 4)
+                    queue[qtail++] = (FPos){ nx, ny };
+            }
+        }
+
+        /* Check if stairs down and all stairs up are reachable */
+        for (int si = 0; si < level->num_stairs_down; si++) {
+            int dx = level->stairs_down[si].x, dy = level->stairs_down[si].y;
+            if (!visited[dy][dx]) {
+                /* Carve a path from stairs_up[0] to unreachable stairs_down */
+                int cx = sx, cy = sy;
+                while (cx != dx || cy != dy) {
+                    level->tiles[cy][cx].type = TILE_FLOOR;
+                    level->tiles[cy][cx].glyph = '.';
+                    level->tiles[cy][cx].color_pair = CP_WHITE;
+                    level->tiles[cy][cx].passable = true;
+                    level->tiles[cy][cx].blocks_sight = false;
+                    if (abs(dx - cx) >= abs(dy - cy))
+                        cx += (dx > cx) ? 1 : -1;
+                    else
+                        cy += (dy > cy) ? 1 : -1;
+                }
             }
         }
     }
