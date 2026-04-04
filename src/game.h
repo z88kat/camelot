@@ -71,6 +71,11 @@ typedef struct {
     WeatherType weather;
     int         weather_turns_left;  /* turns until next weather change */
 
+    /* Rainbow event */
+    bool       rainbow_active;
+    Vec2       rainbow_end;       /* tile where the pot of gold is */
+    int        rainbow_turns;     /* turns remaining before rainbow fades */
+
     /* State */
     GameMode   mode;
     bool       running;

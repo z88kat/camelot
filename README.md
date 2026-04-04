@@ -23,13 +23,22 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 - Wandering NPCs and animals (overworld and towns)
 - Boat sailing across lakes
 - BSP-generated dungeons (160x80 tiles, scrollable) with multiple levels, 2 staircases per level
-- Interactive doors (open/close, auto-open on walk), secret doors (search walls)
-- 12 trap types (hidden, triggered on step)
+- 10 room shapes (rectangles, caverns, pillared halls, temples, L-shaped, cross, jagged caves, multi-chamber)
+- 3 corridor styles (L-shaped, winding/twisting, S-curve)
+- Interactive doors (open/close, auto-open on walk), locked doors (bash with STR), secret doors (search walls)
+- 12 trap types (hidden, passive detection, disarm with D key)
+- 7 terrain hazards: shallow water, deep water, lava, ice, fungal growth, rubble, crystal formations
+- Special rooms: temples with altars, libraries with bookshelves, crypts with coffins, treasure rooms
+- Secret rooms (golden floor, accessible via secret doors or teleportation)
+- 1-3 dungeon chests per level (20% trapped)
+- Magic circles in dungeons and overworld (random effects, single use)
+- Druids near magic circles and Stonehenge
 - Exit portal on deepest dungeon level
 - Quest system with 16 quests (delivery, fetch, kill), quest journal
 - Camping system, drunkenness system, terrain-based travel time
 - Minimap overview (overworld and dungeons)
 - Message history (Shift+P)
+- Atmospheric flavour messages in dungeon rooms
 
 **Coming next:** FOV, combat, items, spells, save/load
 
@@ -136,8 +145,10 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `+` | Various | Landmark (press Enter to interact) |
 | `>` | White | Dungeon entrance (press `>` to descend) |
 | `V` | Red | Volcano (dungeon entrance) |
-| `n` | Brown | Cottage |
-| `(` | Gray | Cave |
+| `n` | Brown | Cottage (press Enter to explore) |
+| `O` | Gray | Cave (press Enter to explore) |
+| `(` | Various | Magic circle (press Enter to activate) |
+| `D` | Bright green | Druid (bump to interact) |
 | `@` | Bright white | You (the player) |
 
 ### Overworld Creatures
@@ -151,6 +162,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `s` | White | Sheep | On grassland, bleats |
 | `r` | Brown | Rabbit | On grassland, darts away |
 | `v` | Gray | Crow | Anywhere, flies away |
+| `D` | Bright green | Druid | Near magic circles/Stonehenge. 30% pickpocket, or blessing/lore |
 
 ### Town/Castle Interior
 | Symbol | Colour | Meaning |
@@ -182,12 +194,34 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `#` | Gray | Wall | Impassable, blocks line of sight |
 | ` ` | Black | Solid rock | Unexplored, empty space |
 | `.` | White | Floor | Standard walkable tile |
-| `+` | Brown | Closed door | Walk into to auto-open, or press `o` + direction |
+| `.` | Yellow | Secret room floor | Golden floor indicates a special hidden room |
+| `+` | Brown | Closed door | Walk into to auto-open |
+| `+` | Red | Locked door | Walk into to bash (STR check) |
 | `/` | Brown | Open door | Press `c` + direction to close |
 | `>` | White | Stairs down | Press `>` to descend (2 per level from level 2+) |
 | `<` | White | Stairs up | Press `<` to ascend (2 per level from level 2+) |
-| `^` | Red | Revealed trap | A triggered or detected trap |
+| `^` | Red | Revealed trap | Safe to walk over. Press `D` adjacent to disarm |
 | `0` | Cyan | Exit portal | Deepest level only -- teleports to overworld |
+| `(` | Various | Magic circle | Step on for random effect (single use) |
+| `~` | Blue | Shallow water | Passable, -1 HP per step (cold and filthy) |
+| `~` | Blue | Deep water | **Impassable** -- too deep to cross |
+| `^` | Bright red | Lava | 5-10 HP per step! Deeper levels only |
+| `_` | Cyan | Ice | 30% chance to slip and slide |
+| `"` | Green | Fungal growth | 20% chance of poison spores (1-3 HP) |
+| `%` | Brown | Rubble | **Impassable** -- needs pickaxe to clear |
+| `*` | Bright cyan | Crystal formation | Glows softly, atmospheric |
+| `,` | Gray | Scattered rocks | Decorative, passable |
+
+### Dungeon Room Features
+| Symbol | Colour | Feature | Interaction |
+|--------|--------|---------|-------------|
+| `_` | Yellow | Altar | Walk on: +1 stat, full HP (single use) |
+| `=` | Yellow bold | Treasure chest | Walk on: 20-60 gold |
+| `=` | Brown | Dungeon chest | Walk on: 10-40 gold (20% trapped!) |
+| `$` | Yellow | Gold pile | Walk on: 5-20 gold |
+| `\|` | Brown | Bookshelf | Walk on: 30% chance of lore text |
+| `-` | Gray | Coffin | Walk on: 40% gold, 30% attack, 30% empty |
+| `O` | Gray | Pillar/stalagmite | Impassable, blocks movement |
 
 ### Dungeons
 There are 9 named dungeons spread across England, each with a randomised depth:
@@ -273,10 +307,14 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | `o` + direction | Open a door |
 | `c` + direction | Close a door |
 | `s` | Search adjacent walls for secret doors |
+| `D` | Disarm an adjacent revealed trap (INT+SPD check) |
 | `M` | Dungeon minimap (full level overview) |
 | `q` | Quit game |
 
-Walking into a closed door auto-opens it. Traps are hidden until triggered -- watch your step!
+- Walking into a closed door `+` (brown) auto-opens it.
+- Locked doors `+` (red) require bashing -- walk into them for a STR check.
+- Traps are hidden until triggered or passively detected (10% within 2 tiles). Revealed traps `^` (red) are safe to walk over.
+- Walk onto chests `=`, gold piles `$`, altars `_`, coffins `-`, and bookshelves `|` to interact.
 
 ### UI (all modes)
 | Key | Action |

@@ -380,6 +380,40 @@ static void change_weather(GameState *gs) {
         switch (gs->weather) {
         case WEATHER_CLEAR:
             log_add(&gs->log, gs->turn, CP_YELLOW, "The skies clear. The sun shines warmly.");
+            /* Rainbow event: 25% chance after rain clears during daytime */
+            if ((old == WEATHER_RAIN || old == WEATHER_STORM) &&
+                !is_night(gs->hour) && !gs->rainbow_active && rng_chance(25)) {
+                /* Place rainbow end at a random passable tile 20-50 tiles from player */
+                for (int tries = 0; tries < 200; tries++) {
+                    int rx = gs->player_pos.x + rng_range(-50, 50);
+                    int ry = gs->player_pos.y + rng_range(-50, 50);
+                    int dx = rx - gs->player_pos.x;
+                    int dy = ry - gs->player_pos.y;
+                    int dist = dx*dx + dy*dy;
+                    if (dist < 20*20 || dist > 50*50) continue;
+                    if (rx < 5 || rx >= OW_WIDTH-5 || ry < 5 || ry >= OW_HEIGHT-5) continue;
+                    if (!gs->overworld->map[ry][rx].passable) continue;
+
+                    gs->rainbow_active = true;
+                    gs->rainbow_end = (Vec2){ rx, ry };
+                    gs->rainbow_turns = rng_range(30, 50);
+
+                    /* Figure out direction hint */
+                    const char *dir_name = "";
+                    if (dy < -10 && abs(dx) < abs(dy)) dir_name = "to the north";
+                    else if (dy > 10 && abs(dx) < abs(dy)) dir_name = "to the south";
+                    else if (dx > 10 && abs(dy) < abs(dx)) dir_name = "to the east";
+                    else if (dx < -10 && abs(dy) < abs(dx)) dir_name = "to the west";
+                    else if (dx > 0 && dy < 0) dir_name = "to the northeast";
+                    else if (dx < 0 && dy < 0) dir_name = "to the northwest";
+                    else if (dx > 0 && dy > 0) dir_name = "to the southeast";
+                    else dir_name = "to the southwest";
+
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "A rainbow appears in the sky %s! Find its end!", dir_name);
+                    break;
+                }
+            }
             break;
         case WEATHER_RAIN:
             log_add(&gs->log, gs->turn, CP_BLUE, "Dark clouds gather. Rain begins to fall.");
@@ -668,6 +702,26 @@ static void handle_overworld_input(GameState *gs, int key) {
         /* Move overworld creatures */
         overworld_move_creatures(gs->overworld, gs->player_pos);
 
+        /* Rainbow countdown and pot of gold check */
+        if (gs->rainbow_active) {
+            gs->rainbow_turns--;
+            if (gs->player_pos.x == gs->rainbow_end.x &&
+                gs->player_pos.y == gs->rainbow_end.y) {
+                /* Found the pot of gold! */
+                int gold = rng_range(100, 500);
+                gs->gold += gold;
+                gs->rainbow_active = false;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "You found the end of the rainbow! A pot of gold! +%d gold!", gold);
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "A leprechaun dances away laughing into the mist.");
+            } else if (gs->rainbow_turns <= 0) {
+                gs->rainbow_active = false;
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The rainbow shimmers and vanishes... the gold is gone.");
+            }
+        }
+
         /* Regional weather shift -- chance of weather changing as you travel */
         if (gs->turn % 20 == 0 && rng_chance(30)) {
             change_weather(gs);
@@ -802,12 +856,17 @@ static void handle_overworld_input(GameState *gs, int key) {
                          "%s has no services available.", loc->name);
             }
         } else if (loc && loc->type == LOC_COTTAGE) {
+            /* Reset after 5-15 days */
+            if (loc->visited && (gs->day - loc->visited_day) >= rng_range(5, 15)) {
+                loc->visited = false;
+            }
             if (loc->visited) {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "The cottage is abandoned. Nothing remains here.");
                 return;
             }
             loc->visited = true;
+            loc->visited_day = gs->day;
 
             /* Draw cottage interior and random encounter */
             ui_clear();
@@ -1014,12 +1073,17 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
 
         } else if (loc && loc->type == LOC_CAVE) {
+            /* Reset after 7-20 days */
+            if (loc->visited && (gs->day - loc->visited_day) >= rng_range(7, 20)) {
+                loc->visited = false;
+            }
             if (loc->visited) {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "The cave is empty. You've already explored it.");
                 return;
             }
             loc->visited = true;
+            loc->visited_day = gs->day;
 
             /* Draw cave interior */
             ui_clear();
@@ -2943,6 +3007,30 @@ static void game_render(GameState *gs) {
                     mvaddch(sy, sx, c->glyph);
                     attroff(COLOR_PAIR(c->color_pair));
                 }
+            }
+        }
+
+        /* Draw rainbow end marker if active */
+        if (gs->rainbow_active) {
+            int cam_x2 = gs->player_pos.x - map_view_width / 2;
+            int cam_y2 = gs->player_pos.y - map_view_height / 2;
+            if (cam_x2 < 0) cam_x2 = 0;
+            if (cam_y2 < 0) cam_y2 = 0;
+            if (cam_x2 + map_view_width > OW_WIDTH) cam_x2 = OW_WIDTH - map_view_width;
+            if (cam_y2 + map_view_height > OW_HEIGHT) cam_y2 = OW_HEIGHT - map_view_height;
+
+            int rx = gs->rainbow_end.x - cam_x2;
+            int ry = gs->rainbow_end.y - cam_y2;
+            if (rx >= 0 && rx < map_view_width && ry >= 0 && ry < map_view_height) {
+                /* Rotating rainbow colours based on turn counter */
+                short rainbow_colors[] = {
+                    CP_RED, CP_YELLOW, CP_GREEN, CP_CYAN,
+                    CP_BLUE, CP_MAGENTA, CP_WHITE
+                };
+                short rc = rainbow_colors[gs->turn % 7];
+                attron(COLOR_PAIR(rc) | A_BOLD);
+                mvaddch(ry, rx, '=');
+                attroff(COLOR_PAIR(rc) | A_BOLD);
             }
         }
 

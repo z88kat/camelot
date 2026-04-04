@@ -30,6 +30,7 @@ typedef struct {
     short         color_pair;
     bool          discovered;
     bool          visited;      /* for cottages/caves: has been explored */
+    int           visited_day;  /* day when visited (for reset timer) */
     int           id;
 } Location;
 

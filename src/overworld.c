@@ -719,6 +719,7 @@ void overworld_init(Overworld *ow) {
 
     /* Magic Circles on overworld */
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 215, 158, '(', CP_CYAN_BOLD);  /* near Camelot for testing */
+    ow_add_location(ow, "Cave",             LOC_CAVE, 218, 166, 'O', CP_GRAY);  /* near Camelot for testing */
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 120, 170, '(', CP_GREEN_BOLD);
@@ -774,7 +775,7 @@ void overworld_init(Overworld *ow) {
                 !overworld_location_at(ow, rx, ry)) {
                 char name[MAX_NAME];
                 snprintf(name, MAX_NAME, "Cave");
-                ow_add_location(ow, name, LOC_CAVE, rx, ry, '(', CP_GRAY);
+                ow_add_location(ow, name, LOC_CAVE, rx, ry, 'O', CP_GRAY);
                 placed++;
             }
             attempts++;
