@@ -2160,7 +2160,11 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     door->type = TILE_DOOR_OPEN;
                     door->glyph = '/';
                     door->blocks_sight = false;
+                    door->passable = true;
                     log_add(&gs->log, gs->turn, CP_WHITE, "You open the door.");
+                } else if (door->type == TILE_DOOR_LOCKED) {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The door is locked! Try bashing it (walk into it) or find a key.");
                 } else {
                     log_add(&gs->log, gs->turn, CP_GRAY, "There's no door there.");
                 }
@@ -2462,6 +2466,24 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_WHITE, "You push open the door.");
                 advance_time(gs, 1);
                 check_traps(gs);
+            } else if (target->type == TILE_DOOR_LOCKED) {
+                /* Locked door -- attempt to bash it open */
+                int difficulty = rng_range(6, 14);
+                if (gs->str >= difficulty) {
+                    target->type = TILE_DOOR_OPEN;
+                    target->glyph = '/';
+                    target->color_pair = CP_BROWN;
+                    target->blocks_sight = false;
+                    target->passable = true;
+                    gs->player_pos.x = nx;
+                    gs->player_pos.y = ny;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You smash the locked door open with brute force!");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The door is locked! You shoulder it but it holds firm. (Need more STR)");
+                }
+                advance_time(gs, 1);
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
             }

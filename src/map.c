@@ -477,11 +477,20 @@ static void place_doors(Tile tiles[MAP_HEIGHT][MAP_WIDTH]) {
                     }
                 }
                 if (!adj_door) {
-                    tiles[y][x].type = TILE_DOOR_CLOSED;
-                    tiles[y][x].glyph = '+';
-                    tiles[y][x].color_pair = CP_BROWN;
-                    tiles[y][x].passable = false;
-                    tiles[y][x].blocks_sight = true;
+                    /* 20% chance the door is locked */
+                    if (rng_chance(20)) {
+                        tiles[y][x].type = TILE_DOOR_LOCKED;
+                        tiles[y][x].glyph = '+';
+                        tiles[y][x].color_pair = CP_RED;
+                        tiles[y][x].passable = false;
+                        tiles[y][x].blocks_sight = true;
+                    } else {
+                        tiles[y][x].type = TILE_DOOR_CLOSED;
+                        tiles[y][x].glyph = '+';
+                        tiles[y][x].color_pair = CP_BROWN;
+                        tiles[y][x].passable = false;
+                        tiles[y][x].blocks_sight = true;
+                    }
                 }
             }
         }
