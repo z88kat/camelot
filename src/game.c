@@ -1806,8 +1806,163 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             log_add(&gs->log, gs->turn, CP_GRAY,
                      "The %s's shop is closed for the night.", npc->label);
         } else {
-            log_add(&gs->log, gs->turn, CP_GRAY,
-                     "The %s says: \"Come back when I have stock!\"", npc->label);
+            /* Shop menu with stock quantities */
+            {
+            int tcount;
+            const ItemTemplate *tmps = item_get_templates(&tcount);
+
+            /* Build shop stock: item template index + quantity */
+            int shop_items[20];
+            int shop_qty[20];
+            int num_shop = 0;
+            for (int ti = 0; ti < tcount && num_shop < 20; ti++) {
+                bool match = false;
+                if (npc->type == NPC_EQUIP_SHOP &&
+                    (tmps[ti].type == ITYPE_WEAPON || tmps[ti].type == ITYPE_ARMOR ||
+                     tmps[ti].type == ITYPE_SHIELD || tmps[ti].type == ITYPE_HELMET ||
+                     tmps[ti].type == ITYPE_BOOTS || tmps[ti].type == ITYPE_GLOVES)) {
+                    match = true;
+                }
+                if (npc->type == NPC_POTION_SHOP &&
+                    (tmps[ti].type == ITYPE_POTION || tmps[ti].type == ITYPE_SCROLL)) {
+                    match = true;
+                }
+                if (npc->type == NPC_PAWN_SHOP) {
+                    match = true;
+                }
+                if (match && tmps[ti].rarity >= 2) {
+                    shop_items[num_shop] = ti;
+                    /* Stock based on rarity: common=3-5, normal=2-3, uncommon=1-2 */
+                    shop_qty[num_shop] = (tmps[ti].rarity >= 4) ? rng_range(3, 5) :
+                                         (tmps[ti].rarity >= 3) ? rng_range(2, 3) : rng_range(1, 2);
+                    num_shop++;
+                }
+            }
+
+            int term_rows2, term_cols2;
+            ui_get_size(&term_rows2, &term_cols2);
+
+            /* Shop loop */
+            bool shop_open = true;
+            char shop_msg[128] = "";
+            short shop_msg_color = CP_WHITE;
+            while (shop_open) {
+                ui_clear();
+                int srow = 1;
+
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(srow++, 2, "=== %s's Shop ===", npc->label);
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                srow++;
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(srow++, 2, "Your gold: %d    Bag: %d/%d", gs->gold, gs->num_items, MAX_INVENTORY);
+                attroff(COLOR_PAIR(CP_WHITE));
+
+                /* Show feedback from last action */
+                if (shop_msg[0]) {
+                    attron(COLOR_PAIR(shop_msg_color) | A_BOLD);
+                    mvprintw(srow, 2, "%s", shop_msg);
+                    attroff(COLOR_PAIR(shop_msg_color) | A_BOLD);
+                    shop_msg[0] = 0;
+                }
+                srow++;
+                mvprintw(srow++, 2, "Press a letter to buy:");
+                attroff(COLOR_PAIR(CP_WHITE));
+
+                int visible_count = 0;
+                for (int si = 0; si < num_shop && srow < term_rows2 - 6; si++) {
+                    if (shop_qty[si] <= 0) continue;
+                    const ItemTemplate *it = &tmps[shop_items[si]];
+                    int price = it->value;
+                    if (npc->type == NPC_PAWN_SHOP) price = it->value * 4 / 5;
+                    attron(COLOR_PAIR(it->color_pair));
+                    mvprintw(srow++, 4, "%c) %-20s [%s] pow:%-2d  %3dg  (x%d)",
+                             'a' + si, it->name, item_type_name(it->type), it->power, price, shop_qty[si]);
+                    attroff(COLOR_PAIR(it->color_pair));
+                    visible_count++;
+                }
+
+                if (visible_count == 0) {
+                    attron(COLOR_PAIR(CP_GRAY));
+                    mvprintw(srow++, 4, "(Shop is sold out!)");
+                    attroff(COLOR_PAIR(CP_GRAY));
+                }
+
+                srow++;
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(srow++, 2, "[S] Sell an item    [q] Leave shop");
+                attroff(COLOR_PAIR(CP_WHITE));
+                ui_refresh();
+
+                int skey = ui_getkey();
+                if (skey == 'q' || skey == 'Q' || skey == 27) {
+                    shop_open = false;
+                } else if (skey >= 'a' && skey < 'a' + num_shop) {
+                    int si = skey - 'a';
+                    if (si < num_shop && shop_qty[si] > 0) {
+                        const ItemTemplate *it = &tmps[shop_items[si]];
+                        int price = it->value;
+                        if (npc->type == NPC_PAWN_SHOP) price = it->value * 4 / 5;
+
+                        if (gs->gold < price) {
+                            snprintf(shop_msg, sizeof(shop_msg), "You can't afford %s (%dg).", it->name, price);
+                            shop_msg_color = CP_RED;
+                        } else if (gs->num_items >= MAX_INVENTORY) {
+                            snprintf(shop_msg, sizeof(shop_msg), "Your inventory is full!");
+                            shop_msg_color = CP_RED;
+                        } else {
+                            gs->gold -= price;
+                            gs->inventory[gs->num_items] = item_create(shop_items[si], -1, -1);
+                            gs->inventory[gs->num_items].on_ground = false;
+                            gs->num_items++;
+                            shop_qty[si]--;
+                            snprintf(shop_msg, sizeof(shop_msg), "Bought %s for %dg. Gold: %d", it->name, price, gs->gold);
+                            shop_msg_color = CP_CYAN;
+                            log_add(&gs->log, gs->turn, CP_CYAN, "Bought %s for %dg.", it->name, price);
+                        }
+                    }
+                } else if (skey == 'S') {
+                    if (gs->num_items == 0) {
+                        log_add(&gs->log, gs->turn, CP_GRAY, "You have nothing to sell.");
+                    } else {
+                        ui_clear();
+                        int sr = 1;
+                        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                        mvprintw(sr++, 2, "=== Sell Items ===");
+                        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                        sr++;
+                        for (int ii = 0; ii < gs->num_items && sr < term_rows2 - 3; ii++) {
+                            Item *inv = &gs->inventory[ii];
+                            if (inv->template_id < 0) continue;
+                            int sell_price = inv->value / 2;
+                            if (npc->type == NPC_PAWN_SHOP) sell_price = inv->value * 2 / 5;
+                            attron(COLOR_PAIR(inv->color_pair));
+                            mvprintw(sr++, 4, "%c) %s -- %dg", 'a' + ii, inv->name, sell_price);
+                            attroff(COLOR_PAIR(inv->color_pair));
+                        }
+                        sr++;
+                        mvprintw(sr, 4, "Press a-z to sell, any other key to go back");
+                        ui_refresh();
+
+                        int sellkey = ui_getkey();
+                        if (sellkey >= 'a' && sellkey < 'a' + gs->num_items) {
+                            int idx = sellkey - 'a';
+                            if (idx < gs->num_items && gs->inventory[idx].template_id >= 0) {
+                                int sell_price = gs->inventory[idx].value / 2;
+                                if (npc->type == NPC_PAWN_SHOP) sell_price = gs->inventory[idx].value * 2 / 5;
+                                gs->gold += sell_price;
+                                snprintf(shop_msg, sizeof(shop_msg), "Sold %s for %dg. Gold: %d", gs->inventory[idx].name, sell_price, gs->gold);
+                                shop_msg_color = CP_YELLOW;
+                                log_add(&gs->log, gs->turn, CP_YELLOW, "Sold %s for %dg.", gs->inventory[idx].name, sell_price);
+                                for (int j = idx; j < gs->num_items - 1; j++)
+                                    gs->inventory[j] = gs->inventory[j + 1];
+                                gs->inventory[--gs->num_items].template_id = -1;
+                            }
+                        }
+                    }
+                }
+            } /* end shop loop */
+            }
         }
         break;
     case NPC_STABLE:
