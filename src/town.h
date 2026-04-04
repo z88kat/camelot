@@ -23,7 +23,7 @@ typedef struct {
     char     beer_name[MAX_NAME]; /* local beer flavour */
 } TownDef;
 
-#define MAX_TOWNS 40
+#define MAX_TOWNS 64
 
 /* Town interior map dimensions */
 #define TOWN_MAP_W  60

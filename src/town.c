@@ -192,6 +192,10 @@ void town_init(void) {
     add_town("Mount Grace Priory",
         SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
         3, 4, "Prior's Reserve");
+
+    add_town("Camelot Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Camelot Monks' Ale");
 }
 
 /* ------------------------------------------------------------------ */
@@ -429,7 +433,11 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
 
     if (is_abbey) {
         /* Monks or Nuns -- never both */
-        bool has_nuns = rng_chance(50);
+        /* Fixed assignment: some abbeys have nuns, others monks */
+        bool has_nuns = (strcmp(td->name, "Westminster Abbey") == 0 ||
+                         strcmp(td->name, "Cleeve Abbey") == 0 ||
+                         strcmp(td->name, "Whitby Abbey") == 0 ||
+                         strcmp(td->name, "Camelot Abbey") == 0);
         TownNPCType rel_type = has_nuns ? NPC_NUN : NPC_MONK;
         char rel_glyph = has_nuns ? 'N' : 'M';
         short rel_color = has_nuns ? CP_WHITE : CP_BROWN;

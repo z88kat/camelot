@@ -731,6 +731,7 @@ void overworld_init(Overworld *ow) {
     ow_add_location(ow, "Cleeve Abbey",       LOC_ABBEY, 125, 180, 'A', CP_WHITE);         /* Somerset */
     ow_add_location(ow, "Mount Grace Priory", LOC_ABBEY, 250, 78,  'A', CP_WHITE);         /* North Yorkshire */
     ow_add_location(ow, "Cave",             LOC_CAVE, 218, 166, 'O', CP_GRAY);  /* near Camelot for testing */
+    ow_add_location(ow, "Camelot Abbey",    LOC_ABBEY, 208, 160, 'A', CP_WHITE_BOLD);  /* near Camelot for testing */
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 120, 170, '(', CP_GREEN_BOLD);

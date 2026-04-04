@@ -3363,7 +3363,7 @@ static void game_render(GameState *gs) {
         ui_render_map_generic((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
                               gs->player_pos, map_view_width, map_view_height);
 
-        /* Draw wandering creatures on the overworld */
+        /* Draw wandering creatures on the overworld -- only within sight radius */
         {
             int cam_x = gs->player_pos.x - map_view_width / 2;
             int cam_y = gs->player_pos.y - map_view_height / 2;
@@ -3372,8 +3372,34 @@ static void game_render(GameState *gs) {
             if (cam_x + map_view_width > OW_WIDTH) cam_x = OW_WIDTH - map_view_width;
             if (cam_y + map_view_height > OW_HEIGHT) cam_y = OW_HEIGHT - map_view_height;
 
+            /* Sight radius varies by time of day and weather */
+            int sight_radius;
+            TimeOfDay tod = game_get_tod(gs);
+            switch (tod) {
+            case TOD_NIGHT:     sight_radius = 8;  break;
+            case TOD_EVENING:   sight_radius = 12; break;
+            case TOD_DAWN:
+            case TOD_DUSK:      sight_radius = 15; break;
+            default:            sight_radius = 20; break;
+            }
+            /* Weather reduces sight */
+            if (gs->weather == WEATHER_FOG) sight_radius = sight_radius / 2;
+            else if (gs->weather == WEATHER_RAIN) sight_radius = sight_radius * 3 / 4;
+            else if (gs->weather == WEATHER_STORM) sight_radius = sight_radius / 2;
+            else if (gs->weather == WEATHER_SNOW) sight_radius = sight_radius * 3 / 4;
+
+            /* Friendly creatures visible slightly further, hostiles harder to spot */
             for (int i = 0; i < gs->overworld->num_creatures; i++) {
                 OWCreature *c = &gs->overworld->creatures[i];
+                int dx = c->pos.x - gs->player_pos.x;
+                int dy = c->pos.y - gs->player_pos.y;
+                int dist_sq = dx * dx + dy * dy;
+
+                int vis_range = sight_radius;
+                if (c->hostile) vis_range = sight_radius * 3 / 4;  /* enemies harder to spot */
+
+                if (dist_sq > vis_range * vis_range) continue;
+
                 int sx = c->pos.x - cam_x;
                 int sy = c->pos.y - cam_y;
                 if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
