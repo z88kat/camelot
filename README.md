@@ -39,8 +39,15 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 - Minimap overview (overworld and dungeons)
 - Message history (Shift+P)
 - Atmospheric flavour messages in dungeon rooms
+- Field of View with raycasting (torch-based lighting, fog of war)
+- Torch system (T to toggle, yellow glow, radius 10 with torch, radius 2 without)
+- 7 historical abbeys with monks or nuns (never mixed), extra strong beer
+- Edinburgh Castle and Dover Castle
+- Magical deer (10% chance of +1 stat on touch)
+- Rainbow event after rain (race to find pot of gold, 100-500g)
+- Cottages and caves reset after 5-20 days for revisiting
 
-**Coming next:** FOV, combat, items, spells, save/load
+**Coming next:** Combat, items, spells, save/load
 
 ## Features (Planned)
 
@@ -148,6 +155,7 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `n` | Brown | Cottage (press Enter to explore) |
 | `O` | Gray | Cave (press Enter to explore) |
 | `(` | Various | Magic circle (press Enter to activate) |
+| `A` | White | Abbey (press Enter to enter) |
 | `D` | Bright green | Druid (bump to interact) |
 | `@` | Bright white | You (the player) |
 
@@ -187,6 +195,8 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | `d` | Brown | Dog (wanders) |
 | `c` | Yellow | Cat (wanders) |
 | `k` | White | Chicken (wanders) |
+| `M` | Brown | Monk (abbeys, wanders) |
+| `N` | White | Nun (abbeys, wanders) |
 
 ### Dungeon Terrain
 | Symbol | Colour | Terrain | Notes |
@@ -309,6 +319,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | `s` | Search adjacent walls for secret doors |
 | `D` | Disarm an adjacent revealed trap (INT+SPD check) |
 | `M` | Dungeon minimap (full level overview) |
+| `T` | Toggle torch on/off (light radius 10 vs 2) |
 | `q` | Quit game |
 
 - Walking into a closed door `+` (brown) auto-opens it.
@@ -392,6 +403,24 @@ Press Enter on a landmark to interact:
 - **Faerie Ring**: random effect -- stat boost, gold, MP restore, stat swap, or teleport!
 - **Avalon**: full HP/MP restore
 - **Holy Island**: +2 chivalry, full HP restore
+- **Magic Circles**: random effect -- healing, mana, blessing, gold, teleport, or fire/drain/confusion
+- **Rainbow** (`=` cycling colours): appears after rain clears. Race to its end for 100-500 gold!
+
+### Abbeys
+Seven historical abbeys (`A` white) are scattered across England. Press Enter to enter.
+- Westminster Abbey, Whitby Abbey, Rievaulx Abbey, Bath Abbey, St Mary's Abbey, Cleeve Abbey, Mount Grace Priory
+- Each has an **inn with extra strong beer** (4g per pint!), a **potion shop**, and a **church**
+- Populated by **monks** (`M` brown) or **nuns** (`N` white) -- never both in the same abbey
+- Abbeys are **always open** -- no night lockout
+- Bump into monks/nuns for prayers, blessings, and advice about the abbey's ale
+
+### Cottages & Caves
+- **Cottages** (`n` brown) and **caves** (`O` gray) are scattered across the map. Press Enter to explore.
+- Random encounters inside: friendly NPCs, empty shelters, bandits, hermits, alchemist labs
+- After visiting, they become abandoned -- but **reset after 5-20 days** with new occupants
+
+### Magical Deer
+Deer (`d` brown) roam the forests. When you bump into one, there's a **10% chance** it glows with golden light and grants **+1 to a random stat**!
 
 ### Beer & Drunkenness
 Buy beer at any inn (2-3g per pint). Each pint increases drunkenness:

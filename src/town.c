@@ -155,6 +155,43 @@ void town_init(void) {
     add_town("Castle Brittany",
         SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP,
         7, 2, "Breton Cider");
+
+    add_town("Edinburgh Castle",
+        SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP | SVC_CHURCH,
+        8, 3, "Edinburgh Ale");
+
+    add_town("Dover Castle",
+        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_BANK,
+        7, 2, "Dover Porter");
+
+    /* Abbeys -- inn with extra strong beer, potion shop, church */
+    add_town("Westminster Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Monk's Strong Ale");
+
+    add_town("Whitby Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Dark Abbey Stout");
+
+    add_town("Rievaulx Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Rievaulx Mead");
+
+    add_town("Bath Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Abbey Spring Ale");
+
+    add_town("St Mary's Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "St Mary's Brew");
+
+    add_town("Cleeve Abbey",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Somerset Strong");
+
+    add_town("Mount Grace Priory",
+        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
+        3, 4, "Prior's Reserve");
 }
 
 /* ------------------------------------------------------------------ */
@@ -386,16 +423,40 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
         }
     }
 
-    /* Random townfolk (2-5) */
-    int num_folk = rng_range(2, 5);
-    for (int i = 0; i < num_folk; i++) {
-        /* Find a random passable courtyard tile */
-        for (int tries = 0; tries < 50; tries++) {
-            int rx = rng_range(3, TOWN_MAP_W - 4);
-            int ry = rng_range(3, TOWN_MAP_H - 4);
-            if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
-                add_npc(tm, NPC_TOWNFOLK, rx, ry, '@', CP_WHITE, "Townfolk", true);
-                break;
+    /* Check if this is an abbey */
+    bool is_abbey = (strstr(td->name, "Abbey") != NULL ||
+                     strstr(td->name, "Priory") != NULL);
+
+    if (is_abbey) {
+        /* Monks or Nuns -- never both */
+        bool has_nuns = rng_chance(50);
+        TownNPCType rel_type = has_nuns ? NPC_NUN : NPC_MONK;
+        char rel_glyph = has_nuns ? 'N' : 'M';
+        short rel_color = has_nuns ? CP_WHITE : CP_BROWN;
+        const char *rel_name = has_nuns ? "Nun" : "Monk";
+
+        int num_religious = rng_range(4, 7);
+        for (int i = 0; i < num_religious; i++) {
+            for (int tries = 0; tries < 50; tries++) {
+                int rx = rng_range(3, TOWN_MAP_W - 4);
+                int ry = rng_range(3, TOWN_MAP_H - 4);
+                if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
+                    add_npc(tm, rel_type, rx, ry, rel_glyph, rel_color, rel_name, true);
+                    break;
+                }
+            }
+        }
+    } else {
+        /* Regular townfolk (2-5) */
+        int num_folk = rng_range(2, 5);
+        for (int i = 0; i < num_folk; i++) {
+            for (int tries = 0; tries < 50; tries++) {
+                int rx = rng_range(3, TOWN_MAP_W - 4);
+                int ry = rng_range(3, TOWN_MAP_H - 4);
+                if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
+                    add_npc(tm, NPC_TOWNFOLK, rx, ry, '@', CP_WHITE, "Townfolk", true);
+                    break;
+                }
             }
         }
     }

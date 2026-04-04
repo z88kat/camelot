@@ -667,6 +667,8 @@ void overworld_init(Overworld *ow) {
     ow_add_location(ow, "Castle Listenoise",LOC_CASTLE_ACTIVE, 294, 150, '#', CP_WHITE);
     ow_add_location(ow, "Castle Benwick",   LOC_CASTLE_ACTIVE, 350, 200, '#', CP_WHITE);
     ow_add_location(ow, "Castle Carados",   LOC_CASTLE_ACTIVE, 194, 38,  '#', CP_WHITE);
+    ow_add_location(ow, "Edinburgh Castle", LOC_CASTLE_ACTIVE, 200, 50,  '#', CP_WHITE_BOLD);
+    ow_add_location(ow, "Dover Castle",     LOC_CASTLE_ACTIVE, 430, 212, '#', CP_WHITE_BOLD);
 
     /* Abandoned Castles */
     ow_add_location(ow, "Castle Dolorous Garde", LOC_CASTLE_ABANDONED, 250, 106, '#', CP_GRAY);
@@ -719,6 +721,15 @@ void overworld_init(Overworld *ow) {
 
     /* Magic Circles on overworld */
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 215, 158, '(', CP_CYAN_BOLD);  /* near Camelot for testing */
+
+    /* Abbeys */
+    ow_add_location(ow, "Westminster Abbey",  LOC_ABBEY, 255, 148, 'A', CP_WHITE_BOLD);   /* near London */
+    ow_add_location(ow, "Whitby Abbey",       LOC_ABBEY, 268, 72,  'A', CP_GRAY);          /* near Whitby - already a dungeon entrance too */
+    ow_add_location(ow, "Rievaulx Abbey",     LOC_ABBEY, 258, 82,  'A', CP_WHITE);         /* North Yorkshire */
+    ow_add_location(ow, "Bath Abbey",         LOC_ABBEY, 164, 177, 'A', CP_WHITE);         /* near Bath */
+    ow_add_location(ow, "St Mary's Abbey",    LOC_ABBEY, 272, 96,  'A', CP_WHITE);         /* York area */
+    ow_add_location(ow, "Cleeve Abbey",       LOC_ABBEY, 125, 180, 'A', CP_WHITE);         /* Somerset */
+    ow_add_location(ow, "Mount Grace Priory", LOC_ABBEY, 250, 78,  'A', CP_WHITE);         /* North Yorkshire */
     ow_add_location(ow, "Cave",             LOC_CAVE, 218, 166, 'O', CP_GRAY);  /* near Camelot for testing */
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
     ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);

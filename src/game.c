@@ -597,8 +597,18 @@ static void handle_overworld_input(GameState *gs, int key) {
                          "A peasant tips their hat. \"Good day, m'lord.\"");
                 break;
             case OW_NPC_DEER:
-                log_add(&gs->log, gs->turn, CP_BROWN,
-                         "A deer startles and bounds away into the trees.");
+                if (rng_chance(10)) {
+                    /* Magical deer! */
+                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
+                    int pick = rng_range(0, 3);
+                    (*stats[pick])++;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "The deer glows with a golden light! A magical blessing! +1 %s!", names[pick]);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_BROWN,
+                             "A deer startles and bounds away into the trees.");
+                }
                 /* Deer flees from player */
                 creature->pos.x += rng_range(-3, 3);
                 creature->pos.y += rng_range(-3, 3);
@@ -811,6 +821,10 @@ static void handle_overworld_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
                          "A magic circle glows on the ground! Press Enter to step inside.");
                 break;
+            case LOC_ABBEY:
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "You arrive at %s. Press Enter to enter.", loc->name);
+                break;
             default:
                 /* Check for player home by name */
                 if (loc && strcmp(loc->name, "Your Home") == 0) {
@@ -827,7 +841,7 @@ static void handle_overworld_input(GameState *gs, int key) {
     if (key == '\n' || key == '\r' || key == KEY_ENTER) {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
-        if (loc && (loc->type == LOC_TOWN || loc->type == LOC_CASTLE_ACTIVE)) {
+        if (loc && (loc->type == LOC_TOWN || loc->type == LOC_CASTLE_ACTIVE || loc->type == LOC_ABBEY)) {
             /* Castles are locked at night */
             if (loc->type == LOC_CASTLE_ACTIVE && is_night(gs->hour)) {
                 if (gs->chivalry >= 60) {
@@ -1585,6 +1599,34 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                              "\"I have nothing for you right now. Check other inns.\"");
                 }
             }
+        }
+        break;
+    case NPC_MONK:
+        {
+            const char *msgs[] = {
+                "The monk bows silently. \"Peace be with you, traveller.\"",
+                "\"We brew the finest ale in England. Try some at the inn.\"",
+                "\"This abbey has stood for centuries. May it stand for centuries more.\"",
+                "\"Seek the Lord's guidance and you shall not falter.\"",
+                "\"Our potions are made from the rarest herbs. Visit the apothecary.\"",
+                "The monk hums a hymn softly as he tends the garden.",
+            };
+            int n = sizeof(msgs) / sizeof(msgs[0]);
+            log_add(&gs->log, gs->turn, CP_BROWN, "%s", msgs[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_NUN:
+        {
+            const char *msgs[] = {
+                "The nun curtsies. \"Blessings upon you, child.\"",
+                "\"Our abbey offers shelter to all who seek it.\"",
+                "\"Pray at the church and your wounds shall heal.\"",
+                "\"We tend the sick and the weary. You look like both.\"",
+                "\"The ale here is brewed by the sisters. It is... quite strong.\"",
+                "The nun smiles warmly and offers a silent prayer for you.",
+            };
+            int n = sizeof(msgs) / sizeof(msgs[0]);
+            log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, n - 1)]);
         }
         break;
     case NPC_GUARD:

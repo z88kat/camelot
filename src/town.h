@@ -46,6 +46,8 @@ typedef enum {
     NPC_QUEEN,       /* castle queen */
     NPC_GUARD,       /* castle guard */
     NPC_QUEST_GIVER, /* quest NPC in inn */
+    NPC_MONK,        /* abbey monk */
+    NPC_NUN,         /* abbey nun */
     NPC_DOG,         /* wanders, harmless */
     NPC_CAT,         /* wanders, harmless */
     NPC_CHICKEN      /* wanders, harmless */
