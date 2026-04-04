@@ -5,15 +5,16 @@
 #include <stdint.h>
 
 /* Map dimensions */
-#define MAP_WIDTH    80
-#define MAP_HEIGHT   26
+/* Dungeon map dimensions (larger than viewport, scrolls like overworld) */
+#define MAP_WIDTH    160
+#define MAP_HEIGHT   80
 
 /* UI layout */
 #define SIDEBAR_WIDTH  18
-#define MIN_TERM_WIDTH  (MAP_WIDTH + SIDEBAR_WIDTH + 1)
+#define MIN_TERM_WIDTH  (60 + SIDEBAR_WIDTH + 1)  /* viewport width, not map width */
 #define MIN_TERM_HEIGHT 30
-#define STATUS_ROW     (MAP_HEIGHT)
-#define LOG_START_ROW  (MAP_HEIGHT + 1)
+/* These are now dynamically calculated in the render loop based on terminal size */
+#define VIEW_HEIGHT_DEFAULT 26  /* default viewport height for the map area */
 #define LOG_LINES      3
 #define LOG_BUFFER     200
 

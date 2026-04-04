@@ -22,11 +22,16 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 - Castle throne rooms with Kings, Queens, and Guards
 - Wandering NPCs and animals (overworld and towns)
 - Boat sailing across lakes
-- Dungeon entry/exit with test dungeon
+- BSP-generated dungeons (160x80 tiles, scrollable) with multiple levels, 2 staircases per level
+- Interactive doors (open/close, auto-open on walk), secret doors (search walls)
+- 12 trap types (hidden, triggered on step)
+- Exit portal on deepest dungeon level
+- Quest system with 16 quests (delivery, fetch, kill), quest journal
 - Camping system, drunkenness system, terrain-based travel time
-- Minimap overview
+- Minimap overview (overworld and dungeons)
+- Message history (Shift+P)
 
-**Coming next:** Quest system, dungeon generation, FOV, combat, items, spells, save/load
+**Coming next:** FOV, combat, items, spells, save/load
 
 ## Features (Planned)
 
@@ -175,11 +180,31 @@ The game features permadeath -- when you die, your character is gone forever. Bu
 | Symbol | Colour | Terrain | Notes |
 |--------|--------|---------|-------|
 | `#` | Gray | Wall | Impassable, blocks line of sight |
+| ` ` | Black | Solid rock | Unexplored, empty space |
 | `.` | White | Floor | Standard walkable tile |
-| `+` | Brown | Closed door | Passable, blocks sight |
-| `/` | Brown | Open door | Passable, allows sight |
-| `>` | White | Stairs down | Press `>` to descend |
-| `<` | White | Stairs up | Press `<` to ascend |
+| `+` | Brown | Closed door | Walk into to auto-open, or press `o` + direction |
+| `/` | Brown | Open door | Press `c` + direction to close |
+| `>` | White | Stairs down | Press `>` to descend (2 per level from level 2+) |
+| `<` | White | Stairs up | Press `<` to ascend (2 per level from level 2+) |
+| `^` | Red | Revealed trap | A triggered or detected trap |
+| `0` | Cyan | Exit portal | Deepest level only -- teleports to overworld |
+
+### Dungeons
+There are 9 named dungeons spread across England, each with a randomised depth:
+
+| Dungeon | Location | Depth Range |
+|---------|----------|-------------|
+| Camelot Catacombs | Near Camelot | 3-6 levels |
+| Tintagel Caves | Near Tintagel | 5-10 levels |
+| Sherwood Depths | Near Sherwood | 5-10 levels |
+| Mount Draig | Wales volcano | 4-8 levels |
+| Glastonbury Tor | Near Glastonbury | 8-15 levels |
+| White Cliffs Cave | Dover coast | 3-6 levels |
+| Whitby Abbey | Near Whitby | 2-4 levels |
+| Avalon Shrine | Avalon island | 3-5 levels |
+| Orkney Barrows | Orkney island | 2-4 levels |
+
+Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors. Levels are persistent -- items you drop stay where you left them.
 
 ## Keyboard Commands
 
@@ -244,8 +269,14 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | Key | Action |
 |-----|--------|
 | `<` | Ascend stairs (return to overworld from level 1) |
-| `>` | Descend stairs |
+| `>` | Descend stairs / use exit portal |
+| `o` + direction | Open a door |
+| `c` + direction | Close a door |
+| `s` | Search adjacent walls for secret doors |
+| `M` | Dungeon minimap (full level overview) |
 | `q` | Quit game |
+
+Walking into a closed door auto-opens it. Traps are hidden until triggered -- watch your step!
 
 ### UI (all modes)
 | Key | Action |
@@ -276,6 +307,19 @@ Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP.
 
 ### Boats & Lakes
 Walk onto a `B` tile to board a boat. You can then sail across lake water freely. When you step onto land, the boat is left at the shore behind you.
+
+### Dungeons
+- Walk onto a dungeon entrance `>` on the overworld and press `>` to enter.
+- Each dungeon is randomly generated with BSP rooms and corridors (160x80 tiles, scrollable).
+- The depth is randomised each playthrough (e.g. Camelot Catacombs: 3-6 levels).
+- **From level 2 onwards**, each level has **2 sets of stairs** up and down, giving you multiple routes.
+- Walk into closed doors `+` to auto-open them, or press `o` + direction. Press `c` + direction to close.
+- Press `s` to search adjacent walls for **secret doors** (5% chance per wall tile).
+- **Traps** are hidden on floor tiles. Stepping on one triggers it (damage, teleport, mana drain, etc.). Revealed traps show as `^` red.
+- The **deepest level** has an **exit portal** `0` (cyan) -- step on it to teleport back to the overworld instantly.
+- Press `<` on stairs up to ascend. On level 1, ascending returns you to the overworld.
+- Press `M` for a **dungeon minimap** showing the full level layout.
+- Levels are **persistent** -- if you go back up, everything is exactly as you left it.
 
 ### Towns & Castles
 - **Towns** (`*`) are open at all hours. Press Enter to enter.

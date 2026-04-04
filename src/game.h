@@ -6,6 +6,7 @@
 #include "overworld.h"
 #include "town.h"
 #include "quest.h"
+#include "map.h"
 
 /* Weather types */
 typedef enum {
@@ -29,8 +30,8 @@ typedef enum {
 } TimeOfDay;
 
 typedef struct {
-    /* Dungeon map (used in MODE_DUNGEON) */
-    Tile       dungeon_map[MAP_HEIGHT][MAP_WIDTH];
+    /* Current dungeon (heap allocated, NULL if not in dungeon) */
+    Dungeon   *dungeon;
 
     /* Overworld (heap-allocated due to size) */
     Overworld  *overworld;

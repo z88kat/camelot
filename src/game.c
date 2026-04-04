@@ -6,91 +6,139 @@
 #include <stdio.h>
 
 /* ------------------------------------------------------------------ */
-/* Tile helpers                                                        */
+/* Dungeon helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-static void tile_set(Tile *t, TileType type) {
-    t->type = type;
-    t->visible = true;
-    t->revealed = true;
+/* Get the current dungeon level's tile map */
+static Tile (*current_dungeon_tiles(GameState *gs))[MAP_WIDTH] {
+    if (!gs->dungeon) return NULL;
+    return gs->dungeon->levels[gs->dungeon->current_level].tiles;
+}
 
-    switch (type) {
-    case TILE_WALL:
-        t->glyph = '#'; t->color_pair = CP_GRAY;
-        t->passable = false; t->blocks_sight = true;
-        break;
-    case TILE_FLOOR:
-        t->glyph = '.'; t->color_pair = CP_WHITE;
-        t->passable = true; t->blocks_sight = false;
-        break;
-    case TILE_DOOR_CLOSED:
-        t->glyph = '+'; t->color_pair = CP_BROWN;
-        t->passable = true; t->blocks_sight = true;
-        break;
-    case TILE_DOOR_OPEN:
-        t->glyph = '/'; t->color_pair = CP_BROWN;
-        t->passable = true; t->blocks_sight = false;
-        break;
-    case TILE_STAIRS_DOWN:
-        t->glyph = '>'; t->color_pair = CP_WHITE;
-        t->passable = true; t->blocks_sight = false;
-        break;
-    case TILE_STAIRS_UP:
-        t->glyph = '<'; t->color_pair = CP_WHITE;
-        t->passable = true; t->blocks_sight = false;
-        break;
-    default:
-        t->glyph = ' '; t->color_pair = CP_DEFAULT;
-        t->passable = false; t->blocks_sight = true;
-        break;
+/* Get the current dungeon level struct */
+static DungeonLevel *current_dungeon_level(GameState *gs) {
+    if (!gs->dungeon) return NULL;
+    return &gs->dungeon->levels[gs->dungeon->current_level];
+}
+
+/* Get dungeon depth range for a named dungeon entrance */
+static void get_dungeon_depth(const char *name, int *min_d, int *max_d) {
+    if (strcmp(name, "Camelot Catacombs") == 0) { *min_d = 3; *max_d = 6; }
+    else if (strcmp(name, "Tintagel Caves") == 0) { *min_d = 5; *max_d = 10; }
+    else if (strcmp(name, "Sherwood Depths") == 0) { *min_d = 5; *max_d = 10; }
+    else if (strcmp(name, "Mount Draig") == 0) { *min_d = 4; *max_d = 8; }
+    else if (strcmp(name, "Glastonbury Tor") == 0) { *min_d = 8; *max_d = 15; }
+    else if (strcmp(name, "White Cliffs Cave") == 0) { *min_d = 3; *max_d = 6; }
+    else if (strcmp(name, "Whitby Abbey") == 0) { *min_d = 2; *max_d = 4; }
+    else if (strcmp(name, "Avalon Shrine") == 0) { *min_d = 3; *max_d = 5; }
+    else if (strcmp(name, "Orkney Barrows") == 0) { *min_d = 2; *max_d = 4; }
+    else { *min_d = 3; *max_d = 8; }  /* default */
+}
+
+/* Check if player stepped on a trap */
+static void check_traps(GameState *gs) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return;
+
+    for (int i = 0; i < dl->num_traps; i++) {
+        Trap *t = &dl->traps[i];
+        if (t->triggered || t->revealed) continue;
+        if (t->pos.x != gs->player_pos.x || t->pos.y != gs->player_pos.y) continue;
+
+        t->triggered = true;
+        t->revealed = true;
+
+        /* Show trap on map */
+        dl->tiles[t->pos.y][t->pos.x].glyph = '^';
+        dl->tiles[t->pos.y][t->pos.x].color_pair = CP_RED;
+
+        switch (t->type) {
+        case TRAP_PIT: {
+            int dmg = rng_range(5, 10);
+            gs->hp -= dmg;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "You fall into a pit trap! -%d HP", dmg);
+            break;
+        }
+        case TRAP_POISON_DART: {
+            gs->hp -= 3;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "A poison dart shoots from the wall! -3 HP (poisoned!)");
+            break;
+        }
+        case TRAP_TRIPWIRE:
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "You trip over a wire and stumble!");
+            break;
+        case TRAP_ARROW: {
+            gs->hp -= 8;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "Arrows fly from the walls! -8 HP");
+            break;
+        }
+        case TRAP_ALARM:
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "ALARM! A loud bell rings! All enemies alerted!");
+            break;
+        case TRAP_BEAR: {
+            gs->hp -= 4;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "A bear trap snaps shut on your leg! -4 HP");
+            break;
+        }
+        case TRAP_FIRE: {
+            gs->hp -= 10;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "Flames erupt beneath you! -10 HP");
+            break;
+        }
+        case TRAP_TELEPORT: {
+            /* Teleport to random floor tile */
+            for (int tries = 0; tries < 200; tries++) {
+                int rx = rng_range(2, MAP_WIDTH - 3);
+                int ry = rng_range(2, MAP_HEIGHT - 3);
+                if (dl->tiles[ry][rx].type == TILE_FLOOR) {
+                    gs->player_pos = (Vec2){ rx, ry };
+                    break;
+                }
+            }
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "A teleport trap! The world spins... you're somewhere else!");
+            break;
+        }
+        case TRAP_GAS:
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "Poison gas fills the air! You feel confused.");
+            break;
+        case TRAP_COLLAPSE: {
+            gs->hp -= 15;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "The floor collapses beneath you! -15 HP");
+            break;
+        }
+        case TRAP_SPIKE: {
+            gs->hp -= 6;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "Spikes shoot up from the floor! -6 HP");
+            break;
+        }
+        case TRAP_MANA_DRAIN: {
+            int drain = rng_range(10, 20);
+            gs->mp -= drain;
+            if (gs->mp < 0) gs->mp = 0;
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "A magical trap drains your mana! -%d MP", drain);
+            break;
+        }
+        default: break;
+        }
+
+        if (gs->hp < 1) gs->hp = 1;  /* don't die from traps yet (death in Phase 13) */
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Test dungeon (Phase 1 holdover, will be replaced by BSP gen)        */
-/* ------------------------------------------------------------------ */
-
-void game_init_test_map(GameState *gs) {
-    for (int y = 0; y < MAP_HEIGHT; y++)
-        for (int x = 0; x < MAP_WIDTH; x++)
-            tile_set(&gs->dungeon_map[y][x], TILE_WALL);
-
-    /* Central room */
-    for (int y = 5; y < 17; y++)
-        for (int x = 20; x < 50; x++)
-            tile_set(&gs->dungeon_map[y][x], TILE_FLOOR);
-
-    /* Left room */
-    for (int y = 8; y < 14; y++)
-        for (int x = 5; x < 15; x++)
-            tile_set(&gs->dungeon_map[y][x], TILE_FLOOR);
-
-    /* Corridor left -> center */
-    for (int x = 15; x < 20; x++)
-        tile_set(&gs->dungeon_map[11][x], TILE_FLOOR);
-
-    /* Right room */
-    for (int y = 4; y < 12; y++)
-        for (int x = 55; x < 67; x++)
-            tile_set(&gs->dungeon_map[y][x], TILE_FLOOR);
-
-    /* Corridor center -> right */
-    for (int x = 50; x < 55; x++)
-        tile_set(&gs->dungeon_map[8][x], TILE_FLOOR);
-
-    /* Bottom room */
-    for (int y = 17; y < 25; y++)
-        for (int x = 30; x < 45; x++)
-            tile_set(&gs->dungeon_map[y][x], TILE_FLOOR);
-
-    /* Corridor center -> bottom */
-    tile_set(&gs->dungeon_map[17][35], TILE_FLOOR);
-
-    /* Door and stairs */
-    tile_set(&gs->dungeon_map[11][15], TILE_DOOR_CLOSED);
-    tile_set(&gs->dungeon_map[6][22], TILE_STAIRS_UP);
-    tile_set(&gs->dungeon_map[23][42], TILE_STAIRS_DOWN);
-}
+/* Stub for old function -- no longer used */
+void game_init_test_map(GameState *gs) { (void)gs; }
 
 /* ------------------------------------------------------------------ */
 /* Direction helpers                                                    */
@@ -1127,38 +1175,35 @@ static void handle_overworld_input(GameState *gs, int key) {
                                                gs->player_pos.x, gs->player_pos.y);
         if (loc && (loc->type == LOC_DUNGEON_ENTRANCE || loc->type == LOC_VOLCANO)) {
             gs->ow_player_pos = gs->player_pos;
-            gs->mode = MODE_DUNGEON;
 
-            /* Find the up stairs and place player next to them */
-            bool placed = false;
-            for (int sy = 0; sy < MAP_HEIGHT && !placed; sy++) {
-                for (int sx = 0; sx < MAP_WIDTH && !placed; sx++) {
-                    if (gs->dungeon_map[sy][sx].type == TILE_STAIRS_UP) {
-                        /* Place player on an adjacent floor tile */
-                        for (int d = 0; d < 8 && !placed; d++) {
-                            int px = sx + dir_dx[d];
-                            int py = sy + dir_dy[d];
-                            if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT &&
-                                gs->dungeon_map[py][px].passable &&
-                                gs->dungeon_map[py][px].type == TILE_FLOOR) {
-                                gs->player_pos = (Vec2){ px, py };
-                                placed = true;
-                            }
-                        }
-                        if (!placed) {
-                            /* Fallback: stand on the stairs */
-                            gs->player_pos = (Vec2){ sx, sy };
-                            placed = true;
-                        }
-                    }
+            /* Create the dungeon if not already entered */
+            if (gs->dungeon) dungeon_free(gs->dungeon);
+            int min_d, max_d;
+            get_dungeon_depth(loc->name, &min_d, &max_d);
+            int num_levels = rng_range(min_d, max_d);
+            gs->dungeon = dungeon_create(loc->name, num_levels);
+
+            /* Generate first level */
+            DungeonLevel *dl = &gs->dungeon->levels[0];
+            map_generate(dl, 0, num_levels);
+
+            /* Place player next to stairs up */
+            Vec2 su = dl->stairs_up[0];
+            gs->player_pos = su;
+            /* Try adjacent floor tile */
+            for (int d = 0; d < 8; d++) {
+                int px = su.x + dir_dx[d];
+                int py = su.y + dir_dy[d];
+                if (px > 0 && px < MAP_WIDTH - 1 && py > 0 && py < MAP_HEIGHT - 1 &&
+                    dl->tiles[py][px].type == TILE_FLOOR) {
+                    gs->player_pos = (Vec2){ px, py };
+                    break;
                 }
             }
-            if (!placed) {
-                gs->player_pos = (Vec2){ 35, 10 };  /* ultimate fallback */
-            }
 
+            gs->mode = MODE_DUNGEON;
             log_add(&gs->log, gs->turn, CP_WHITE,
-                     "You descend into %s...", loc->name);
+                     "You descend into %s... (%d levels deep)", loc->name, num_levels);
         } else {
             log_add(&gs->log, gs->turn, CP_GRAY, "There is no entrance here.");
         }
@@ -1891,31 +1936,234 @@ static void handle_town_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 
 static void handle_dungeon_input(GameState *gs, int key) {
-    /* Ascend stairs to overworld */
+    Tile (*tiles)[MAP_WIDTH] = current_dungeon_tiles(gs);
+    if (!tiles) return;
+
+    /* Ascend stairs */
     if (key == '<') {
-        Tile *t = &gs->dungeon_map[gs->player_pos.y][gs->player_pos.x];
+        Tile *t = &tiles[gs->player_pos.y][gs->player_pos.x];
         if (t->type == TILE_STAIRS_UP) {
-            gs->player_pos = gs->ow_player_pos;
-            gs->mode = MODE_OVERWORLD;
-            log_add(&gs->log, gs->turn, CP_WHITE,
-                     "You climb back to the surface.");
+            if (gs->dungeon->current_level == 0) {
+                /* Return to overworld */
+                gs->player_pos = gs->ow_player_pos;
+                gs->mode = MODE_OVERWORLD;
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "You climb back to the surface.");
+                dungeon_free(gs->dungeon);
+                gs->dungeon = NULL;
+            } else {
+                /* Figure out which stair set we're on (0 or 1) */
+                DungeonLevel *cur = current_dungeon_level(gs);
+                int stair_idx = 0;
+                for (int si = 0; si < cur->num_stairs_up; si++) {
+                    if (cur->stairs_up[si].x == gs->player_pos.x &&
+                        cur->stairs_up[si].y == gs->player_pos.y) {
+                        stair_idx = si;
+                        break;
+                    }
+                }
+                /* Go up one level, land at matching stairs down */
+                gs->dungeon->current_level--;
+                DungeonLevel *upper = current_dungeon_level(gs);
+                if (stair_idx < upper->num_stairs_down)
+                    gs->player_pos = upper->stairs_down[stair_idx];
+                else
+                    gs->player_pos = upper->stairs_down[0];
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "You ascend to level %d.", gs->dungeon->current_level + 1);
+            }
             return;
         }
         log_add(&gs->log, gs->turn, CP_GRAY, "There are no stairs up here.");
         return;
     }
 
+    /* Descend stairs */
+    if (key == '>') {
+        Tile *t = &tiles[gs->player_pos.y][gs->player_pos.x];
+        if (t->type == TILE_STAIRS_DOWN) {
+            /* Figure out which stair set we're on */
+            DungeonLevel *cur = current_dungeon_level(gs);
+            int stair_idx = 0;
+            for (int si = 0; si < cur->num_stairs_down; si++) {
+                if (cur->stairs_down[si].x == gs->player_pos.x &&
+                    cur->stairs_down[si].y == gs->player_pos.y) {
+                    stair_idx = si;
+                    break;
+                }
+            }
+
+            int next = gs->dungeon->current_level + 1;
+            if (next >= gs->dungeon->max_depth) {
+                log_add(&gs->log, gs->turn, CP_GRAY, "There's nothing below.");
+                return;
+            }
+            gs->dungeon->current_level = next;
+            DungeonLevel *dl = current_dungeon_level(gs);
+            if (!dl->generated) {
+                map_generate(dl, next, gs->dungeon->max_depth);
+            }
+            /* Land at matching stairs up */
+            Vec2 landing = (stair_idx < dl->num_stairs_up) ?
+                           dl->stairs_up[stair_idx] : dl->stairs_up[0];
+            gs->player_pos = landing;
+            /* Try adjacent floor */
+            for (int d = 0; d < 8; d++) {
+                int px = landing.x + dir_dx[d];
+                int py = landing.y + dir_dy[d];
+                if (px > 0 && px < MAP_WIDTH - 1 && py > 0 && py < MAP_HEIGHT - 1 &&
+                    dl->tiles[py][px].type == TILE_FLOOR) {
+                    gs->player_pos = (Vec2){ px, py };
+                    break;
+                }
+            }
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "You descend to level %d of %d.", next + 1, gs->dungeon->max_depth);
+            return;
+        } else if (t->type == TILE_PORTAL) {
+            /* Exit portal -- return to overworld */
+            gs->player_pos = gs->ow_player_pos;
+            gs->mode = MODE_OVERWORLD;
+            log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                     "The portal flashes! You are transported back to the surface.");
+            dungeon_free(gs->dungeon);
+            gs->dungeon = NULL;
+            return;
+        }
+        log_add(&gs->log, gs->turn, CP_GRAY, "There are no stairs down here.");
+        return;
+    }
+
+    /* Open door */
+    if (key == 'o') {
+        log_add(&gs->log, gs->turn, CP_WHITE, "Open in which direction?");
+        int dkey = ui_getkey();
+        Direction dir = key_to_direction(dkey);
+        if (dir != DIR_NONE) {
+            int dx = gs->player_pos.x + dir_dx[dir];
+            int dy = gs->player_pos.y + dir_dy[dir];
+            if (dx > 0 && dx < MAP_WIDTH && dy > 0 && dy < MAP_HEIGHT) {
+                Tile *door = &tiles[dy][dx];
+                if (door->type == TILE_DOOR_CLOSED) {
+                    door->type = TILE_DOOR_OPEN;
+                    door->glyph = '/';
+                    door->blocks_sight = false;
+                    log_add(&gs->log, gs->turn, CP_WHITE, "You open the door.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY, "There's no door there.");
+                }
+            }
+        }
+        return;
+    }
+
+    /* Close door */
+    if (key == 'c') {
+        log_add(&gs->log, gs->turn, CP_WHITE, "Close in which direction?");
+        int dkey = ui_getkey();
+        Direction dir = key_to_direction(dkey);
+        if (dir != DIR_NONE) {
+            int dx = gs->player_pos.x + dir_dx[dir];
+            int dy = gs->player_pos.y + dir_dy[dir];
+            if (dx > 0 && dx < MAP_WIDTH && dy > 0 && dy < MAP_HEIGHT) {
+                Tile *door = &tiles[dy][dx];
+                if (door->type == TILE_DOOR_OPEN) {
+                    door->type = TILE_DOOR_CLOSED;
+                    door->glyph = '+';
+                    door->blocks_sight = true;
+                    log_add(&gs->log, gs->turn, CP_WHITE, "You close the door.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY, "There's no open door there.");
+                }
+            }
+        }
+        return;
+    }
+
+    /* Search for secret doors */
+    if (key == 's') {
+        log_add(&gs->log, gs->turn, CP_WHITE, "You search the walls...");
+        /* Check all adjacent walls for hidden doors (5% chance per wall tile) */
+        for (int d = 0; d < 8; d++) {
+            int sx = gs->player_pos.x + dir_dx[d];
+            int sy = gs->player_pos.y + dir_dy[d];
+            if (sx > 0 && sx < MAP_WIDTH - 1 && sy > 0 && sy < MAP_HEIGHT - 1) {
+                if (tiles[sy][sx].type == TILE_WALL && rng_chance(5)) {
+                    tiles[sy][sx].type = TILE_DOOR_CLOSED;
+                    tiles[sy][sx].glyph = '+';
+                    tiles[sy][sx].color_pair = CP_BROWN;
+                    tiles[sy][sx].passable = false;  /* closed door -- walk into to open */
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "You find a hidden door!");
+                }
+            }
+        }
+        advance_time(gs, 1);
+        return;
+    }
+
+    /* Movement */
     Direction dir = key_to_direction(key);
     if (dir != DIR_NONE) {
         int nx = gs->player_pos.x + dir_dx[dir];
         int ny = gs->player_pos.y + dir_dy[dir];
 
         if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-            Tile *target = &gs->dungeon_map[ny][nx];
+            Tile *target = &tiles[ny][nx];
             if (target->passable) {
                 gs->player_pos.x = nx;
                 gs->player_pos.y = ny;
-                advance_time(gs, 1);  /* 1 minute per dungeon step */
+                advance_time(gs, 1);
+                check_traps(gs);
+
+                /* Room entry flavour messages */
+                /* Trigger when stepping into an open area (many floor neighbours) */
+                {
+                    int open = 0;
+                    for (int d = 0; d < 8; d++) {
+                        int ax = nx + dir_dx[d], ay = ny + dir_dy[d];
+                        if (ax > 0 && ax < MAP_WIDTH - 1 && ay > 0 && ay < MAP_HEIGHT - 1 &&
+                            tiles[ay][ax].type == TILE_FLOOR) open++;
+                    }
+                    /* Only trigger in rooms (6+ open neighbours), and rarely (15%) */
+                    if (open >= 6 && rng_chance(15)) {
+                        const char *flavour[] = {
+                            "A cold draught chills your bones.",
+                            "The air feels warm and heavy here.",
+                            "A faint green glow emanates from the walls.",
+                            "It feels spooky... the hairs on your neck stand up.",
+                            "You hear dripping water in the darkness.",
+                            "A musty smell of old stone fills your nostrils.",
+                            "Cobwebs brush across your face.",
+                            "The floor is damp and slippery underfoot.",
+                            "You sense something watching you from the shadows.",
+                            "Faint scratch marks cover the walls.",
+                            "A low rumble echoes through the chamber.",
+                            "The ceiling is low here. You duck instinctively.",
+                            "Ancient runes are carved into the floor.",
+                            "Bones are scattered in the corner of the room.",
+                            "A strange symbol is painted on the wall in red.",
+                            "The air smells of sulphur and decay.",
+                            "Torchlight flickers from somewhere ahead.",
+                            "You hear a distant scream... or was it the wind?",
+                            "The stone walls glisten with moisture.",
+                            "A cold breeze blows from a crack in the wall.",
+                        };
+                        int n = sizeof(flavour) / sizeof(flavour[0]);
+                        log_add(&gs->log, gs->turn, CP_GRAY, "%s", flavour[rng_range(0, n - 1)]);
+                    }
+                }
+            } else if (target->type == TILE_DOOR_CLOSED) {
+                /* Auto-open doors and walk through in one move */
+                target->type = TILE_DOOR_OPEN;
+                target->glyph = '/';
+                target->blocks_sight = false;
+                target->passable = true;
+                gs->player_pos.x = nx;
+                gs->player_pos.y = ny;
+                log_add(&gs->log, gs->turn, CP_WHITE, "You push open the door.");
+                advance_time(gs, 1);
+                check_traps(gs);
             } else {
                 log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
             }
@@ -1932,6 +2180,22 @@ void game_handle_input(GameState *gs, int key) {
     /* Quit -- but not in town mode (q leaves town instead) */
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         gs->running = false;
+        return;
+    }
+
+    /* Dungeon minimap */
+    if (key == 'M' && gs->mode == MODE_DUNGEON && gs->dungeon) {
+        char info[256];
+        snprintf(info, sizeof(info), "%s  Level %d/%d  |  Day %d %02d:%02d",
+                 gs->dungeon->name,
+                 gs->dungeon->current_level + 1, gs->dungeon->max_depth,
+                 gs->day, gs->hour, gs->minute);
+        Tile (*dtiles)[MAP_WIDTH] = current_dungeon_tiles(gs);
+        if (dtiles) {
+            ui_render_minimap((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
+                              gs->player_pos, info);
+            ui_getkey();
+        }
         return;
     }
 
@@ -2117,9 +2381,7 @@ void game_init(GameState *gs) {
     /* Place player at Camelot (scaled coordinates) */
     gs->player_pos = (Vec2){ 212, 162 };
     gs->ow_player_pos = gs->player_pos;
-
-    /* Initialize dungeon (test map for now) */
-    game_init_test_map(gs);
+    gs->dungeon = NULL;
 
     /* Log */
     log_init(&gs->log);
@@ -2151,9 +2413,9 @@ static void game_render(GameState *gs) {
 
     bool show_sidebar = (term_cols >= MIN_TERM_WIDTH);
     int map_view_width = show_sidebar ? (term_cols - SIDEBAR_WIDTH - 1) : term_cols;
-    int map_view_height = MAP_HEIGHT;
-    if (map_view_height > term_rows - LOG_LINES - 2)
-        map_view_height = term_rows - LOG_LINES - 2;
+    int map_view_height = term_rows - LOG_LINES - 2;
+    if (map_view_height > VIEW_HEIGHT_DEFAULT)
+        map_view_height = VIEW_HEIGHT_DEFAULT;
     if (map_view_height < 5) map_view_height = 5;
 
     /* Render the appropriate map / screen */
@@ -2258,8 +2520,11 @@ static void game_render(GameState *gs) {
     } else if (gs->mode == MODE_DUNGEON) {
         if (map_view_width > MAP_WIDTH) map_view_width = MAP_WIDTH;
 
-        ui_render_map(gs->dungeon_map, gs->player_pos,
-                      map_view_width, map_view_height);
+        Tile (*dtiles)[MAP_WIDTH] = current_dungeon_tiles(gs);
+        if (dtiles) {
+            ui_render_map_generic((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
+                                  gs->player_pos, map_view_width, map_view_height);
+        }
     }
 
     /* Sidebar */
@@ -2305,9 +2570,17 @@ static void game_render(GameState *gs) {
                      moon_phase_name(moon));
         }
     } else {
-        snprintf(status, sizeof(status), "Dungeon | Day %d %02d:%02d %s | Turn %d",
-                 gs->day, gs->hour, gs->minute,
-                 time_of_day_name(gs->hour), gs->turn);
+        if (gs->dungeon) {
+            snprintf(status, sizeof(status), "%s Lvl %d/%d | Day %d %02d:%02d %s | Turn %d",
+                     gs->dungeon->name,
+                     gs->dungeon->current_level + 1, gs->dungeon->max_depth,
+                     gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour), gs->turn);
+        } else {
+            snprintf(status, sizeof(status), "Dungeon | Day %d %02d:%02d %s | Turn %d",
+                     gs->day, gs->hour, gs->minute,
+                     time_of_day_name(gs->hour), gs->turn);
+        }
     }
 
     ui_render_status_bar(status_row, term_cols, status);
