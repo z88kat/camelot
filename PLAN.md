@@ -20,15 +20,15 @@
 ### Data Files Checklist
 - [x] `data/monsters.csv`
 - [x] `data/items.csv`
+- [x] `data/quests.csv`
+- [x] `data/towns.csv`
+- [x] `data/locations.csv` (overworld locations: towns, castles, dungeons, landmarks)
+- [x] `data/creatures.csv` (overworld wandering creatures)
 - [ ] `data/potions.csv`
 - [ ] `data/food.csv`
 - [ ] `data/spells.csv`
-- [ ] `data/quests.csv`
 - [ ] `data/npcs.csv`
 - [ ] `data/shops.csv`
-- [ ] `data/towns.csv`
-- [ ] `data/castles.csv`
-- [ ] `data/encounters.csv`
 - [ ] `data/classes.csv`
 - [ ] `data/dialogue.csv`
 - [ ] `data/loot_tables.csv`

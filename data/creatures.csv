@@ -1,0 +1,18 @@
+# Overworld creature definitions for Knights of Camelot
+# name,glyph,color,count,terrain,hostile,hp,str,def,xp
+# terrain: road,grass,forest,hills,any
+# Non-hostile NPCs
+Traveller,@,white,4,road,false,0,0,0,0
+Pilgrim,@,yellow,3,road,false,0,0,0,0
+Merchant,@,green,2,road,false,0,0,0,0
+Peasant,@,brown,4,grass,false,0,0,0,0
+# Animals
+Deer,d,brown,6,forest,false,0,0,0,0
+Sheep,s,white,6,grass,false,0,0,0,0
+Rabbit,r,brown,4,grass,false,0,0,0,0
+Crow,v,gray,5,any,false,0,0,0,0
+# Hostile creatures
+Bandit,p,red,6,road,true,12,5,3,10
+Wolf,w,red,5,forest,true,10,5,2,10
+Wild Boar,B,red,4,hills,true,10,5,2,8
+Skeleton,z,red,3,any,true,10,5,3,10

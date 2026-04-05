@@ -1878,6 +1878,7 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
     case NPC_EQUIP_SHOP:
     case NPC_POTION_SHOP:
     case NPC_PAWN_SHOP:
+    case NPC_FOOD_SHOP:
         if (is_night(gs->hour)) {
             log_add(&gs->log, gs->turn, CP_GRAY,
                      "The %s's shop is closed for the night.", npc->label);
@@ -1887,11 +1888,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             int tcount;
             const ItemTemplate *tmps = item_get_templates(&tcount);
 
-            /* Build shop stock: item template index + quantity */
-            int shop_items[20];
-            int shop_qty[20];
-            int num_shop = 0;
-            for (int ti = 0; ti < tcount && num_shop < 20; ti++) {
+            /* Collect all matching item candidates */
+            int candidates[100];
+            int num_candidates = 0;
+            for (int ti = 0; ti < tcount && num_candidates < 100; ti++) {
                 bool match = false;
                 if (npc->type == NPC_EQUIP_SHOP &&
                     (tmps[ti].type == ITYPE_WEAPON || tmps[ti].type == ITYPE_ARMOR ||
@@ -1903,16 +1903,44 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                     (tmps[ti].type == ITYPE_POTION || tmps[ti].type == ITYPE_SCROLL)) {
                     match = true;
                 }
+                if (npc->type == NPC_FOOD_SHOP &&
+                    tmps[ti].type == ITYPE_FOOD) {
+                    match = true;
+                }
                 if (npc->type == NPC_PAWN_SHOP) {
                     match = true;
                 }
                 if (match && tmps[ti].rarity >= 2) {
-                    shop_items[num_shop] = ti;
-                    /* Stock based on rarity: common=3-5, normal=2-3, uncommon=1-2 */
-                    shop_qty[num_shop] = (tmps[ti].rarity >= 4) ? rng_range(3, 5) :
-                                         (tmps[ti].rarity >= 3) ? rng_range(2, 3) : rng_range(1, 2);
-                    num_shop++;
+                    candidates[num_candidates++] = ti;
                 }
+            }
+
+            /* Shuffle candidates */
+            for (int i = num_candidates - 1; i > 0; i--) {
+                int j = rng_range(0, i);
+                int tmp = candidates[i];
+                candidates[i] = candidates[j];
+                candidates[j] = tmp;
+            }
+
+            /* Pick limited stock based on shop type */
+            int max_stock;
+            if (npc->type == NPC_FOOD_SHOP)       max_stock = rng_range(3, 6);
+            else if (npc->type == NPC_POTION_SHOP) max_stock = rng_range(6, 12);
+            else if (npc->type == NPC_EQUIP_SHOP)  max_stock = rng_range(6, 12);
+            else                                   max_stock = rng_range(8, 16); /* pawn */
+            if (max_stock > num_candidates) max_stock = num_candidates;
+
+            int shop_items[20];
+            int shop_qty[20];
+            int num_shop = 0;
+            for (int ci = 0; ci < max_stock && num_shop < 20; ci++) {
+                int ti = candidates[ci];
+                shop_items[num_shop] = ti;
+                /* Stock based on rarity: common=3-5, normal=2-3, uncommon=1-2 */
+                shop_qty[num_shop] = (tmps[ti].rarity >= 4) ? rng_range(3, 5) :
+                                     (tmps[ti].rarity >= 3) ? rng_range(2, 3) : rng_range(1, 2);
+                num_shop++;
             }
 
             int term_rows2, term_cols2;

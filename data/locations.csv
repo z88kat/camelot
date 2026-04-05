@@ -1,0 +1,86 @@
+# Overworld location definitions for Knights of Camelot
+# name,type,x,y,glyph,color
+# type: town,castle_active,castle_abandoned,landmark,dungeon,cottage,cave,volcano,magic_circle,abbey
+# color: brown,gray,green,yellow,red,white,cyan,magenta,yellow_bold,white_bold,green_bold,red_bold,cyan_bold,magenta_bold,blue,gray
+# Towns
+Camelot,town,212,162,*,yellow_bold
+London,town,312,181,*,white_bold
+Canterbury,town,375,194,*,white_bold
+Winchester,town,238,194,*,white
+Glastonbury,town,194,188,*,magenta
+Bath,town,162,175,*,cyan
+Tintagel,town,94,194,*,white
+Cornwall,town,60,231,*,white
+Sherwood,town,262,119,*,green_bold
+York,town,275,94,*,white_bold
+Wales,town,125,135,*,red
+Whitby,town,331,88,*,gray
+Llanthony,town,119,148,*,white
+Carbonek,town,219,138,*,yellow
+# Active Castles
+Camelot Castle,castle_active,215,162,#,yellow_bold
+Castle Surluise,castle_active,175,131,#,white
+Castle Lothian,castle_active,212,48,#,white
+Castle Northumberland,castle_active,262,69,#,white
+Castle Gore,castle_active,150,122,#,white
+Castle Strangore,castle_active,200,148,#,white
+Castle Cradelment,castle_active,106,125,#,white
+Castle Cornwall,castle_active,69,222,#,white
+Castle Listenoise,castle_active,294,150,#,white
+Castle Benwick,castle_active,350,200,#,white
+Castle Carados,castle_active,194,38,#,white
+Edinburgh Castle,castle_active,200,50,#,white_bold
+Dover Castle,castle_active,430,212,#,white_bold
+# Abandoned Castles
+Castle Dolorous Garde,castle_abandoned,250,106,#,gray
+Castle Perilous,castle_abandoned,181,172,#,magenta
+Bamburgh Castle,castle_abandoned,281,60,#,gray
+# Landmarks
+Your Home,landmark,213,163,h,white_bold
+Stonehenge,landmark,231,198,+,yellow
+Hadrian's Wall,landmark,238,65,+,white
+White Cliffs,landmark,440,215,+,white_bold
+Faerie Ring,landmark,244,115,o,green_bold
+Faerie Ring,landmark,144,181,o,green_bold
+# Dungeon Entrances
+Camelot Catacombs,dungeon,216,164,>,white
+Tintagel Caves,dungeon,91,195,>,white
+Sherwood Depths,dungeon,265,121,>,white
+Glastonbury Tor,dungeon,196,189,>,white
+White Cliffs Cave,dungeon,442,217,>,cyan
+Whitby Abbey,dungeon,334,89,>,red
+# Volcano
+Mount Draig,volcano,100,122,V,red_bold
+# Magic Circles
+Magic Circle,magic_circle,215,158,(,cyan_bold
+Magic Circle,magic_circle,160,100,(,magenta_bold
+Magic Circle,magic_circle,280,130,(,yellow_bold
+Magic Circle,magic_circle,120,170,(,green_bold
+Magic Circle,magic_circle,300,90,(,white_bold
+Magic Circle,magic_circle,195,55,(,blue
+# Abbeys
+Westminster Abbey,abbey,255,148,A,white_bold
+Whitby Abbey,abbey,268,72,A,gray
+Rievaulx Abbey,abbey,258,82,A,white
+Bath Abbey,abbey,164,177,A,white
+St Mary's Abbey,abbey,272,96,A,white
+Cleeve Abbey,abbey,125,180,A,white
+Mount Grace Priory,abbey,250,78,A,white
+Camelot Abbey,abbey,208,160,A,white_bold
+# Misc
+Cave,cave,218,166,O,gray
+# Island locations
+Isle of Wight,town,240,215,*,white
+Isle of Man,town,100,80,*,white
+Lundy Island,landmark,85,170,+,gray
+Anglesey,town,80,112,*,white
+Avalon,landmark,40,200,+,yellow_bold
+Holy Island,landmark,290,55,+,white_bold
+Orkney,town,190,8,*,white
+# Island dungeon entrances
+Avalon Shrine,dungeon,42,200,>,yellow
+Orkney Barrows,dungeon,192,9,>,gray
+# Overseas castles
+Castle Ireland,castle_active,30,100,#,white
+Castle Gaul,castle_active,400,240,#,white
+Castle Brittany,castle_active,340,245,#,white

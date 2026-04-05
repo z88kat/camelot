@@ -13,6 +13,7 @@
 #define SVC_BANK       (1 << 6)
 #define SVC_WELL       (1 << 7)
 #define SVC_STABLE     (1 << 8)
+#define SVC_FOOD_SHOP  (1 << 9)
 
 /* Town definition */
 typedef struct {
@@ -40,6 +41,7 @@ typedef enum {
     NPC_MYSTIC,
     NPC_BANKER,
     NPC_STABLE,
+    NPC_FOOD_SHOP,
     NPC_WELL,       /* not really an NPC, but interactive */
     NPC_TOWNFOLK,    /* flavour NPC */
     NPC_KING,        /* castle ruler */

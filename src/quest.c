@@ -1,6 +1,7 @@
 #include "quest.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static void add_quest(QuestLog *ql, const char *name, const char *desc,
                       QuestType type, const char *giver, const char *target_town,
@@ -23,10 +24,17 @@ static void add_quest(QuestLog *ql, const char *name, const char *desc,
     ql->num_quests++;
 }
 
-void quest_init(QuestLog *ql) {
-    memset(ql, 0, sizeof(*ql));
+static QuestType parse_quest_type(const char *s) {
+    if (strcmp(s, "delivery") == 0) return QTYPE_DELIVERY;
+    if (strcmp(s, "fetch") == 0)    return QTYPE_FETCH;
+    if (strcmp(s, "kill") == 0)     return QTYPE_KILL;
+    return QTYPE_FETCH;
+}
 
-    /* Delivery quests -- can be completed now (just visit target town) */
+/* ------------------------------------------------------------------ */
+/* Built-in quests (fallback if CSV not found)                         */
+/* ------------------------------------------------------------------ */
+static void quest_init_builtin(QuestLog *ql) {
     add_quest(ql, "Holy Water Delivery",
         "Deliver holy water to the monk in Glastonbury.",
         QTYPE_DELIVERY, "Winchester", "Glastonbury", "",
@@ -40,12 +48,12 @@ void quest_init(QuestLog *ql) {
     add_quest(ql, "Healing Herbs",
         "Carry these healing herbs to the mystic in Cornwall.",
         QTYPE_DELIVERY, "Sherwood", "Cornwall", "",
-        40, 2, 25, 0);  /* +1 INT */
+        40, 2, 25, 0);
 
     add_quest(ql, "King's Message",
         "Deliver a royal decree from Camelot to Castle Lothian.",
         QTYPE_DELIVERY, "Camelot", "Castle Lothian", "",
-        80, 0, 40, 10);  /* +1 STR, needs chiv 10 */
+        80, 0, 40, 10);
 
     add_quest(ql, "Pilgrim's Offering",
         "Carry an offering from Bath to Canterbury cathedral.",
@@ -60,29 +68,27 @@ void quest_init(QuestLog *ql) {
     add_quest(ql, "Welsh Ore",
         "Bring Welsh mountain ore to the blacksmith in London.",
         QTYPE_DELIVERY, "Wales", "London", "",
-        70, 0, 35, 0);  /* +1 STR */
+        70, 0, 35, 0);
 
-    /* Fetch quests -- need dungeons/items to complete */
     add_quest(ql, "Grandfather's Shield",
         "Find my grandfather's shield in the Camelot Catacombs.",
         QTYPE_FETCH, "Camelot", "", "Camelot Catacombs",
-        80, 1, 50, 0);  /* +1 DEF */
+        80, 1, 50, 0);
 
     add_quest(ql, "Ancient Tome",
         "Retrieve the ancient tome from Tintagel Caves.",
         QTYPE_FETCH, "Tintagel", "", "Tintagel Caves",
-        90, 2, 60, 0);  /* +1 INT */
+        90, 2, 60, 0);
 
     add_quest(ql, "Dragon Scale",
         "Bring me a Dragon scale from Mount Draig.",
         QTYPE_FETCH, "Winchester", "", "Mount Draig",
-        150, 0, 100, 20);  /* +1 STR */
+        150, 0, 100, 20);
 
-    /* Kill quests -- need combat to complete */
     add_quest(ql, "Ghost of Sherwood",
         "A ghost haunts Sherwood Depths. Put it to rest.",
         QTYPE_KILL, "Sherwood", "", "Sherwood Depths",
-        100, 3, 80, 0);  /* +1 SPD */
+        100, 3, 80, 0);
 
     add_quest(ql, "Bandit Hideout",
         "Bandits have a hideout in the Catacombs. Clear them out.",
@@ -92,17 +98,50 @@ void quest_init(QuestLog *ql) {
     add_quest(ql, "The Black Knight",
         "The Black Knight blocks the road to York. Defeat him.",
         QTYPE_KILL, "York", "", "",
-        120, 0, 100, 15);  /* +1 STR */
+        120, 0, 100, 15);
 
     add_quest(ql, "Whitby Vampire",
         "A vampire terrorizes Whitby at night. Destroy it.",
         QTYPE_KILL, "Whitby", "", "Whitby Abbey",
-        150, 1, 120, 25);  /* +1 DEF */
+        150, 1, 120, 25);
 
     add_quest(ql, "Troll Bridge",
         "A troll lurks under a bridge near Wales. Slay it.",
         QTYPE_KILL, "Wales", "", "",
-        80, 0, 60, 0);  /* +1 STR */
+        80, 0, 60, 0);
+}
+
+void quest_init(QuestLog *ql) {
+    memset(ql, 0, sizeof(*ql));
+
+    FILE *f = fopen("data/quests.csv", "r");
+    if (!f) { quest_init_builtin(ql); return; }
+
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+        line[strcspn(line, "\n\r")] = 0;
+        if (ql->num_quests >= MAX_QUESTS) break;
+
+        /* name,description,type,giver_town,target_town,target_dungeon,gold_reward,stat_reward,xp_reward,chivalry_min */
+        char name[64], desc[256], type_str[16], giver[48], target[48], dungeon[48];
+        int gold, stat, xp, chiv;
+
+        int n = sscanf(line, "%63[^,],%255[^,],%15[^,],%47[^,],%47[^,],%47[^,],%d,%d,%d,%d",
+                       name, desc, type_str, giver, target, dungeon,
+                       &gold, &stat, &xp, &chiv);
+        if (n < 10) continue;
+
+        /* Trim whitespace-only fields */
+        if (strcmp(target, "  ") == 0 || strcmp(target, " ") == 0) target[0] = '\0';
+        if (strcmp(dungeon, "  ") == 0 || strcmp(dungeon, " ") == 0) dungeon[0] = '\0';
+
+        add_quest(ql, name, desc, parse_quest_type(type_str),
+                  giver, target, dungeon, gold, stat, xp, chiv);
+    }
+    fclose(f);
+
+    if (ql->num_quests == 0) quest_init_builtin(ql);
 }
 
 int quest_count_active(const QuestLog *ql) {

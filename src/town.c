@@ -2,6 +2,7 @@
 #include "rng.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static TownDef towns[MAX_TOWNS];
 static int num_towns = 0;
@@ -17,185 +18,135 @@ static void add_town(const char *name, int services, int inn_cost,
     snprintf(t->beer_name, MAX_NAME, "%s", beer_name);
 }
 
-void town_init(void) {
-    num_towns = 0;
+static int parse_services(const char *s) {
+    int svc = 0;
+    if (strstr(s, "inn"))    svc |= SVC_INN;
+    if (strstr(s, "church")) svc |= SVC_CHURCH;
+    if (strstr(s, "equip"))  svc |= SVC_EQUIP_SHOP;
+    if (strstr(s, "potion")) svc |= SVC_POTION_SHOP;
+    if (strstr(s, "pawn"))   svc |= SVC_PAWN_SHOP;
+    if (strstr(s, "mystic")) svc |= SVC_MYSTIC;
+    if (strstr(s, "bank"))   svc |= SVC_BANK;
+    if (strstr(s, "well"))   svc |= SVC_WELL;
+    if (strstr(s, "stable")) svc |= SVC_STABLE;
+    if (strstr(s, "food"))   svc |= SVC_FOOD_SHOP;
+    return svc;
+}
 
-    /* Major towns with full services */
+/* ------------------------------------------------------------------ */
+/* Built-in town definitions (fallback if CSV not found)               */
+/* ------------------------------------------------------------------ */
+static void town_init_builtin(void) {
     add_town("Camelot",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP |
-        SVC_MYSTIC | SVC_BANK | SVC_WELL | SVC_STABLE,
+        SVC_MYSTIC | SVC_BANK | SVC_WELL | SVC_STABLE | SVC_FOOD_SHOP,
         8, 2, "Camelot Ale");
-
     add_town("London",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP |
-        SVC_MYSTIC | SVC_BANK | SVC_STABLE,
+        SVC_MYSTIC | SVC_BANK | SVC_STABLE | SVC_FOOD_SHOP,
         10, 3, "London Porter");
-
     add_town("York",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP |
-        SVC_BANK | SVC_STABLE,
+        SVC_BANK | SVC_STABLE | SVC_FOOD_SHOP,
         8, 2, "York Bitter");
-
     add_town("Winchester",
-        SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_BANK | SVC_STABLE,
+        SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_BANK | SVC_STABLE | SVC_FOOD_SHOP,
         8, 2, "Winchester Mead");
-
-    /* Medium towns */
     add_town("Canterbury",
         SVC_INN | SVC_CHURCH | SVC_POTION_SHOP | SVC_PAWN_SHOP | SVC_MYSTIC,
         7, 2, "Holy Water Ale");
-
     add_town("Glastonbury",
         SVC_INN | SVC_CHURCH | SVC_MYSTIC | SVC_POTION_SHOP | SVC_WELL,
         6, 2, "Glastonbury Cider");
-
     add_town("Bath",
         SVC_INN | SVC_CHURCH | SVC_POTION_SHOP | SVC_PAWN_SHOP,
         7, 2, "Roman Spring Ale");
-
     add_town("Sherwood",
         SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_WELL,
         5, 2, "Sherwood Stout");
-
     add_town("Tintagel",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_WELL,
         6, 2, "Tintagel Dark");
-
-    /* Smaller towns */
     add_town("Cornwall",
         SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC | SVC_EQUIP_SHOP,
         5, 2, "Cornish Scrumpy");
-
     add_town("Wales",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_WELL,
         5, 2, "Welsh Mead");
-
     add_town("Whitby",
         SVC_INN | SVC_CHURCH | SVC_PAWN_SHOP | SVC_POTION_SHOP,
-        12, 3, "Whitby Stout");  /* double price per plan */
-
+        12, 3, "Whitby Stout");
     add_town("Llanthony",
         SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
         4, 1, "Monk's Brew");
-
     add_town("Carbonek",
         SVC_INN | SVC_CHURCH | SVC_PAWN_SHOP,
         6, 2, "Grail Ale");
-
-    /* Island towns */
     add_town("Isle of Wight",
         SVC_INN | SVC_PAWN_SHOP | SVC_EQUIP_SHOP,
         6, 2, "Island Bitter");
-
     add_town("Isle of Man",
         SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP,
         7, 2, "Manx Ale");
-
     add_town("Anglesey",
         SVC_INN | SVC_MYSTIC | SVC_WELL | SVC_PAWN_SHOP,
         5, 2, "Anglesey Mead");
-
     add_town("Orkney",
         SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC | SVC_EQUIP_SHOP,
         8, 3, "Orkney Whisky");
-
-    /* Active castles -- each has an inn and various services */
     add_town("Camelot Castle",
         SVC_INN | SVC_EQUIP_SHOP | SVC_CHURCH,
         6, 2, "Royal Ale");
+    add_town("Castle Surluise", SVC_INN | SVC_EQUIP_SHOP, 6, 2, "Surluise Mead");
+    add_town("Castle Lothian", SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP, 7, 2, "Highland Ale");
+    add_town("Castle Northumberland", SVC_INN | SVC_EQUIP_SHOP, 7, 2, "Northern Bitter");
+    add_town("Castle Gore", SVC_INN | SVC_EQUIP_SHOP | SVC_CHURCH, 6, 2, "Gore Stout");
+    add_town("Castle Strangore", SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_POTION_SHOP, 6, 2, "Strangore Draught");
+    add_town("Castle Cradelment", SVC_INN | SVC_EQUIP_SHOP, 6, 2, "Welsh Dragon Ale");
+    add_town("Castle Cornwall", SVC_INN | SVC_PAWN_SHOP, 7, 2, "Cornish Dark");
+    add_town("Castle Listenoise", SVC_INN | SVC_CHURCH, 5, 2, "Pilgrim's Rest");
+    add_town("Castle Benwick", SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP, 8, 2, "French Wine");
+    add_town("Castle Carados", SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP, 7, 3, "Highland Whisky");
+    add_town("Castle Ireland", SVC_INN | SVC_EQUIP_SHOP | SVC_MYSTIC, 6, 2, "Irish Stout");
+    add_town("Castle Gaul", SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP, 8, 3, "Gallic Wine");
+    add_town("Castle Brittany", SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP, 7, 2, "Breton Cider");
+    add_town("Edinburgh Castle", SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP | SVC_CHURCH, 8, 3, "Edinburgh Ale");
+    add_town("Dover Castle", SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_BANK, 7, 2, "Dover Porter");
+    add_town("Westminster Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Monk's Strong Ale");
+    add_town("Whitby Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Dark Abbey Stout");
+    add_town("Rievaulx Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Rievaulx Mead");
+    add_town("Bath Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Abbey Spring Ale");
+    add_town("St Mary's Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "St Mary's Brew");
+    add_town("Cleeve Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Somerset Strong");
+    add_town("Mount Grace Priory", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Prior's Reserve");
+    add_town("Camelot Abbey", SVC_INN | SVC_CHURCH | SVC_POTION_SHOP, 3, 4, "Camelot Monks' Ale");
+}
 
-    add_town("Castle Surluise",
-        SVC_INN | SVC_EQUIP_SHOP,
-        6, 2, "Surluise Mead");
+void town_init(void) {
+    num_towns = 0;
 
-    add_town("Castle Lothian",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP,
-        7, 2, "Highland Ale");
+    FILE *f = fopen("data/towns.csv", "r");
+    if (!f) { town_init_builtin(); return; }
 
-    add_town("Castle Northumberland",
-        SVC_INN | SVC_EQUIP_SHOP,
-        7, 2, "Northern Bitter");
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+        line[strcspn(line, "\n\r")] = 0;
+        if (num_towns >= MAX_TOWNS) break;
 
-    add_town("Castle Gore",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_CHURCH,
-        6, 2, "Gore Stout");
+        /* name,services,inn_cost,beer_cost,beer_name */
+        char name[48], svc_str[128], beer_name[48];
+        int inn_cost, beer_cost;
 
-    add_town("Castle Strangore",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_POTION_SHOP,
-        6, 2, "Strangore Draught");
+        int n = sscanf(line, "%47[^,],%127[^,],%d,%d,%47[^\n]",
+                       name, svc_str, &inn_cost, &beer_cost, beer_name);
+        if (n < 5) continue;
 
-    add_town("Castle Cradelment",
-        SVC_INN | SVC_EQUIP_SHOP,
-        6, 2, "Welsh Dragon Ale");
+        add_town(name, parse_services(svc_str), inn_cost, beer_cost, beer_name);
+    }
+    fclose(f);
 
-    add_town("Castle Cornwall",
-        SVC_INN | SVC_PAWN_SHOP,
-        7, 2, "Cornish Dark");
-
-    add_town("Castle Listenoise",
-        SVC_INN | SVC_CHURCH,
-        5, 2, "Pilgrim's Rest");
-
-    add_town("Castle Benwick",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP,
-        8, 2, "French Wine");
-
-    add_town("Castle Carados",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP,
-        7, 3, "Highland Whisky");
-
-    add_town("Castle Ireland",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_MYSTIC,
-        6, 2, "Irish Stout");
-
-    add_town("Castle Gaul",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP,
-        8, 3, "Gallic Wine");
-
-    add_town("Castle Brittany",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP,
-        7, 2, "Breton Cider");
-
-    add_town("Edinburgh Castle",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_POTION_SHOP | SVC_PAWN_SHOP | SVC_CHURCH,
-        8, 3, "Edinburgh Ale");
-
-    add_town("Dover Castle",
-        SVC_INN | SVC_EQUIP_SHOP | SVC_PAWN_SHOP | SVC_BANK,
-        7, 2, "Dover Porter");
-
-    /* Abbeys -- inn with extra strong beer, potion shop, church */
-    add_town("Westminster Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Monk's Strong Ale");
-
-    add_town("Whitby Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Dark Abbey Stout");
-
-    add_town("Rievaulx Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Rievaulx Mead");
-
-    add_town("Bath Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Abbey Spring Ale");
-
-    add_town("St Mary's Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "St Mary's Brew");
-
-    add_town("Cleeve Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Somerset Strong");
-
-    add_town("Mount Grace Priory",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Prior's Reserve");
-
-    add_town("Camelot Abbey",
-        SVC_INN | SVC_CHURCH | SVC_POTION_SHOP,
-        3, 4, "Camelot Monks' Ale");
+    if (num_towns == 0) town_init_builtin();
 }
 
 /* ------------------------------------------------------------------ */
@@ -294,6 +245,7 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
         { SVC_MYSTIC,     '?', CP_MAGENTA_BOLD,"Mystic",       NPC_MYSTIC },
         { SVC_BANK,       'B', CP_YELLOW_BOLD, "Banker",       NPC_BANKER },
         { SVC_STABLE,     'S', CP_BROWN,       "Stablemaster", NPC_STABLE },
+        { SVC_FOOD_SHOP,  '%', CP_BROWN,       "Baker",        NPC_FOOD_SHOP },
     };
     int nbuildings = sizeof(buildings) / sizeof(buildings[0]);
 

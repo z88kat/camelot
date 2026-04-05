@@ -7,6 +7,52 @@
 #include <math.h>
 
 /* ------------------------------------------------------------------ */
+/* CSV parsing helpers                                                 */
+/* ------------------------------------------------------------------ */
+
+static short parse_ow_color(const char *s) {
+    if (strcmp(s, "brown") == 0)        return CP_BROWN;
+    if (strcmp(s, "gray") == 0)         return CP_GRAY;
+    if (strcmp(s, "green") == 0)        return CP_GREEN;
+    if (strcmp(s, "yellow") == 0)       return CP_YELLOW;
+    if (strcmp(s, "red") == 0)          return CP_RED;
+    if (strcmp(s, "white") == 0)        return CP_WHITE;
+    if (strcmp(s, "cyan") == 0)         return CP_CYAN;
+    if (strcmp(s, "magenta") == 0)      return CP_MAGENTA;
+    if (strcmp(s, "blue") == 0)         return CP_BLUE;
+    if (strcmp(s, "yellow_bold") == 0)  return CP_YELLOW_BOLD;
+    if (strcmp(s, "white_bold") == 0)   return CP_WHITE_BOLD;
+    if (strcmp(s, "green_bold") == 0)   return CP_GREEN_BOLD;
+    if (strcmp(s, "red_bold") == 0)     return CP_RED_BOLD;
+    if (strcmp(s, "cyan_bold") == 0)    return CP_CYAN_BOLD;
+    if (strcmp(s, "magenta_bold") == 0) return CP_MAGENTA_BOLD;
+    return CP_WHITE;
+}
+
+static LocationType parse_loc_type(const char *s) {
+    if (strcmp(s, "town") == 0)             return LOC_TOWN;
+    if (strcmp(s, "castle_active") == 0)    return LOC_CASTLE_ACTIVE;
+    if (strcmp(s, "castle_abandoned") == 0) return LOC_CASTLE_ABANDONED;
+    if (strcmp(s, "landmark") == 0)         return LOC_LANDMARK;
+    if (strcmp(s, "dungeon") == 0)          return LOC_DUNGEON_ENTRANCE;
+    if (strcmp(s, "cottage") == 0)          return LOC_COTTAGE;
+    if (strcmp(s, "cave") == 0)             return LOC_CAVE;
+    if (strcmp(s, "volcano") == 0)          return LOC_VOLCANO;
+    if (strcmp(s, "magic_circle") == 0)     return LOC_MAGIC_CIRCLE;
+    if (strcmp(s, "abbey") == 0)            return LOC_ABBEY;
+    return LOC_NONE;
+}
+
+static TileType parse_terrain_type(const char *s) {
+    if (strcmp(s, "road") == 0)   return TILE_ROAD;
+    if (strcmp(s, "grass") == 0)  return TILE_GRASS;
+    if (strcmp(s, "forest") == 0) return TILE_FOREST;
+    if (strcmp(s, "hills") == 0)  return TILE_HILLS;
+    if (strcmp(s, "any") == 0)    return TILE_NONE;
+    return TILE_NONE;
+}
+
+/* ------------------------------------------------------------------ */
 /* Tile helpers                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -636,47 +682,7 @@ void overworld_init(Overworld *ow) {
     draw_road(ow, 275, 94, 331, 88);     /* York -> Whitby */
     draw_road(ow, 375, 194, 431, 212);   /* Canterbury -> Dover */
 
-    /* ---- Place Locations (scaled 1.25x) ---- */
-
-    /* Towns */
-    ow_add_location(ow, "Camelot",      LOC_TOWN, 212, 162, '*', CP_YELLOW_BOLD);
-    ow_add_location(ow, "London",       LOC_TOWN, 312, 181, '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Canterbury",   LOC_TOWN, 375, 194, '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Winchester",   LOC_TOWN, 238, 194, '*', CP_WHITE);
-    ow_add_location(ow, "Glastonbury",  LOC_TOWN, 194, 188, '*', CP_MAGENTA);
-    ow_add_location(ow, "Bath",         LOC_TOWN, 162, 175, '*', CP_CYAN);
-    ow_add_location(ow, "Tintagel",     LOC_TOWN,  94, 194, '*', CP_WHITE);
-    ow_add_location(ow, "Cornwall",     LOC_TOWN,  60, 231, '*', CP_WHITE);
-    ow_add_location(ow, "Sherwood",     LOC_TOWN, 262, 119, '*', CP_GREEN_BOLD);
-    ow_add_location(ow, "York",         LOC_TOWN, 275, 94,  '*', CP_WHITE_BOLD);
-    ow_add_location(ow, "Wales",        LOC_TOWN, 125, 135, '*', CP_RED);
-    ow_add_location(ow, "Whitby",       LOC_TOWN, 331, 88,  '*', CP_GRAY);
-    ow_add_location(ow, "Llanthony",    LOC_TOWN, 119, 148, '*', CP_WHITE);
-    ow_add_location(ow, "Carbonek",     LOC_TOWN, 219, 138, '*', CP_YELLOW);
-
-    /* Active Castles */
-    ow_add_location(ow, "Camelot Castle",   LOC_CASTLE_ACTIVE, 215, 162, '#', CP_YELLOW_BOLD);
-    ow_add_location(ow, "Your Home",        LOC_LANDMARK, 213, 163, 'h', CP_WHITE_BOLD);
-    ow_add_location(ow, "Castle Surluise",  LOC_CASTLE_ACTIVE, 175, 131, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Lothian",   LOC_CASTLE_ACTIVE, 212, 48,  '#', CP_WHITE);
-    ow_add_location(ow, "Castle Northumberland", LOC_CASTLE_ACTIVE, 262, 69, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Gore",      LOC_CASTLE_ACTIVE, 150, 122, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Strangore", LOC_CASTLE_ACTIVE, 200, 148, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Cradelment",LOC_CASTLE_ACTIVE, 106, 125, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Cornwall",  LOC_CASTLE_ACTIVE,  69, 222, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Listenoise",LOC_CASTLE_ACTIVE, 294, 150, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Benwick",   LOC_CASTLE_ACTIVE, 350, 200, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Carados",   LOC_CASTLE_ACTIVE, 194, 38,  '#', CP_WHITE);
-    ow_add_location(ow, "Edinburgh Castle", LOC_CASTLE_ACTIVE, 200, 50,  '#', CP_WHITE_BOLD);
-    ow_add_location(ow, "Dover Castle",     LOC_CASTLE_ACTIVE, 430, 212, '#', CP_WHITE_BOLD);
-
-    /* Abandoned Castles */
-    ow_add_location(ow, "Castle Dolorous Garde", LOC_CASTLE_ABANDONED, 250, 106, '#', CP_GRAY);
-    ow_add_location(ow, "Castle Perilous",  LOC_CASTLE_ABANDONED, 181, 172, '#', CP_MAGENTA);
-    ow_add_location(ow, "Bamburgh Castle",  LOC_CASTLE_ABANDONED, 281, 60,  '#', CP_GRAY);
-
-    /* Landmarks */
-    ow_add_location(ow, "Stonehenge",       LOC_LANDMARK, 231, 198, '+', CP_YELLOW);
+    /* ---- Place Locations ---- */
     /* Hadrian's Wall -- draw a ruined wall east-west across northern England.
        Mostly impassable stone ruins with gaps (passable) every few tiles. */
     {
@@ -686,75 +692,114 @@ void overworld_init(Overworld *ow) {
         for (int x = wall_x_start; x <= wall_x_end; x++) {
             if (x < 0 || x >= OW_WIDTH) continue;
             Tile *t = &ow->map[wall_y][x];
-            /* Skip if water/river/lake */
             if (t->type == TILE_WATER || t->type == TILE_RIVER || t->type == TILE_LAKE)
                 continue;
-            /* Gaps every 8-12 tiles for passage (ruined sections) */
             int gap = (hash2d(x, wall_y * 31) & 7);
             if (gap == 0) {
-                /* Gap -- passable rubble */
                 set_tile(t, TILE_ROAD, '.', CP_GRAY, true);
             } else {
-                /* Ruined wall segment */
                 set_tile(t, TILE_WALL, '#', CP_GRAY, false);
-                t->blocks_sight = false;  /* low ruined wall, can see over */
+                t->blocks_sight = false;
             }
         }
     }
-    ow_add_location(ow, "Hadrian's Wall",   LOC_LANDMARK, 238, 65,  '+', CP_WHITE);
-    ow_add_location(ow, "White Cliffs",     LOC_LANDMARK, 440, 215, '+', CP_WHITE_BOLD);
 
-    /* Dungeon Entrances */
-    ow_add_location(ow, "Camelot Catacombs",LOC_DUNGEON_ENTRANCE, 216, 164, '>', CP_WHITE);
-    ow_add_location(ow, "Tintagel Caves",   LOC_DUNGEON_ENTRANCE,  91, 195, '>', CP_WHITE);
-    ow_add_location(ow, "Sherwood Depths",  LOC_DUNGEON_ENTRANCE, 265, 121, '>', CP_WHITE);
-    ow_add_location(ow, "Glastonbury Tor",  LOC_DUNGEON_ENTRANCE, 196, 189, '>', CP_WHITE);
-    ow_add_location(ow, "White Cliffs Cave",LOC_DUNGEON_ENTRANCE, 442, 217, '>', CP_CYAN);
-    ow_add_location(ow, "Whitby Abbey",     LOC_DUNGEON_ENTRANCE, 334, 89,  '>', CP_RED);
+    /* Load locations from CSV (fallback to builtin) */
+    {
+        FILE *locf = fopen("data/locations.csv", "r");
+        if (locf) {
+            char line[256];
+            while (fgets(line, sizeof(line), locf)) {
+                if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+                line[strcspn(line, "\n\r")] = 0;
 
-    /* Volcano */
-    ow_add_location(ow, "Mount Draig",      LOC_VOLCANO, 100, 122, 'V', CP_RED_BOLD);
+                /* name,type,x,y,glyph,color */
+                char name[48], type_str[24], color_str[24];
+                int x, y;
+                char glyph;
 
-    /* Faerie Rings */
-    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 244, 115, 'o', CP_GREEN_BOLD);
-    ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 144, 181, 'o', CP_GREEN_BOLD);
+                int n = sscanf(line, "%47[^,],%23[^,],%d,%d,%c,%23s",
+                               name, type_str, &x, &y, &glyph, color_str);
+                if (n < 6) continue;
 
-    /* Magic Circles on overworld */
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 215, 158, '(', CP_CYAN_BOLD);  /* near Camelot for testing */
-
-    /* Abbeys */
-    ow_add_location(ow, "Westminster Abbey",  LOC_ABBEY, 255, 148, 'A', CP_WHITE_BOLD);   /* near London */
-    ow_add_location(ow, "Whitby Abbey",       LOC_ABBEY, 268, 72,  'A', CP_GRAY);          /* near Whitby - already a dungeon entrance too */
-    ow_add_location(ow, "Rievaulx Abbey",     LOC_ABBEY, 258, 82,  'A', CP_WHITE);         /* North Yorkshire */
-    ow_add_location(ow, "Bath Abbey",         LOC_ABBEY, 164, 177, 'A', CP_WHITE);         /* near Bath */
-    ow_add_location(ow, "St Mary's Abbey",    LOC_ABBEY, 272, 96,  'A', CP_WHITE);         /* York area */
-    ow_add_location(ow, "Cleeve Abbey",       LOC_ABBEY, 125, 180, 'A', CP_WHITE);         /* Somerset */
-    ow_add_location(ow, "Mount Grace Priory", LOC_ABBEY, 250, 78,  'A', CP_WHITE);         /* North Yorkshire */
-    ow_add_location(ow, "Cave",             LOC_CAVE, 218, 166, 'O', CP_GRAY);  /* near Camelot for testing */
-    ow_add_location(ow, "Camelot Abbey",    LOC_ABBEY, 208, 160, 'A', CP_WHITE_BOLD);  /* near Camelot for testing */
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 120, 170, '(', CP_GREEN_BOLD);
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 300, 90,  '(', CP_WHITE_BOLD);
-    ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 195, 55,  '(', CP_BLUE);
-
-    /* Island locations */
-    ow_add_location(ow, "Isle of Wight",    LOC_TOWN, 240, 215, '*', CP_WHITE);
-    ow_add_location(ow, "Isle of Man",      LOC_TOWN, 100, 80,  '*', CP_WHITE);
-    ow_add_location(ow, "Lundy Island",     LOC_LANDMARK, 85, 170, '+', CP_GRAY);
-    ow_add_location(ow, "Anglesey",         LOC_TOWN, 80, 112,  '*', CP_WHITE);
-    ow_add_location(ow, "Avalon",           LOC_LANDMARK, 40, 200, '+', CP_YELLOW_BOLD);
-    ow_add_location(ow, "Holy Island",      LOC_LANDMARK, 290, 55, '+', CP_WHITE_BOLD);
-    ow_add_location(ow, "Orkney",           LOC_TOWN, 190, 8,   '*', CP_WHITE);
-
-    /* Island dungeon entrances */
-    ow_add_location(ow, "Avalon Shrine",    LOC_DUNGEON_ENTRANCE, 42, 200, '>', CP_YELLOW);
-    ow_add_location(ow, "Orkney Barrows",   LOC_DUNGEON_ENTRANCE, 192, 9, '>', CP_GRAY);
-
-    /* Overseas castles */
-    ow_add_location(ow, "Castle Ireland",   LOC_CASTLE_ACTIVE, 30, 100, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Gaul",      LOC_CASTLE_ACTIVE, 400, 240, '#', CP_WHITE);
-    ow_add_location(ow, "Castle Brittany",  LOC_CASTLE_ACTIVE, 340, 245, '#', CP_WHITE);
+                ow_add_location(ow, name, parse_loc_type(type_str),
+                                x, y, glyph, parse_ow_color(color_str));
+            }
+            fclose(locf);
+        } else {
+            /* Built-in fallback */
+            ow_add_location(ow, "Camelot",      LOC_TOWN, 212, 162, '*', CP_YELLOW_BOLD);
+            ow_add_location(ow, "London",       LOC_TOWN, 312, 181, '*', CP_WHITE_BOLD);
+            ow_add_location(ow, "Canterbury",   LOC_TOWN, 375, 194, '*', CP_WHITE_BOLD);
+            ow_add_location(ow, "Winchester",   LOC_TOWN, 238, 194, '*', CP_WHITE);
+            ow_add_location(ow, "Glastonbury",  LOC_TOWN, 194, 188, '*', CP_MAGENTA);
+            ow_add_location(ow, "Bath",         LOC_TOWN, 162, 175, '*', CP_CYAN);
+            ow_add_location(ow, "Tintagel",     LOC_TOWN,  94, 194, '*', CP_WHITE);
+            ow_add_location(ow, "Cornwall",     LOC_TOWN,  60, 231, '*', CP_WHITE);
+            ow_add_location(ow, "Sherwood",     LOC_TOWN, 262, 119, '*', CP_GREEN_BOLD);
+            ow_add_location(ow, "York",         LOC_TOWN, 275, 94,  '*', CP_WHITE_BOLD);
+            ow_add_location(ow, "Wales",        LOC_TOWN, 125, 135, '*', CP_RED);
+            ow_add_location(ow, "Whitby",       LOC_TOWN, 331, 88,  '*', CP_GRAY);
+            ow_add_location(ow, "Llanthony",    LOC_TOWN, 119, 148, '*', CP_WHITE);
+            ow_add_location(ow, "Carbonek",     LOC_TOWN, 219, 138, '*', CP_YELLOW);
+            ow_add_location(ow, "Camelot Castle",   LOC_CASTLE_ACTIVE, 215, 162, '#', CP_YELLOW_BOLD);
+            ow_add_location(ow, "Your Home",        LOC_LANDMARK, 213, 163, 'h', CP_WHITE_BOLD);
+            ow_add_location(ow, "Castle Surluise",  LOC_CASTLE_ACTIVE, 175, 131, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Lothian",   LOC_CASTLE_ACTIVE, 212, 48,  '#', CP_WHITE);
+            ow_add_location(ow, "Castle Northumberland", LOC_CASTLE_ACTIVE, 262, 69, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Gore",      LOC_CASTLE_ACTIVE, 150, 122, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Strangore", LOC_CASTLE_ACTIVE, 200, 148, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Cradelment",LOC_CASTLE_ACTIVE, 106, 125, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Cornwall",  LOC_CASTLE_ACTIVE,  69, 222, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Listenoise",LOC_CASTLE_ACTIVE, 294, 150, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Benwick",   LOC_CASTLE_ACTIVE, 350, 200, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Carados",   LOC_CASTLE_ACTIVE, 194, 38,  '#', CP_WHITE);
+            ow_add_location(ow, "Edinburgh Castle", LOC_CASTLE_ACTIVE, 200, 50,  '#', CP_WHITE_BOLD);
+            ow_add_location(ow, "Dover Castle",     LOC_CASTLE_ACTIVE, 430, 212, '#', CP_WHITE_BOLD);
+            ow_add_location(ow, "Castle Dolorous Garde", LOC_CASTLE_ABANDONED, 250, 106, '#', CP_GRAY);
+            ow_add_location(ow, "Castle Perilous",  LOC_CASTLE_ABANDONED, 181, 172, '#', CP_MAGENTA);
+            ow_add_location(ow, "Bamburgh Castle",  LOC_CASTLE_ABANDONED, 281, 60,  '#', CP_GRAY);
+            ow_add_location(ow, "Stonehenge",       LOC_LANDMARK, 231, 198, '+', CP_YELLOW);
+            ow_add_location(ow, "Hadrian's Wall",   LOC_LANDMARK, 238, 65,  '+', CP_WHITE);
+            ow_add_location(ow, "White Cliffs",     LOC_LANDMARK, 440, 215, '+', CP_WHITE_BOLD);
+            ow_add_location(ow, "Camelot Catacombs",LOC_DUNGEON_ENTRANCE, 216, 164, '>', CP_WHITE);
+            ow_add_location(ow, "Tintagel Caves",   LOC_DUNGEON_ENTRANCE,  91, 195, '>', CP_WHITE);
+            ow_add_location(ow, "Sherwood Depths",  LOC_DUNGEON_ENTRANCE, 265, 121, '>', CP_WHITE);
+            ow_add_location(ow, "Glastonbury Tor",  LOC_DUNGEON_ENTRANCE, 196, 189, '>', CP_WHITE);
+            ow_add_location(ow, "White Cliffs Cave",LOC_DUNGEON_ENTRANCE, 442, 217, '>', CP_CYAN);
+            ow_add_location(ow, "Whitby Abbey",     LOC_DUNGEON_ENTRANCE, 334, 89,  '>', CP_RED);
+            ow_add_location(ow, "Mount Draig",      LOC_VOLCANO, 100, 122, 'V', CP_RED_BOLD);
+            ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 244, 115, 'o', CP_GREEN_BOLD);
+            ow_add_location(ow, "Faerie Ring",      LOC_LANDMARK, 144, 181, 'o', CP_GREEN_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 215, 158, '(', CP_CYAN_BOLD);
+            ow_add_location(ow, "Westminster Abbey",  LOC_ABBEY, 255, 148, 'A', CP_WHITE_BOLD);
+            ow_add_location(ow, "Whitby Abbey",       LOC_ABBEY, 268, 72,  'A', CP_GRAY);
+            ow_add_location(ow, "Rievaulx Abbey",     LOC_ABBEY, 258, 82,  'A', CP_WHITE);
+            ow_add_location(ow, "Bath Abbey",         LOC_ABBEY, 164, 177, 'A', CP_WHITE);
+            ow_add_location(ow, "St Mary's Abbey",    LOC_ABBEY, 272, 96,  'A', CP_WHITE);
+            ow_add_location(ow, "Cleeve Abbey",       LOC_ABBEY, 125, 180, 'A', CP_WHITE);
+            ow_add_location(ow, "Mount Grace Priory", LOC_ABBEY, 250, 78,  'A', CP_WHITE);
+            ow_add_location(ow, "Cave",             LOC_CAVE, 218, 166, 'O', CP_GRAY);
+            ow_add_location(ow, "Camelot Abbey",    LOC_ABBEY, 208, 160, 'A', CP_WHITE_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 160, 100, '(', CP_MAGENTA_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 280, 130, '(', CP_YELLOW_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 120, 170, '(', CP_GREEN_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 300, 90,  '(', CP_WHITE_BOLD);
+            ow_add_location(ow, "Magic Circle",     LOC_MAGIC_CIRCLE, 195, 55,  '(', CP_BLUE);
+            ow_add_location(ow, "Isle of Wight",    LOC_TOWN, 240, 215, '*', CP_WHITE);
+            ow_add_location(ow, "Isle of Man",      LOC_TOWN, 100, 80,  '*', CP_WHITE);
+            ow_add_location(ow, "Lundy Island",     LOC_LANDMARK, 85, 170, '+', CP_GRAY);
+            ow_add_location(ow, "Anglesey",         LOC_TOWN, 80, 112,  '*', CP_WHITE);
+            ow_add_location(ow, "Avalon",           LOC_LANDMARK, 40, 200, '+', CP_YELLOW_BOLD);
+            ow_add_location(ow, "Holy Island",      LOC_LANDMARK, 290, 55, '+', CP_WHITE_BOLD);
+            ow_add_location(ow, "Orkney",           LOC_TOWN, 190, 8,   '*', CP_WHITE);
+            ow_add_location(ow, "Avalon Shrine",    LOC_DUNGEON_ENTRANCE, 42, 200, '>', CP_YELLOW);
+            ow_add_location(ow, "Orkney Barrows",   LOC_DUNGEON_ENTRANCE, 192, 9, '>', CP_GRAY);
+            ow_add_location(ow, "Castle Ireland",   LOC_CASTLE_ACTIVE, 30, 100, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Gaul",      LOC_CASTLE_ACTIVE, 400, 240, '#', CP_WHITE);
+            ow_add_location(ow, "Castle Brittany",  LOC_CASTLE_ACTIVE, 340, 245, '#', CP_WHITE);
+        }
+    }
 
     /* ---- Random cottages (25) scattered on grassland/road/forest ---- */
     {
@@ -835,22 +880,59 @@ static void spawn_creature(Overworld *ow, OWCreatureType type,
     }
 }
 
-void overworld_spawn_creatures(Overworld *ow) {
-    ow->num_creatures = 0;
+static OWCreatureType creature_type_from_name(const char *name) {
+    if (strcmp(name, "Traveller") == 0)  return OW_NPC_TRAVELLER;
+    if (strcmp(name, "Pilgrim") == 0)    return OW_NPC_PILGRIM;
+    if (strcmp(name, "Merchant") == 0)   return OW_NPC_MERCHANT;
+    if (strcmp(name, "Peasant") == 0)    return OW_NPC_PEASANT;
+    if (strcmp(name, "Deer") == 0)       return OW_NPC_DEER;
+    if (strcmp(name, "Sheep") == 0)      return OW_NPC_SHEEP;
+    if (strcmp(name, "Rabbit") == 0)     return OW_NPC_RABBIT;
+    if (strcmp(name, "Crow") == 0)       return OW_NPC_CROW;
+    if (strcmp(name, "Bandit") == 0)     return OW_ENEMY_BANDIT;
+    if (strcmp(name, "Wolf") == 0)       return OW_ENEMY_WOLF;
+    if (strcmp(name, "Wild Boar") == 0)  return OW_ENEMY_BOAR;
+    if (strcmp(name, "Skeleton") == 0)   return OW_ENEMY_SKELETON;
+    return OW_NPC_TRAVELLER;
+}
 
-    /* NPCs on roads */
+static void spawn_hostile(Overworld *ow, const char *name, char glyph,
+                           short cp, TileType terrain, int count,
+                           int hp, int str, int def, int xp) {
+    for (int i = 0; i < count; i++) {
+        if (ow->num_creatures >= MAX_OW_CREATURES) break;
+        for (int tries = 0; tries < 300; tries++) {
+            int x = rng_range(30, OW_WIDTH - 30);
+            int y = rng_range(20, OW_HEIGHT - 20);
+            if (!ow->map[y][x].passable) continue;
+            if (terrain != TILE_NONE && ow->map[y][x].type != terrain) continue;
+            OWCreature *c = &ow->creatures[ow->num_creatures++];
+            c->type = creature_type_from_name(name);
+            c->pos = (Vec2){ x, y };
+            c->glyph = glyph;
+            c->color_pair = cp;
+            snprintf(c->name, MAX_NAME, "%s", name);
+            c->hostile = true;
+            c->hp = hp; c->max_hp = hp;
+            c->str = str; c->def = def;
+            c->xp_reward = xp;
+            break;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Built-in creature spawning (fallback if CSV not found)              */
+/* ------------------------------------------------------------------ */
+static void spawn_creatures_builtin(Overworld *ow) {
     for (int i = 0; i < 4; i++)
         spawn_creature(ow, OW_NPC_TRAVELLER, '@', CP_WHITE, "Traveller", TILE_ROAD);
     for (int i = 0; i < 3; i++)
         spawn_creature(ow, OW_NPC_PILGRIM, '@', CP_YELLOW, "Pilgrim", TILE_ROAD);
     for (int i = 0; i < 2; i++)
         spawn_creature(ow, OW_NPC_MERCHANT, '@', CP_GREEN, "Merchant", TILE_ROAD);
-
-    /* Peasants near grassland */
     for (int i = 0; i < 4; i++)
         spawn_creature(ow, OW_NPC_PEASANT, '@', CP_BROWN, "Peasant", TILE_GRASS);
-
-    /* Animals */
     for (int i = 0; i < 6; i++)
         spawn_creature(ow, OW_NPC_DEER, 'd', CP_BROWN, "Deer", TILE_FOREST);
     for (int i = 0; i < 6; i++)
@@ -858,102 +940,56 @@ void overworld_spawn_creatures(Overworld *ow) {
     for (int i = 0; i < 4; i++)
         spawn_creature(ow, OW_NPC_RABBIT, 'r', CP_BROWN, "Rabbit", TILE_GRASS);
     for (int i = 0; i < 5; i++)
-        spawn_creature(ow, OW_NPC_CROW, 'v', CP_GRAY, "Crow", TILE_NONE);  /* anywhere on land */
+        spawn_creature(ow, OW_NPC_CROW, 'v', CP_GRAY, "Crow", TILE_NONE);
+    spawn_hostile(ow, "Bandit", 'p', CP_RED, TILE_ROAD, 6, 12, 5, 3, 10);
+    spawn_hostile(ow, "Wolf", 'w', CP_RED, TILE_FOREST, 5, 10, 5, 2, 10);
+    spawn_hostile(ow, "Wild Boar", 'B', CP_RED, TILE_HILLS, 4, 10, 5, 2, 8);
+    spawn_hostile(ow, "Skeleton", 'z', CP_RED, TILE_NONE, 3, 10, 5, 3, 10);
+}
 
-    /* Hostile creatures on the overworld */
-    /* Bandits on roads */
-    for (int i = 0; i < 6; i++) {
-        if (ow->num_creatures >= MAX_OW_CREATURES) break;
-        for (int tries = 0; tries < 300; tries++) {
-            int x = rng_range(30, OW_WIDTH - 30);
-            int y = rng_range(20, OW_HEIGHT - 20);
-            if (!ow->map[y][x].passable) continue;
-            if (ow->map[y][x].type != TILE_ROAD && ow->map[y][x].type != TILE_GRASS) continue;
-            OWCreature *c = &ow->creatures[ow->num_creatures++];
-            c->type = OW_ENEMY_BANDIT;
-            c->pos = (Vec2){ x, y };
-            c->glyph = 'p';
-            c->color_pair = CP_RED;
-            snprintf(c->name, MAX_NAME, "Bandit");
-            c->hostile = true;
-            c->hp = 12; c->max_hp = 12;
-            c->str = 5; c->def = 3;
-            c->xp_reward = 10;
-            break;
+void overworld_spawn_creatures(Overworld *ow) {
+    ow->num_creatures = 0;
+
+    /* Try loading from CSV */
+    FILE *f = fopen("data/creatures.csv", "r");
+    if (f) {
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+            line[strcspn(line, "\n\r")] = 0;
+
+            /* name,glyph,color,count,terrain,hostile,hp,str,def,xp */
+            char name[48], color_str[24], terrain_str[16], hostile_str[8];
+            char glyph;
+            int count, hp, str, def, xp;
+
+            int n = sscanf(line, "%47[^,],%c,%23[^,],%d,%15[^,],%7[^,],%d,%d,%d,%d",
+                           name, &glyph, color_str, &count, terrain_str, hostile_str,
+                           &hp, &str, &def, &xp);
+            if (n < 10) continue;
+
+            short cp = parse_ow_color(color_str);
+            TileType terrain = parse_terrain_type(terrain_str);
+            bool hostile = (strcmp(hostile_str, "true") == 0);
+
+            if (hostile) {
+                spawn_hostile(ow, name, glyph, cp, terrain, count, hp, str, def, xp);
+            } else {
+                OWCreatureType ctype = creature_type_from_name(name);
+                for (int i = 0; i < count; i++)
+                    spawn_creature(ow, ctype, glyph, cp, name, terrain);
+            }
         }
+        fclose(f);
+    } else {
+        spawn_creatures_builtin(ow);
     }
 
-    /* Wolves in forests */
-    for (int i = 0; i < 5; i++) {
-        if (ow->num_creatures >= MAX_OW_CREATURES) break;
-        for (int tries = 0; tries < 300; tries++) {
-            int x = rng_range(30, OW_WIDTH - 30);
-            int y = rng_range(20, OW_HEIGHT - 20);
-            if (!ow->map[y][x].passable) continue;
-            if (ow->map[y][x].type != TILE_FOREST) continue;
-            OWCreature *c = &ow->creatures[ow->num_creatures++];
-            c->type = OW_ENEMY_WOLF;
-            c->pos = (Vec2){ x, y };
-            c->glyph = 'w';
-            c->color_pair = CP_RED;
-            snprintf(c->name, MAX_NAME, "Wolf");
-            c->hostile = true;
-            c->hp = 10; c->max_hp = 10;
-            c->str = 5; c->def = 2;
-            c->xp_reward = 10;
-            break;
-        }
-    }
-
-    /* Wild boars in hills */
-    for (int i = 0; i < 4; i++) {
-        if (ow->num_creatures >= MAX_OW_CREATURES) break;
-        for (int tries = 0; tries < 300; tries++) {
-            int x = rng_range(30, OW_WIDTH - 30);
-            int y = rng_range(20, OW_HEIGHT - 20);
-            if (!ow->map[y][x].passable) continue;
-            if (ow->map[y][x].type != TILE_HILLS) continue;
-            OWCreature *c = &ow->creatures[ow->num_creatures++];
-            c->type = OW_ENEMY_BOAR;
-            c->pos = (Vec2){ x, y };
-            c->glyph = 'B';
-            c->color_pair = CP_RED;
-            snprintf(c->name, MAX_NAME, "Wild Boar");
-            c->hostile = true;
-            c->hp = 10; c->max_hp = 10;
-            c->str = 5; c->def = 2;
-            c->xp_reward = 8;
-            break;
-        }
-    }
-
-    /* Skeletons near abandoned castles and graveyards */
-    for (int i = 0; i < 3; i++) {
-        if (ow->num_creatures >= MAX_OW_CREATURES) break;
-        for (int tries = 0; tries < 300; tries++) {
-            int x = rng_range(30, OW_WIDTH - 30);
-            int y = rng_range(20, OW_HEIGHT - 20);
-            if (!ow->map[y][x].passable) continue;
-            OWCreature *c = &ow->creatures[ow->num_creatures++];
-            c->type = OW_ENEMY_SKELETON;
-            c->pos = (Vec2){ x, y };
-            c->glyph = 'z';
-            c->color_pair = CP_RED;
-            snprintf(c->name, MAX_NAME, "Skeleton");
-            c->hostile = true;
-            c->hp = 10; c->max_hp = 10;
-            c->str = 5; c->def = 3;
-            c->xp_reward = 10;
-            break;
-        }
-    }
-
-    /* Druids near magic circles and Stonehenge */
+    /* Druids near magic circles and Stonehenge (always spawned dynamically) */
     for (int i = 0; i < ow->num_locations; i++) {
         Location *loc = &ow->locations[i];
         if (loc->type == LOC_MAGIC_CIRCLE ||
             strcmp(loc->name, "Stonehenge") == 0) {
-            /* Place 1-2 druids near this location */
             int num_druids = rng_range(1, 2);
             for (int d = 0; d < num_druids; d++) {
                 if (ow->num_creatures >= MAX_OW_CREATURES) break;
