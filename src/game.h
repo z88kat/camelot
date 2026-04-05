@@ -60,6 +60,8 @@ typedef struct {
     PlayerGender player_gender;
     int        player_level;
     int        max_spells_capacity;  /* max spells this class can learn */
+    int        appearance[4];        /* 0=hair, 1=eyes, 2=build, 3=feature */
+    bool       pending_levelup;      /* waiting for player to choose stat */
     int        hp, max_hp;
     int        mp, max_mp;
     int        str, def, intel, spd;

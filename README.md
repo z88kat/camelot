@@ -182,9 +182,12 @@ Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors.
 | Key | Action |
 |-----|--------|
 | `1` `2` `3` | Select class (Knight/Wizard/Ranger) or gender (Male/Female) |
-| `r` | Random name (on name screen) or re-roll stats and gold |
+| `r` | Random name / randomise appearance / re-roll stats and gold |
+| `1`-`4` | Cycle appearance options (hair, eyes, build, feature) |
 | `Enter` | Accept and continue |
 | Backspace | Delete character in name entry |
+
+Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 
 ### Movement (all map modes)
 | Key | Action |
@@ -310,10 +313,12 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 
 #### Spell Casting
 Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Each spell costs MP. Spells you can't afford are greyed out. Spells are colour-coded by school:
-- **Universal** (white): available to all classes
-- **Light** (yellow): healing, protection, holy damage
-- **Dark** (magenta): draining, cursing, summoning undead
-- **Nature** (green): elemental damage, beast forms, terrain control
+- **Universal** (white): no affiliation required
+- **Light** (yellow): healing, protection, holy damage. Requires Light affinity (gained from churches, Holy Island, Merlin)
+- **Dark** (magenta): draining, cursing, summoning undead. Requires Dark affinity (gained from Morgan le Fay, dark bargains)
+- **Nature** (green): elemental damage, beast forms, terrain control. Requires Nature affinity (gained from forests, Stonehenge, druids)
+
+Spells with an affiliation threshold will fail if your affinity is too low: "Your Light affinity is too low! (need 15, have 3)"
 
 **Spell types:**
 - **Damage** (Magic Missile, Fireball, Holy Strike, Dark Bolt, Lightning): damages the nearest visible monster
@@ -363,13 +368,27 @@ When a spell is replaced: "The new magic pushes an old spell from your mind... y
 - Level up (full MP restore)
 
 #### Leveling Up
-Gain XP by killing monsters and completing quests. When you reach the next XP threshold, you level up automatically:
+Gain XP by killing monsters and completing quests. When you reach the next XP threshold, a **level-up screen** appears where you **choose +1 to any stat** (STR, DEF, INT, or SPD):
 - HP and MP increase based on your class (Knight: +3 HP/+1 MP, Wizard: +1 HP/+4 MP, Ranger: +2 HP/+2 MP)
 - Full HP/MP restore on level-up
 - Carry capacity increases (+2 per level)
 - Max level: 20
 
-**XP thresholds:** 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000, 55000
+**Class perks at milestone levels:**
+
+| Level | Knight | Wizard | Ranger |
+|-------|--------|--------|--------|
+| 3 | +1 spell capacity | +1 spell capacity | +1 spell capacity |
+| 5 | +2 max HP per level | -1 MP cost on spells | Trap detection doubled |
+| 10 | Shield Bash (20% stun) | Mana Shield (absorb with MP) | Double Shot (30% double hit) |
+| 15 | Immunity to fear | Free spell/turn if INT>10 | Always act first |
+
+Knights also gain an extra +2 max HP per level from level 6 onwards.
+
+**XP thresholds:** 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000
+
+#### Appearance
+During character creation you customise your appearance (hair colour, eye colour, build, and distinguishing feature). These are purely cosmetic and displayed on the character creation screen. Press number keys to cycle options or `r` to randomise.
 
 ### Time & Travel
 - Time passes with every action. Each step advances the game clock.

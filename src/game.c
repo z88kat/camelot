@@ -11,6 +11,7 @@ static void ai_explode_on_death(GameState *gs, Entity *e);
 static void handle_character_create(GameState *gs, int key);
 static void render_character_create(GameState *gs);
 static void dungeon_update_fov(GameState *gs);
+static const char *chivalry_title(int chiv);
 
 /* XP thresholds for leveling (20 levels) */
 static const int xp_table[MAX_LEVELS] = {
@@ -834,21 +835,12 @@ static void advance_time(GameState *gs, int minutes) {
     }
 
     /* XP level-up check */
-    if (gs->player_level < MAX_LEVELS) {
+    if (gs->player_level < MAX_LEVELS && !gs->pending_levelup) {
         int next_xp = xp_table[gs->player_level];
         if (gs->xp >= next_xp) {
-            gs->player_level++;
-            /* HP/MP gains by class */
-            switch (gs->player_class) {
-            case CLASS_KNIGHT: gs->max_hp += 3; gs->max_mp += 1; break;
-            case CLASS_WIZARD: gs->max_hp += 1; gs->max_mp += 4; break;
-            case CLASS_RANGER: gs->max_hp += 2; gs->max_mp += 2; break;
-            }
-            gs->hp = gs->max_hp;
-            gs->mp = gs->max_mp;
-            gs->max_weight += 2;
+            gs->pending_levelup = true;
             log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                     "*** Level up! You are now level %d! ***", gs->player_level);
+                     "*** LEVEL UP! Press Enter to allocate your stat point! ***");
         }
     }
 }
@@ -4247,6 +4239,98 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Level-up stat choice screen */
+    if (gs->pending_levelup) {
+        ui_clear();
+        int row = 2;
+        gs->player_level++;
+
+        /* HP/MP gains by class */
+        int hp_gain = 0, mp_gain = 0;
+        switch (gs->player_class) {
+        case CLASS_KNIGHT: hp_gain = 3; mp_gain = 1; break;
+        case CLASS_WIZARD: hp_gain = 1; mp_gain = 4; break;
+        case CLASS_RANGER: hp_gain = 2; mp_gain = 2; break;
+        }
+        gs->max_hp += hp_gain;
+        gs->max_mp += mp_gain;
+        gs->hp = gs->max_hp;
+        gs->mp = gs->max_mp;
+        gs->max_weight += 2;
+
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "=== Level Up! Level %d ===", gs->player_level);
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        row++;
+        attron(COLOR_PAIR(CP_GREEN));
+        mvprintw(row++, 6, "+%d max HP   +%d max MP   +2 carry capacity", hp_gain, mp_gain);
+        attroff(COLOR_PAIR(CP_GREEN));
+        row++;
+
+        /* Class perks at milestone levels */
+        const char *perk_msg = NULL;
+        if (gs->player_level == 3) {
+            gs->max_spells_capacity++;
+            perk_msg = "Spell capacity +1!";
+        } else if (gs->player_level == 5) {
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: gs->max_hp += 2; perk_msg = "Knight perk: +2 max HP per level from now!"; break;
+            case CLASS_RANGER: perk_msg = "Ranger perk: trap detection range doubled!"; break;
+            case CLASS_WIZARD: perk_msg = "Wizard perk: -1 MP cost on all spells!"; break;
+            }
+        } else if (gs->player_level == 10) {
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: perk_msg = "Knight perk: Shield Bash! 20% stun on melee."; break;
+            case CLASS_RANGER: perk_msg = "Ranger perk: Double Shot! 30% double ranged hits."; break;
+            case CLASS_WIZARD: perk_msg = "Wizard perk: Mana Shield! Absorb damage with MP at low HP."; break;
+            }
+        } else if (gs->player_level == 15) {
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: perk_msg = "Knight mastery: Immunity to fear!"; break;
+            case CLASS_RANGER: perk_msg = "Ranger mastery: Always act first in combat!"; break;
+            case CLASS_WIZARD: perk_msg = "Wizard mastery: One free spell per turn (0 MP if INT > 10)!"; break;
+            }
+        }
+        /* Extra +2 HP for knights at level 5+ */
+        if (gs->player_level >= 6 && gs->player_class == CLASS_KNIGHT) {
+            gs->max_hp += 2;
+            gs->hp = gs->max_hp;
+        }
+
+        if (perk_msg) {
+            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            mvprintw(row++, 6, "%s", perk_msg);
+            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            row++;
+        }
+
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "Choose a stat to increase by +1:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row++;
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "[1] STR: %d -> %d", gs->str, gs->str + 1);
+        mvprintw(row++, 6, "[2] DEF: %d -> %d", gs->def, gs->def + 1);
+        mvprintw(row++, 6, "[3] INT: %d -> %d", gs->intel, gs->intel + 1);
+        mvprintw(row++, 6, "[4] SPD: %d -> %d", gs->spd, gs->spd + 1);
+        attroff(COLOR_PAIR(CP_CYAN));
+        ui_refresh();
+
+        /* Wait for valid choice */
+        while (1) {
+            int lk = ui_getkey();
+            if (lk == '1') { gs->str++; break; }
+            if (lk == '2') { gs->def++; break; }
+            if (lk == '3') { gs->intel++; break; }
+            if (lk == '4') { gs->spd++; break; }
+        }
+
+        gs->pending_levelup = false;
+        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                 "You are now level %d!", gs->player_level);
+        return;
+    }
+
     /* Quit -- but not in town mode (q leaves town instead) */
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         gs->running = false;
@@ -4297,6 +4381,22 @@ void game_handle_input(GameState *gs, int key) {
                 } else if (gs->mp < sp->mp_cost) {
                     log_add(&gs->log, gs->turn, CP_RED, "Not enough mana! (need %d MP)", sp->mp_cost);
                 } else {
+                    /* Check affiliation threshold */
+                    bool aff_ok = true;
+                    if (sp->threshold > 0) {
+                        int player_aff = 0;
+                        if (sp->affiliation == AFF_LIGHT)  player_aff = gs->light_affinity;
+                        if (sp->affiliation == AFF_DARK)   player_aff = gs->dark_affinity;
+                        if (sp->affiliation == AFF_NATURE) player_aff = gs->nature_affinity;
+                        if (player_aff < sp->threshold) {
+                            const char *aff_names[] = { "Universal", "Light", "Dark", "Nature" };
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "Your %s affinity is too low! (need %d, have %d)",
+                                     aff_names[sp->affiliation], sp->threshold, player_aff);
+                            aff_ok = false;
+                        }
+                    }
+                    if (aff_ok) {
                     /* Cast the spell */
                     gs->mp -= sp->mp_cost;
                     switch (sp->effect) {
@@ -4474,6 +4574,7 @@ void game_handle_input(GameState *gs, int key) {
                         log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s!", sp->name);
                         break;
                     }
+                    } /* end if (aff_ok) */
                 }
             }
         }
@@ -4822,6 +4923,102 @@ void game_handle_input(GameState *gs, int key) {
             attroff(COLOR_PAIR(CP_GRAY));
         }
 
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(term_rows - 1, 2, "Press any key to close.");
+        attroff(COLOR_PAIR(CP_GRAY));
+        ui_refresh();
+        ui_getkey();
+        return;
+    }
+
+    /* Character sheet (@ key) */
+    if (key == '@') {
+        ui_clear();
+        int row = 1;
+        const char *class_names[] = { "Knight", "Wizard", "Ranger" };
+        const char *gender_names[] = { "Male", "Female" };
+        const char *hair[] = { "Black", "Brown", "Auburn", "Red", "Blonde", "Grey", "White" };
+        const char *eyes[] = { "Blue", "Green", "Brown", "Grey", "Hazel", "Amber" };
+        const char *build[] = { "Lean", "Average", "Stocky", "Tall", "Short", "Athletic" };
+        const char *feature[] = { "Scar across cheek", "Braided hair", "Missing tooth",
+                                   "Weathered face", "Freckles", "Piercing gaze",
+                                   "Noble bearing", "Calloused hands" };
+
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "=== Character Sheet ===");
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        row++;
+
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "%s %s %s", gender_names[gs->player_gender],
+                 class_names[gs->player_class], gs->player_name);
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 4, "Level %d  |  %s  |  Chivalry: %d (%s)",
+                 gs->player_level, chivalry_title(gs->chivalry),
+                 gs->chivalry, chivalry_title(gs->chivalry));
+        attroff(COLOR_PAIR(CP_GRAY));
+        row++;
+
+        /* Appearance */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "Appearance:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "Hair:    %s", hair[gs->appearance[0] % 7]);
+        mvprintw(row++, 6, "Eyes:    %s", eyes[gs->appearance[1] % 6]);
+        mvprintw(row++, 6, "Build:   %s", build[gs->appearance[2] % 6]);
+        mvprintw(row++, 6, "Feature: %s", feature[gs->appearance[3] % 8]);
+        attroff(COLOR_PAIR(CP_CYAN));
+        row++;
+
+        /* Stats */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "Stats:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row++, 6, "HP:  %d/%d    MP:  %d/%d", gs->hp, gs->max_hp, gs->mp, gs->max_mp);
+        mvprintw(row++, 6, "STR: %-3d     DEF: %-3d", gs->str, gs->def);
+        mvprintw(row++, 6, "INT: %-3d     SPD: %-3d", gs->intel, gs->spd);
+        mvprintw(row++, 6, "Gold: %d     Weight: %d/%d", gs->gold, gs->weight, gs->max_weight);
+        attroff(COLOR_PAIR(CP_WHITE));
+        row++;
+
+        /* Affinities */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "Affinities:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        attron(COLOR_PAIR(CP_YELLOW));
+        mvprintw(row, 6, "Light: %d", gs->light_affinity);
+        attroff(COLOR_PAIR(CP_YELLOW));
+        attron(COLOR_PAIR(CP_MAGENTA));
+        mvprintw(row, 20, "Dark: %d", gs->dark_affinity);
+        attroff(COLOR_PAIR(CP_MAGENTA));
+        attron(COLOR_PAIR(CP_GREEN));
+        mvprintw(row++, 33, "Nature: %d", gs->nature_affinity);
+        attroff(COLOR_PAIR(CP_GREEN));
+        row++;
+
+        /* Combat */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, "Combat:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row++, 6, "XP: %d    Kills: %d    Quests: %d/%d",
+                 gs->xp, gs->kills,
+                 quest_count_completed(&gs->quests), gs->quests.num_quests);
+        if (gs->shield_absorb > 0)
+            mvprintw(row++, 6, "Shield absorb: %d remaining", gs->shield_absorb);
+        if (gs->horse_type > 0) {
+            const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
+            mvprintw(row++, 6, "Mount: %s%s", hnames[gs->horse_type],
+                     gs->riding ? " (riding)" : " (dismounted)");
+        }
+        mvprintw(row++, 6, "Spells: %d/%d known", gs->num_spells, gs->max_spells_capacity);
+        attroff(COLOR_PAIR(CP_WHITE));
+
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
         attron(COLOR_PAIR(CP_GRAY));
         mvprintw(term_rows - 1, 2, "Press any key to close.");
         attroff(COLOR_PAIR(CP_GRAY));
@@ -5196,13 +5393,47 @@ static void render_character_create(GameState *gs) {
         mvprintw(row++, 6, "Press [r] for a random name.  Press Backspace to delete.");
         attroff(COLOR_PAIR(CP_GRAY));
     } else if (gs->create_step == 3) {
+        /* Appearance */
+        const char *hair[] = { "Black", "Brown", "Auburn", "Red", "Blonde", "Grey", "White" };
+        const char *eyes[] = { "Blue", "Green", "Brown", "Grey", "Hazel", "Amber" };
+        const char *build[] = { "Lean", "Average", "Stocky", "Tall", "Short", "Athletic" };
+        const char *feature[] = { "Scar across cheek", "Braided hair", "Missing tooth",
+                                   "Weathered face", "Freckles", "Piercing gaze",
+                                   "Noble bearing", "Calloused hands" };
+        int nhair = 7, neyes = 6, nbuild = 6, nfeat = 8;
+
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "Customise your appearance:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row += 2;
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "[1] Hair:    %-12s", hair[gs->appearance[0] % nhair]);
+        mvprintw(row++, 6, "[2] Eyes:    %-12s", eyes[gs->appearance[1] % neyes]);
+        mvprintw(row++, 6, "[3] Build:   %-12s", build[gs->appearance[2] % nbuild]);
+        mvprintw(row++, 6, "[4] Feature: %-20s", feature[gs->appearance[3] % nfeat]);
+        attroff(COLOR_PAIR(CP_CYAN));
+        row++;
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 6, "Press 1-4 to cycle options. [r] to randomise all.");
+        mvprintw(row++, 6, "Press [Enter] to continue.");
+        attroff(COLOR_PAIR(CP_GRAY));
+    } else if (gs->create_step == 4) {
         /* Stats roll */
         const char *class_name[] = { "Knight", "Wizard", "Ranger" };
         const char *gender_name[] = { "Male", "Female" };
+        const char *hair[] = { "Black", "Brown", "Auburn", "Red", "Blonde", "Grey", "White" };
+        const char *eyes[] = { "Blue", "Green", "Brown", "Grey", "Hazel", "Amber" };
+        const char *build[] = { "Lean", "Average", "Stocky", "Tall", "Short", "Athletic" };
         attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         mvprintw(row, 4, "%s - %s %s", gs->player_name,
                  gender_name[gs->player_gender], class_name[gs->player_class]);
         attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row++;
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row, 6, "%s hair, %s eyes, %s",
+                 hair[gs->appearance[0] % 7], eyes[gs->appearance[1] % 6],
+                 build[gs->appearance[2] % 6]);
+        attroff(COLOR_PAIR(CP_GRAY));
         row += 2;
         attron(COLOR_PAIR(CP_CYAN));
         mvprintw(row++, 6, "STR: %-3d  DEF: %-3d", gs->str, gs->def);
@@ -5216,7 +5447,7 @@ static void render_character_create(GameState *gs) {
         mvprintw(row++, 6, "Press [r] to re-roll stats.");
         mvprintw(row++, 6, "Press [Enter] to accept and begin.");
         attroff(COLOR_PAIR(CP_GRAY));
-    } else if (gs->create_step == 4) {
+    } else if (gs->create_step == 5) {
         /* Story screen */
         row = 4;
         attron(COLOR_PAIR(CP_YELLOW));
@@ -5291,7 +5522,8 @@ static void handle_character_create(GameState *gs, int key) {
         if (key == '\n' || key == '\r' || key == KEY_ENTER) {
             if (len > 0) {
                 gs->create_step = 3;
-                roll_stats(gs);
+                /* Randomise initial appearance */
+                for (int i = 0; i < 4; i++) gs->appearance[i] = rng_range(0, 20);
             }
         } else if (key == 'r' && len == 0) {
             snprintf(gs->player_name, MAX_NAME, "%s", random_name(gs->player_gender));
@@ -5302,13 +5534,24 @@ static void handle_character_create(GameState *gs, int key) {
             gs->player_name[len + 1] = '\0';
         }
     } else if (gs->create_step == 3) {
+        /* Appearance */
+        if (key == '1') gs->appearance[0]++;
+        else if (key == '2') gs->appearance[1]++;
+        else if (key == '3') gs->appearance[2]++;
+        else if (key == '4') gs->appearance[3]++;
+        else if (key == 'r') { for (int i = 0; i < 4; i++) gs->appearance[i] = rng_range(0, 20); }
+        else if (key == '\n' || key == '\r' || key == KEY_ENTER) {
+            gs->create_step = 4;
+            roll_stats(gs);
+        }
+    } else if (gs->create_step == 4) {
         /* Stats */
         if (key == 'r') {
             roll_stats(gs);
         } else if (key == '\n' || key == '\r' || key == KEY_ENTER) {
-            gs->create_step = 4;
+            gs->create_step = 5;
         }
-    } else if (gs->create_step == 4) {
+    } else if (gs->create_step == 5) {
         /* Story -- any key starts game */
         finalize_character(gs);
     }
