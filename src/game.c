@@ -1734,11 +1734,18 @@ static void handle_overworld_input(GameState *gs, int key) {
             log_add(&gs->log, gs->turn, CP_BROWN, "You leave the cottage.");
 
         } else if (loc && loc->type == LOC_MAGIC_CIRCLE) {
+            /* Renew power after 10-30 days */
+            if (loc->visited && (gs->day - loc->visited_day) >= 10 + (loc->id % 21)) {
+                loc->visited = false;
+            }
             if (loc->visited) {
+                int days_left = 10 + (loc->id % 21) - (gs->day - loc->visited_day);
+                if (days_left < 1) days_left = 1;
                 log_add(&gs->log, gs->turn, CP_GRAY,
-                         "The magic circle has faded. Its power is spent.");
+                         "The magic circle has faded. It may renew in %d days.", days_left);
             } else {
                 loc->visited = true;
+                loc->visited_day = gs->day;
                 int circle_roll = rng_range(1, 100);
 
                 if (circle_roll <= 25) {
@@ -4821,19 +4828,19 @@ static void roll_stats(GameState *gs) {
     gs->intel = rng_range(3, 8);
     gs->spd = rng_range(3, 8);
 
-    /* Apply class bonuses */
+    /* Apply class bonuses with random HP/MP variation */
     switch (gs->player_class) {
     case CLASS_KNIGHT:
         gs->str += 2; gs->def += 2;
-        gs->max_hp = 30; gs->max_mp = 8;
+        gs->max_hp = rng_range(26, 34); gs->max_mp = rng_range(6, 10);
         break;
     case CLASS_WIZARD:
         gs->intel += 3; gs->spd += 1;
-        gs->max_hp = 18; gs->max_mp = 30;
+        gs->max_hp = rng_range(14, 22); gs->max_mp = rng_range(26, 34);
         break;
     case CLASS_RANGER:
         gs->str += 1; gs->spd += 2;
-        gs->max_hp = 24; gs->max_mp = 15;
+        gs->max_hp = rng_range(20, 28); gs->max_mp = rng_range(12, 18);
         break;
     }
 
