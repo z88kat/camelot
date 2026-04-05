@@ -21,21 +21,31 @@ void fov_compute(Tile *tiles, int map_w, int map_h, Vec2 origin, int radius) {
         tiles[origin.y * map_w + origin.x].revealed = true;
     }
 
+    /* Terminal cells are roughly twice as tall as wide, so we scale the
+       vertical component to make the FOV appear circular on screen. */
+    double aspect = 0.5;  /* height/width ratio of a terminal cell */
+
     /* Cast rays in 360 degrees */
-    int num_rays = 360;
+    int num_rays = 720;
+    double radius_sq = (double)radius * radius;
     for (int r = 0; r < num_rays; r++) {
         double angle = (double)r * 3.14159265 * 2.0 / num_rays;
         double dx = cos(angle);
-        double dy = sin(angle);
+        double dy = sin(angle) * aspect;
 
         double fx = (double)origin.x + 0.5;
         double fy = (double)origin.y + 0.5;
 
-        for (int step = 0; step <= radius; step++) {
+        for (int step = 0; step <= radius * 2; step++) {
             int tx = (int)fx;
             int ty = (int)fy;
 
             if (tx < 0 || tx >= map_w || ty < 0 || ty >= map_h) break;
+
+            /* Check true distance with aspect correction */
+            double ddx = (double)(tx - origin.x);
+            double ddy = (double)(ty - origin.y) / aspect;
+            if (ddx * ddx + ddy * ddy > radius_sq) break;
 
             Tile *t = &tiles[ty * map_w + tx];
             t->visible = true;

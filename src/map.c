@@ -865,6 +865,20 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
         int my = rng_range(5, MAP_HEIGHT - mh - 5);
 
         /* DFS maze carver */
+        /* Check maze doesn't overlap stairs */
+        bool overlaps_stairs = false;
+        for (int si = 0; si < level->num_stairs_up; si++) {
+            Vec2 su = level->stairs_up[si];
+            if (su.x >= mx && su.x < mx + mw && su.y >= my && su.y < my + mh)
+                overlaps_stairs = true;
+        }
+        for (int si = 0; si < level->num_stairs_down; si++) {
+            Vec2 sd = level->stairs_down[si];
+            if (sd.x >= mx && sd.x < mx + mw && sd.y >= my && sd.y < my + mh)
+                overlaps_stairs = true;
+        }
+        if (overlaps_stairs) goto skip_maze;
+
         /* Initialize maze area as walls */
         for (int cy = my; cy < my + mh; cy++)
             for (int cx = mx; cx < mx + mw; cx++) {
@@ -958,6 +972,25 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
             }
         }
     }
+    skip_maze: ;
+
+    /* Re-place stairs in case any decorations/hazards/maze overwrote them */
+    for (int si = 0; si < level->num_stairs_up; si++) {
+        Vec2 su = level->stairs_up[si];
+        Tile *st = &level->tiles[su.y][su.x];
+        st->type = TILE_STAIRS_UP; st->glyph = '<'; st->color_pair = CP_WHITE;
+        st->passable = true; st->blocks_sight = false;
+    }
+    for (int si = 0; si < level->num_stairs_down; si++) {
+        Vec2 sd = level->stairs_down[si];
+        Tile *st = &level->tiles[sd.y][sd.x];
+        if (depth >= max_depth - 1) {
+            st->type = TILE_PORTAL; st->glyph = '0'; st->color_pair = CP_CYAN_BOLD;
+        } else {
+            st->type = TILE_STAIRS_DOWN; st->glyph = '>'; st->color_pair = CP_WHITE;
+        }
+        st->passable = true; st->blocks_sight = false;
+    }
 
     /* Reachability validation: ensure stairs are connected */
     {
@@ -991,21 +1024,29 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
         for (int si = 0; si < level->num_stairs_down; si++) {
             int dx = level->stairs_down[si].x, dy = level->stairs_down[si].y;
             if (!visited[dy][dx]) {
-                /* Carve a path from stairs_up[0] to unreachable stairs_down */
-                int cx = sx, cy = sy;
-                while (cx != dx || cy != dy) {
-                    level->tiles[cy][cx].type = TILE_FLOOR;
-                    level->tiles[cy][cx].glyph = '.';
-                    level->tiles[cy][cx].color_pair = CP_WHITE;
-                    level->tiles[cy][cx].passable = true;
-                    level->tiles[cy][cx].blocks_sight = false;
-                    if (abs(dx - cx) >= abs(dy - cy))
-                        cx += (dx > cx) ? 1 : -1;
-                    else
-                        cy += (dy > cy) ? 1 : -1;
-                }
+                /* Carve a proper L-shaped corridor from stairs_up[0] to
+                   unreachable stairs_down (same style as BSP corridors) */
+                carve_corridor(level->tiles, sx, sy, dx, dy);
             }
         }
+    }
+
+    /* Re-place stairs AGAIN after reachability carving (it can overwrite them) */
+    for (int si = 0; si < level->num_stairs_up; si++) {
+        Vec2 su = level->stairs_up[si];
+        Tile *st = &level->tiles[su.y][su.x];
+        st->type = TILE_STAIRS_UP; st->glyph = '<'; st->color_pair = CP_WHITE;
+        st->passable = true; st->blocks_sight = false;
+    }
+    for (int si = 0; si < level->num_stairs_down; si++) {
+        Vec2 sd = level->stairs_down[si];
+        Tile *st = &level->tiles[sd.y][sd.x];
+        if (depth >= max_depth - 1) {
+            st->type = TILE_PORTAL; st->glyph = '0'; st->color_pair = CP_CYAN_BOLD;
+        } else {
+            st->type = TILE_STAIRS_DOWN; st->glyph = '>'; st->color_pair = CP_WHITE;
+        }
+        st->passable = true; st->blocks_sight = false;
     }
 
     /* Place traps */

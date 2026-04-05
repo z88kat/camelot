@@ -1788,10 +1788,10 @@ static void handle_overworld_input(GameState *gs, int key) {
                     log_add(&gs->log, gs->turn, CP_RED_BOLD, "This level is DEADLY. Tread carefully!");
             }
 
-            /* Place player next to stairs up */
+            /* Place player on stairs up */
             Vec2 su = dl->stairs_up[0];
             gs->player_pos = su;
-            /* Try adjacent floor tile */
+            /* Try adjacent floor tile so player isn't standing on the < */
             for (int d = 0; d < 8; d++) {
                 int px = su.x + dir_dx[d];
                 int py = su.y + dir_dy[d];
