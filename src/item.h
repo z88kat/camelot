@@ -18,6 +18,7 @@ typedef enum {
     ITYPE_AMULET,
     ITYPE_GEM,
     ITYPE_TREASURE,
+    ITYPE_SPELL_SCROLL,
     ITYPE_QUEST,
     ITYPE_TOOL,
     ITYPE_GOLD

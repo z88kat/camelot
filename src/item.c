@@ -110,6 +110,7 @@ static ItemType parse_item_type(const char *s) {
     if (strcmp(s, "amulet") == 0) return ITYPE_AMULET;
     if (strcmp(s, "gem") == 0) return ITYPE_GEM;
     if (strcmp(s, "treasure") == 0) return ITYPE_TREASURE;
+    if (strcmp(s, "spell_scroll") == 0) return ITYPE_SPELL_SCROLL;
     if (strcmp(s, "potion") == 0) return ITYPE_POTION;
     if (strcmp(s, "scroll") == 0) return ITYPE_SCROLL;
     if (strcmp(s, "food") == 0) return ITYPE_FOOD;
@@ -212,8 +213,9 @@ const char *item_type_name(ItemType type) {
     case ITYPE_FOOD:    return "Food";
     case ITYPE_AMULET:  return "Amulet";
     case ITYPE_GEM:     return "Gem";
-    case ITYPE_TREASURE:return "Treasure";
-    case ITYPE_QUEST:   return "Quest";
+    case ITYPE_TREASURE:    return "Treasure";
+    case ITYPE_SPELL_SCROLL:return "Spell Scroll";
+    case ITYPE_QUEST:       return "Quest";
     case ITYPE_TOOL:    return "Tool";
     case ITYPE_GOLD:    return "Gold";
     default:            return "Item";

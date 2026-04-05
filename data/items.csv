@@ -92,6 +92,33 @@ Tinderbox,(,brown,tool,1,10,10,0,0,3
 Pickaxe,(,gray,tool,1,30,15,0,0,3
 Rope,(,brown,tool,1,20,10,0,0,3
 #
+# ===== Spell Scrolls (power = spell index in spells.csv) =====
+# Learn: read to permanently learn the spell. Consumed on use.
+Scroll: Magic Missile,?,cyan,spell_scroll,0,5,40,1,0,3
+Scroll: Light,?,yellow,spell_scroll,2,5,30,1,0,3
+Scroll: Shield,?,white,spell_scroll,3,5,45,1,0,3
+Scroll: Teleport,?,cyan,spell_scroll,4,5,80,3,0,1
+Scroll: Haste,?,green,spell_scroll,7,5,70,4,0,2
+Scroll: Blink,?,cyan,spell_scroll,8,5,50,2,0,2
+Scroll: Fireball,?,red,spell_scroll,10,5,100,5,0,1
+Scroll: Heal,?,yellow,spell_scroll,11,5,45,1,0,3
+Scroll: Greater Heal,?,yellow,spell_scroll,12,5,90,4,0,1
+Scroll: Holy Strike,?,yellow,spell_scroll,13,5,60,3,0,2
+Scroll: Divine Shield,?,yellow,spell_scroll,14,5,65,3,0,2
+Scroll: Smite,?,yellow,spell_scroll,16,5,60,3,0,2
+Scroll: Turn Undead,?,yellow,spell_scroll,19,5,55,3,0,2
+Scroll: Blessing,?,yellow,spell_scroll,20,5,70,4,0,1
+Scroll: Drain Life,?,magenta,spell_scroll,24,5,60,3,0,2
+Scroll: Shadow Step,?,magenta,spell_scroll,25,5,55,3,0,2
+Scroll: Curse,?,magenta,spell_scroll,26,5,55,3,0,2
+Scroll: Fear,?,magenta,spell_scroll,28,5,55,3,0,2
+Scroll: Dark Bolt,?,magenta,spell_scroll,29,5,80,4,0,1
+Scroll: Entangle,?,green,spell_scroll,37,5,50,2,0,2
+Scroll: Lightning,?,green,spell_scroll,38,5,70,3,0,2
+Scroll: Bark Skin,?,green,spell_scroll,41,5,55,3,0,2
+Scroll: Regrowth,?,green,spell_scroll,45,5,55,3,0,2
+Scroll: Walk on Water,?,green,spell_scroll,49,5,65,5,0,1
+#
 # ===== Gems =====
 Rough Quartz,*,white,gem,0,2,15,0,5,4
 Amethyst,*,magenta,gem,0,2,30,1,7,3

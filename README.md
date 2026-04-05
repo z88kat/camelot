@@ -9,19 +9,21 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 ## Current State
 
 **Implemented (Phases 1-11):**
-- Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling
+- Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling, random gold (30-200)
 - 50-spell system with Light, Dark, Nature, and Universal schools
 - A* pathfinding and FSM AI for monsters (IDLE/CHASE/FLEE states)
 - Monster special abilities: breath weapons, summoning, healing, debuffs, explode-on-death, fear auras
 - Overworld map of England (500x250 tiles) with procedural terrain, coastlines, rivers, lakes, mountains, islands
 - 14 towns, 16 active castles, 3 abandoned castles, 8 abbeys with walkable interior maps
 - Day/night cycle, regional weather, 30-day lunar cycle
-- Town services: Inn, Church, Blacksmith, Apothecary, Baker, Pawnbroker, Mystic, Bank, Well, Stable
+- Town services: Inn, Church, Blacksmith, Apothecary, Baker, Jeweller, Pawnbroker, Mystic, Bank, Well, Stable
 - BSP-generated dungeons (160x80 tiles, scrollable) with multiple levels
 - 85+ monster types, bump-to-attack combat with hit/miss rolls and critical hits
-- 60+ items: weapons, armor, potions, food, scrolls, tools
-- Weight-based inventory with encumbrance
+- 150+ items: weapons, armor, potions, food, scrolls, tools, 25 rings, 25 amulets, 20 gems, 20 treasures
+- Weight-based inventory with encumbrance and 9 equipment slots (including amulet)
 - Quest system with 15 side quests
+- Leveling system with 20 levels and class-based HP/MP progression
+- Chivalry system (0-100) with titles from Knave to Paragon of Virtue
 - All game data loaded from CSV files (monsters, items, spells, quests, towns, locations, creatures, names)
 
 ## Terrain Guide
@@ -87,9 +89,10 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 | `/` | Brown | Open door / gate |
 | `I` | Brown | Innkeeper |
 | `P` | White | Priest |
-| `$` | Yellow | Blacksmith (equipment) |
-| `!` | Magenta | Apothecary (potions/scrolls) |
+| `$` | Yellow | Blacksmith (weapons & armor) |
+| `!` | Magenta | Apothecary (potions & scrolls) |
 | `%` | Brown | Baker (food) |
+| `*` | Bright cyan | Jeweller (rings, amulets & gems) |
 | `P` | Green | Pawnbroker (buys/sells anything) |
 | `?` | Magenta | Mystic |
 | `B` | Yellow | Banker |
@@ -138,6 +141,24 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 | `-` | Gray | Coffin | Walk on: 40% gold, 30% attack, 30% empty |
 | `O` | Gray | Pillar/stalagmite | Impassable, blocks movement |
 
+### Dungeon Items
+| Symbol | Colour | Item Type |
+|--------|--------|-----------|
+| `\|` | Various | Weapon (swords, axes, maces, staves) |
+| `[` | Various | Body armor |
+| `)` | Various | Shield |
+| `^` | Various | Helmet |
+| `]` | Various | Boots or gloves |
+| `!` | Various | Potion |
+| `?` | Various | Scroll |
+| `%` | Various | Food |
+| `(` | Various | Tool (torch, lockpick, pickaxe) |
+| `o` | Various | Ring (magical, equippable) |
+| `"` | Various | Amulet (magical, equippable) |
+| `*` | Various | Gem (valuable treasure) |
+| `&` | Various | Treasure (Golden Teddy Bear, Crystal Skull, etc.) |
+| `$` | Yellow | Gold pile |
+
 ### Dungeons
 There are 9 named dungeons spread across England, each with a randomised depth:
 
@@ -161,7 +182,7 @@ Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors.
 | Key | Action |
 |-----|--------|
 | `1` `2` `3` | Select class (Knight/Wizard/Ranger) or gender (Male/Female) |
-| `r` | Random name (on name screen) or re-roll stats |
+| `r` | Random name (on name screen) or re-roll stats and gold |
 | `Enter` | Accept and continue |
 | Backspace | Delete character in name entry |
 
@@ -200,14 +221,19 @@ Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors.
 | `b` | Buy a beer (local brew, risk drunkenness!) |
 | `q` | Leave the inn |
 
-#### Shops (Blacksmith, Apothecary, Baker, Pawnbroker)
+#### Shops (Blacksmith, Apothecary, Baker, Jeweller, Pawnbroker)
 | Key | Action |
 |-----|--------|
 | `a`-`z` | Buy an item from the list |
 | `S` | Switch to sell mode (sell from your inventory) |
 | `q` | Leave the shop |
 
-Stock is randomised: Blacksmith has 6-12 items, Apothecary 6-12, Baker 3-6, Pawnbroker 8-16.
+Stock is randomised each visit:
+- **Blacksmith**: 6-12 weapons and armor
+- **Apothecary**: 6-12 potions and scrolls
+- **Baker**: 3-6 food items
+- **Jeweller**: 4-10 rings, amulets, and gems
+- **Pawnbroker**: 8-16 items of any type
 
 #### Church
 | Key | Action |
@@ -263,30 +289,34 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 ## Player Guide
 
 ### Getting Started
-1. **Create your character**: choose a class, gender, name, and roll your stats. Each class plays differently:
+1. **Create your character**: choose a class, gender, name, and roll your stats. Starting gold is random (30-200). Each class plays differently:
    - **Knight**: High HP (30), strong melee (+2 STR/DEF), limited magic (4 spells, 8 MP). Starts with Longsword, Chainmail, Shield spell.
    - **Wizard**: Low HP (18), powerful magic (15 spells, 30 MP, +3 INT). Starts with Wooden Staff, Tattered Robes, Magic Missile.
    - **Ranger**: Balanced (24 HP, 6 spells, 15 MP, +2 SPD). Starts with Short Sword, Leather Armor, Detect Traps.
 2. You start at **Camelot** on the overworld. Walk to the yellow `*` and press **Enter** to visit the town.
-3. Inside the town, **bump into NPCs** to interact -- Innkeeper, Blacksmith, Baker, Apothecary, etc.
+3. Inside the town, **bump into NPCs** to interact -- Innkeeper, Blacksmith, Baker, Jeweller, etc.
 4. Walk through the **gate** (`/` at the bottom) to leave and explore the world.
 5. Visit **Camelot Castle** `#` to meet the King in the Throne Room.
 
 ### Classes & Spells
 
 #### Spell Casting
-Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Each spell costs MP.
+Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Each spell costs MP. Spells are colour-coded by school:
+- **Universal** (white): available to all classes
+- **Light** (yellow): healing, protection, holy damage
+- **Dark** (magenta): draining, cursing, summoning undead
+- **Nature** (green): elemental damage, beast forms, terrain control
 
 **Spell types:**
 - **Damage** (Magic Missile, Fireball, Holy Strike, Dark Bolt, Lightning): damages the nearest visible monster
 - **Heal** (Heal, Greater Heal, Regrowth): restores your HP
 - **Shield**: absorbs incoming damage until depleted
-- **Buff** (Divine Shield, Beast Form, Haste, Blessing): temporarily boosts your stats
+- **Buff** (Divine Shield, Beast Form, Haste, Blessing): temporarily boosts your stats (+3 for N turns)
 - **Teleport** (Teleport, Blink): moves you to a random safe tile
 - **Reveal** (Map, Holy Light): reveals the entire dungeon floor
 - **Detect** (Detect Traps, Identify): reveals hidden traps
 - **Fear** (Fear, Turn Undead, Nightmare): forces nearby enemies to flee
-- **Drain** (Drain Life, Sacred Flame, Soul Steal): damages an enemy and heals you
+- **Drain** (Drain Life, Sacred Flame, Soul Steal): damages an enemy and heals you for half the damage dealt
 
 #### MP Regeneration
 - **1 MP every 20 turns** (passive regeneration)
@@ -294,21 +324,24 @@ Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Ea
 - Mana Potions (10 MP), Greater Mana Potions (30 MP)
 - Camping on overworld (restores 50% MP)
 - Praying at a church (restores 25% MP)
+- Level up (full MP restore)
 
 #### Leveling Up
-Gain XP by killing monsters and completing quests. When you reach the next XP threshold, you level up:
-- HP and MP increase based on your class
+Gain XP by killing monsters and completing quests. When you reach the next XP threshold, you level up automatically:
+- HP and MP increase based on your class (Knight: +3 HP/+1 MP, Wizard: +1 HP/+4 MP, Ranger: +2 HP/+2 MP)
 - Full HP/MP restore on level-up
 - Carry capacity increases (+2 per level)
 - Max level: 20
+
+**XP thresholds:** 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000, 55000
 
 ### Time & Travel
 - Time passes with every action. Each step advances the game clock.
 - **Dungeon movement**: 1 minute per step.
 - **Overworld movement**: varies by terrain. Roads (5 min), grassland (10 min), forest (20 min), hills (25 min), swamp (35 min).
 - **Stick to roads** when possible -- they are 7x faster than swamps.
-- **Day/night cycle**: shops close at night, castles lock their gates, visibility drops.
-- **Weather** changes as you travel. Affects visibility and travel speed.
+- **Day/night cycle**: shops close at night, castles lock their gates, visibility drops. Time shown on status bar: [Dawn], [Morning], [Midday], [Afternoon], [Dusk], [Evening], [Night].
+- **Weather** changes as you travel. Affects visibility and travel speed. Scotland is colder, Wales is foggy, Whitby is always raining.
 
 ### Camping
 Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP.
@@ -327,6 +360,7 @@ Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto l
 - Press `<` on stairs up to ascend. On level 1, ascending returns to the overworld.
 - Press `M` for a **dungeon minimap**.
 - Levels are **persistent** -- items stay where you left them.
+- **Level feelings** on entry warn you of danger: "This seems quiet" to "This level is DEADLY!"
 
 ### Combat
 - **Bump-to-attack**: walk into an enemy to attack.
@@ -334,6 +368,7 @@ Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto l
 - **Critical hits**: 10% chance for double damage.
 - **Damage**: your STR + weapon power + random(-2,2) - enemy DEF - armor (minimum 1).
 - **Shield spell**: absorbs damage before it hits your HP.
+- **Equipped rings and amulets** add their power bonus to your stats.
 
 #### Monster AI
 Monsters use A* pathfinding to chase you through corridors and around obstacles.
@@ -346,25 +381,62 @@ Monsters use A* pathfinding to chase you through corridors and around obstacles.
   - **Necromancers/Witches/Sorcerers**: summon allies (skeletons, spiders, imps)
   - **Troll Shamans/Dark Monks**: heal nearby wounded allies
   - **Witches/Enchantresses**: curse you (random -1 stat)
-  - **Death Knights/Demons**: fear aura (dread message when nearby)
+  - **Death Knights/Demons/Mordred**: fear aura (dread message when nearby)
   - **Imps**: explode on death (2-5 fire damage to adjacent tiles)
   - **Black Knights/Hellhounds**: always chase, never idle
 
 ### Items & Inventory
-- Press **`i`** to open your inventory.
-- **Equipment slots**: Weapon, Armor, Shield, Helmet, Boots, Gloves, Ring 1, Ring 2.
-- Select an item with `a`-`z`, then: **`e`** equip, **`d`** drop, **`u`** use (potions/food).
-- Press **`g`** in dungeons to pick up items on the ground. Gold goes straight to your wallet.
-- Items: weapons `|`, armor `[`, shields `)`, helmets `^`, boots/gloves `]`, potions `!`, food `%`, scrolls `?`, tools `(`, gold `$`.
+Press **`i`** to open your inventory.
+
+**Equipment slots** (9 total):
+| Slot | Item Types |
+|------|-----------|
+| Weapon | Swords, axes, maces, staves |
+| Armor | Body armor (robes to plate) |
+| Shield | Bucklers to tower shields |
+| Helmet | Caps and helms |
+| Boots | Leather or iron boots |
+| Gloves | Gloves and gauntlets |
+| Ring 1 | Magical rings |
+| Ring 2 | Magical rings |
+| Amulet | Magical amulets |
+
+Select an item with `a`-`z`, then: **`e`** equip, **`d`** drop, **`u`** use (potions/food).
+Press **`g`** in dungeons to pick up items on the ground. Gold goes straight to your wallet.
+
+#### Gems & Treasures
+Gems and treasures are found in dungeons and cannot be equipped -- they exist purely as valuable loot. Sell them at the **Pawnbroker** for gold.
+
+**Gems** (`*`): Rough Quartz (15g) to Star Sapphire (300g). 20 types, rarer gems found deeper.
+
+**Treasures** (`&`): Unique collectibles like Golden Teddy Bear (150g), Crystal Skull (250g), Unicorn Horn (350g), Mermaid's Tear (200g), Jewelled Crown (200g), and more. 20 types.
+
+#### Rings & Amulets
+Magical rings and amulets enhance your stats when equipped. Each has a **power bonus** (+1 to +4) and a **minimum level requirement** (the `min_depth` value in the data). Higher-level items are rarer and more powerful.
+
+**Rings** (`o`, equip in Ring 1 or Ring 2): 25 types
+- Basic: Ring of Protection, Ring of Strength, Ring of Defence, Ring of Speed, Ring of Intelligence (+1 each, level 1-2)
+- Advanced: Ring of Fortitude, Ring of Might, Ring of Agility, Ring of Wisdom (+2, level 4-5)
+- Legendary: Ring of the Bear, Ring of the Eagle, Ring of the Serpent, Ring of the Wolf (+3, level 7)
+- Unique: Ring of the Grail (+4, level 10)
+- Resist rings: Fire Resist, Frost Resist, Poison Resist (+2, level 3)
+- Special: Ring of Regeneration, Ring of Mana, Ring of Shadows
+
+**Amulets** (`"`, equip in Amulet slot): 25 types
+- Basic: Amulet of Warding, Vigour, Grace, Insight (+1, level 1-2)
+- Advanced: Amulet of Valour, Endurance, the Arcane, the Hunter (+2, level 4-5)
+- Legendary: Amulet of the Crusader, the Mage, the Dragon (+3, level 7-8)
+- Unique: Amulet of the Lake (+4, level 10), Amulet of Eternity (+4, level 12)
 
 ### Shops
 Bump into shop NPCs to buy/sell:
 - **Blacksmith** `$` (yellow): weapons and armor (6-12 items)
 - **Apothecary** `!` (magenta): potions and scrolls (6-12 items)
 - **Baker** `%` (brown): food items (3-6 items)
-- **Pawnbroker** `P` (green): buys/sells anything (8-16 items)
+- **Jeweller** `*` (bright cyan): rings, amulets, and gems (4-10 items)
+- **Pawnbroker** `P` (green): buys/sells anything including gems and treasures (8-16 items)
 
-Stock is randomised each visit.
+Stock is randomised each visit. Not every town has every shop -- major towns (Camelot, London, York, Winchester) have the most services. Jewellers are found in larger towns and select castles.
 
 ### Chivalry
 Your chivalry score (0-100) determines how NPCs treat you and grants a title:
@@ -377,6 +449,8 @@ Your chivalry score (0-100) determines how NPCs treat you and grants a title:
 | 51-70 | Noble Knight |
 | 71-85 | Champion |
 | 86-100 | Paragon of Virtue |
+
+Your title is displayed in town alongside your chivalry score.
 
 Raise chivalry by: donating at churches, confession, visiting Holy Island, completing quests.
 Lower chivalry by: looting churches (-12), bad choices.
@@ -427,7 +501,7 @@ All game content is defined in CSV files under `data/` -- edit these to rebalanc
 | File | Contents |
 |------|----------|
 | `data/monsters.csv` | 85+ monster types with stats, AI flags, drops |
-| `data/items.csv` | 60+ items: weapons, armor, potions, food, scrolls, tools |
+| `data/items.csv` | 150+ items: weapons, armor, rings, amulets, gems, treasures, potions, food, scrolls, tools |
 | `data/spells.csv` | 50 spells across Light, Dark, Nature, Universal schools |
 | `data/quests.csv` | 15 side quests (delivery, fetch, kill) |
 | `data/towns.csv` | 43 towns, castles, and abbeys with services |

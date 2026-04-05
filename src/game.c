@@ -4278,6 +4278,45 @@ void game_handle_input(GameState *gs, int key) {
                         log_add(&gs->log, gs->turn, CP_GREEN, "You eat the %s. Delicious!", sel->name);
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
+                    } else if (sel->type == ITYPE_SPELL_SCROLL) {
+                        /* Learn a spell from a scroll */
+                        int spell_id = sel->power;
+                        const SpellDef *sp = spell_get(spell_id);
+                        if (!sp) {
+                            log_add(&gs->log, gs->turn, CP_RED, "The scroll crumbles to dust. Nothing happens.");
+                        } else {
+                            /* Check if already known */
+                            bool already_known = false;
+                            for (int si = 0; si < gs->num_spells; si++) {
+                                if (gs->spells_known[si] == spell_id) { already_known = true; break; }
+                            }
+                            if (already_known) {
+                                log_add(&gs->log, gs->turn, CP_GRAY, "You already know %s.", sp->name);
+                            } else if (gs->player_level < sp->level_required) {
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "You cannot comprehend the magic within... (need level %d)", sp->level_required);
+                            } else if (gs->num_spells < gs->max_spells_capacity) {
+                                /* Learn directly */
+                                gs->spells_known[gs->num_spells++] = spell_id;
+                                log_add(&gs->log, gs->turn, CP_CYAN,
+                                         "You study the scroll and learn %s!", sp->name);
+                                /* Consume scroll */
+                                for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                                gs->inventory[--gs->num_items].template_id = -1;
+                            } else {
+                                /* At capacity -- replace a random spell */
+                                int replaced = rng_range(0, gs->num_spells - 1);
+                                const SpellDef *old_sp = spell_get(gs->spells_known[replaced]);
+                                const char *old_name = old_sp ? old_sp->name : "???";
+                                log_add(&gs->log, gs->turn, CP_YELLOW,
+                                         "The new magic pushes an old spell from your mind...");
+                                log_add(&gs->log, gs->turn, CP_YELLOW,
+                                         "You forget %s and learn %s!", old_name, sp->name);
+                                gs->spells_known[replaced] = spell_id;
+                                for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                                gs->inventory[--gs->num_items].template_id = -1;
+                            }
+                        }
                     } else {
                         log_add(&gs->log, gs->turn, CP_GRAY, "You can't use that.");
                     }
@@ -4359,6 +4398,93 @@ void game_handle_input(GameState *gs, int key) {
 
         attron(COLOR_PAIR(CP_GRAY));
         mvprintw(term_rows - 1, 2, "Press any key to close.");
+        attroff(COLOR_PAIR(CP_GRAY));
+        ui_refresh();
+        ui_getkey();
+        return;
+    }
+
+    /* Spellbook (Z = Shift+Z) */
+    if (key == 'Z') {
+        ui_clear();
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+        int row = 1;
+
+        const char *class_names[] = { "Knight", "Wizard", "Ranger" };
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(row++, 2, "=== Spellbook ===");
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        row++;
+
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row++, 2, "Class: %s | MP: %d/%d | Spells: %d/%d",
+                 class_names[gs->player_class], gs->mp, gs->max_mp,
+                 gs->num_spells, gs->max_spells_capacity);
+        attroff(COLOR_PAIR(CP_WHITE));
+        row++;
+
+        if (gs->num_spells == 0) {
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "You don't know any spells.");
+            mvprintw(row++, 4, "Find Spell Scrolls in dungeons and use them to learn.");
+            attroff(COLOR_PAIR(CP_GRAY));
+        } else {
+            /* Column headers */
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "%-22s %-10s  MP  Dmg  Range  School", "Name", "Effect");
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+
+            for (int i = 0; i < gs->num_spells && row < term_rows - 3; i++) {
+                const SpellDef *sp = spell_get(gs->spells_known[i]);
+                if (!sp) continue;
+
+                const char *aff_name;
+                short aff_color;
+                switch (sp->affiliation) {
+                case AFF_LIGHT:   aff_name = "Light";   aff_color = CP_YELLOW; break;
+                case AFF_DARK:    aff_name = "Dark";    aff_color = CP_MAGENTA; break;
+                case AFF_NATURE:  aff_name = "Nature";  aff_color = CP_GREEN; break;
+                default:          aff_name = "Universal"; aff_color = CP_WHITE; break;
+                }
+
+                const char *eff_name;
+                switch (sp->effect) {
+                case SEFF_DAMAGE:    eff_name = "Damage"; break;
+                case SEFF_HEAL:      eff_name = "Heal"; break;
+                case SEFF_BUFF_DEF:  eff_name = "Buff DEF"; break;
+                case SEFF_BUFF_STR:  eff_name = "Buff STR"; break;
+                case SEFF_BUFF_SPD:  eff_name = "Buff SPD"; break;
+                case SEFF_CURE:      eff_name = "Cure"; break;
+                case SEFF_FEAR:      eff_name = "Fear"; break;
+                case SEFF_TELEPORT:  eff_name = "Teleport"; break;
+                case SEFF_DETECT:    eff_name = "Detect"; break;
+                case SEFF_REVEAL:    eff_name = "Reveal"; break;
+                case SEFF_DOT:       eff_name = "Poison"; break;
+                case SEFF_ROOT:      eff_name = "Root"; break;
+                case SEFF_SHIELD:    eff_name = "Shield"; break;
+                case SEFF_SUMMON:    eff_name = "Summon"; break;
+                case SEFF_DRAIN:     eff_name = "Drain"; break;
+                case SEFF_DEBUFF:    eff_name = "Debuff"; break;
+                case SEFF_PUSH:      eff_name = "Push"; break;
+                case SEFF_INVISIBLE: eff_name = "Invisible"; break;
+                case SEFF_WATER_WALK:eff_name = "Water Walk"; break;
+                default:             eff_name = "???"; break;
+                }
+
+                bool can_cast = (gs->mp >= sp->mp_cost);
+                attron(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
+                mvprintw(row++, 4, "[%c] %-20s %-10s %3d  %3d  %5d  %s",
+                         'a' + i, sp->name, eff_name, sp->mp_cost,
+                         sp->damage, sp->range, aff_name);
+                attroff(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
+            }
+        }
+
+        row = term_rows - 2;
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 2, "Press z to cast a spell. Use Spell Scrolls (i -> u) to learn new spells.");
+        mvprintw(row, 2, "Press any key to close.");
         attroff(COLOR_PAIR(CP_GRAY));
         ui_refresh();
         ui_getkey();
