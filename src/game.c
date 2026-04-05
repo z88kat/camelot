@@ -2621,6 +2621,74 @@ static void handle_overworld_input(GameState *gs, int key) {
         return;
     }
 
+    /* Forage for food (F = Shift+F) -- find food in forests/grassland */
+    if (key == 'F') {
+        TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+        if (here != TILE_FOREST && here != TILE_GRASS && here != TILE_HILLS) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "Nothing to forage here. Try forests, grassland, or hills.");
+        } else {
+            int old_hour = gs->hour;
+            advance_time(gs, 30); /* foraging takes 30 minutes */
+            check_lunar_events(gs, old_hour);
+
+            int forage_roll = rng_range(1, 100);
+            if (forage_roll <= 35) {
+                /* Found food! */
+                if (gs->num_items < MAX_INVENTORY) {
+                    int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                    const char *forage_items[6];
+                    int nforage = 0;
+                    if (here == TILE_FOREST) {
+                        forage_items[nforage++] = "Apple";
+                        forage_items[nforage++] = "Berries";
+                        forage_items[nforage++] = "Mushroom";
+                    } else if (here == TILE_GRASS) {
+                        forage_items[nforage++] = "Apple";
+                        forage_items[nforage++] = "Berries";
+                        forage_items[nforage++] = "Turnip";
+                    } else {
+                        forage_items[nforage++] = "Berries";
+                        forage_items[nforage++] = "Mushroom";
+                    }
+                    const char *wanted = forage_items[rng_range(0, nforage - 1)];
+                    for (int ti = 0; ti < tcount; ti++) {
+                        if (strcmp(tmps[ti].name, wanted) == 0) {
+                            gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                            gs->inventory[gs->num_items].on_ground = false;
+                            gs->num_items++;
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "You find %s %s!",
+                                     (wanted[0] == 'A' || wanted[0] == 'a') ? "an" : "some",
+                                     wanted);
+                            break;
+                        }
+                    }
+                } else {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You find food but your inventory is full!");
+                }
+            } else if (forage_roll <= 45) {
+                /* Found herbs -- small healing */
+                int heal = rng_range(3, 8);
+                gs->hp += heal;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "You find healing herbs and chew them. +%d HP.", heal);
+            } else if (forage_roll <= 50) {
+                /* Found gold */
+                int gold = rng_range(2, 10);
+                gs->gold += gold;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You find %d coins scattered in the undergrowth!", gold);
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "You search but find nothing edible.");
+            }
+        }
+        return;
+    }
+
     /* Cook raw food (K = Shift+K) -- requires campable terrain and tinderbox/torch */
     if (key == 'K') {
         TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
