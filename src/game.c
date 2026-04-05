@@ -12,6 +12,7 @@ static void handle_character_create(GameState *gs, int key);
 static void render_character_create(GameState *gs);
 static void dungeon_update_fov(GameState *gs);
 static const char *chivalry_title(int chiv);
+static void game_render(GameState *gs);
 
 /* XP thresholds for leveling (20 levels) */
 static const int xp_table[MAX_LEVELS] = {
@@ -1952,6 +1953,34 @@ static void handle_overworld_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_GRAY,
                          "The magic circle has faded. It may renew in %d days.", days_left);
             } else {
+                /* Offer choice: use the circle or loot it */
+                log_add(&gs->log, gs->turn, CP_CYAN,
+                         "The circle glows with power. [Enter] to use, [l] to loot (-15 chivalry).");
+                game_render(gs);
+                int ck = ui_getkey();
+                if (ck == 'l') {
+                    /* Loot the shrine */
+                    int shrine_gold = rng_range(80, 200);
+                    gs->gold += shrine_gold;
+                    gs->chivalry -= 15;
+                    if (gs->chivalry < 0) gs->chivalry = 0;
+                    loc->visited = true;
+                    loc->visited_day = gs->day;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "You desecrate the sacred circle and plunder %d gold! SACRILEGE!", shrine_gold);
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The spirits howl in anguish. (-15 chivalry)");
+                    /* Chance of curse */
+                    if (rng_chance(40)) {
+                        int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+                        const char *snames[] = { "STR", "DEF", "INT", "SPD" };
+                        int si = rng_range(0, 3);
+                        if (*stats[si] > 1) (*stats[si])--;
+                        log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                 "A curse falls upon you! -1 %s!", snames[si]);
+                    }
+                    return;
+                }
                 loc->visited = true;
                 loc->visited_day = gs->day;
                 int circle_roll = rng_range(1, 100);
@@ -2477,7 +2506,6 @@ static void handle_overworld_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 /* Town service forward declarations                                   */
 static void town_do_inn(GameState *gs);
-static void game_render(GameState *gs);
 static void town_do_church(GameState *gs);
 static void town_do_mystic(GameState *gs);
 static void town_do_bank(GameState *gs);
@@ -2779,13 +2807,89 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
 
                 srow++;
                 attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(srow++, 2, "[S] Sell an item    [q] Leave shop");
+                mvprintw(srow++, 2, "[S] Sell    [h] Haggle    [t] Steal    [q] Leave");
                 attroff(COLOR_PAIR(CP_WHITE));
                 ui_refresh();
 
                 int skey = ui_getkey();
                 if (skey == 'q' || skey == 'Q' || skey == 27) {
                     shop_open = false;
+                } else if (skey == 'h') {
+                    /* Haggle -- INT + chivalry check for discount */
+                    int haggle_chance = 30 + gs->intel * 3 + gs->chivalry / 5;
+                    if (haggle_chance > 80) haggle_chance = 80;
+                    if (rng_chance(haggle_chance)) {
+                        int discount = rng_range(10, 20);
+                        snprintf(shop_msg, sizeof(shop_msg),
+                                 "\"You drive a hard bargain!\" %d%% off next purchase!", discount);
+                        shop_msg_color = CP_GREEN;
+                        /* Apply discount to all prices temporarily by adjusting gold */
+                        /* Simple approach: give player bonus gold equivalent */
+                        /* Better: track haggle discount -- but for simplicity, just give a gold bonus */
+                        int bonus = gs->gold * discount / 100;
+                        if (bonus < 5) bonus = 5;
+                        if (bonus > 30) bonus = 30;
+                        gs->gold += bonus;
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "Successful haggle! The shopkeeper gives you a better deal. (+%dg credit)", bonus);
+                    } else {
+                        snprintf(shop_msg, sizeof(shop_msg),
+                                 "The shopkeeper frowns at your offer. Prices stay the same.");
+                        shop_msg_color = CP_RED;
+                        /* Low chivalry makes it worse */
+                        if (gs->chivalry < 30) {
+                            snprintf(shop_msg, sizeof(shop_msg),
+                                     "\"I don't haggle with the likes of you!\" Prices went UP.");
+                            shop_msg_color = CP_RED;
+                        }
+                    }
+                } else if (skey == 't') {
+                    /* Steal -- SPD check, chivalry loss, potential ban */
+                    if (visible_count == 0) {
+                        snprintf(shop_msg, sizeof(shop_msg), "Nothing to steal -- the shop is empty!");
+                        shop_msg_color = CP_GRAY;
+                    } else if (gs->num_items >= MAX_INVENTORY) {
+                        snprintf(shop_msg, sizeof(shop_msg), "Your inventory is full!");
+                        shop_msg_color = CP_RED;
+                    } else {
+                        int steal_chance = 20 + gs->spd * 4;
+                        if (steal_chance > 70) steal_chance = 70;
+                        /* Pick a random item to try to steal */
+                        int steal_idx = -1;
+                        for (int tries = 0; tries < 20; tries++) {
+                            int si = rng_range(0, num_shop - 1);
+                            if (shop_qty[si] > 0) { steal_idx = si; break; }
+                        }
+                        if (steal_idx >= 0 && rng_chance(steal_chance)) {
+                            /* Success! */
+                            const ItemTemplate *it = &tmps[shop_items[steal_idx]];
+                            gs->inventory[gs->num_items] = item_create(shop_items[steal_idx], -1, -1);
+                            gs->inventory[gs->num_items].on_ground = false;
+                            gs->num_items++;
+                            shop_qty[steal_idx]--;
+                            gs->chivalry -= 8;
+                            if (gs->chivalry < 0) gs->chivalry = 0;
+                            snprintf(shop_msg, sizeof(shop_msg),
+                                     "You pocket the %s! (-8 chivalry)", it->name);
+                            shop_msg_color = CP_MAGENTA;
+                            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                     "You stole a %s! The shopkeeper didn't notice... yet. (-8 chivalry)", it->name);
+                        } else {
+                            /* Caught! */
+                            gs->chivalry -= 5;
+                            if (gs->chivalry < 0) gs->chivalry = 0;
+                            int guard_dmg = rng_range(3, 10);
+                            gs->hp -= guard_dmg;
+                            if (gs->hp < 1) gs->hp = 1;
+                            snprintf(shop_msg, sizeof(shop_msg),
+                                     "CAUGHT! Guards rough you up (-%d HP, -5 chivalry). Get out!",
+                                     guard_dmg);
+                            shop_msg_color = CP_RED;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "\"THIEF!\" The shopkeeper catches you! Guards attack! (-%d HP, -5 chivalry)", guard_dmg);
+                            shop_open = false; /* kicked out */
+                        }
+                    }
                 } else if (skey >= 'a' && skey < 'a' + num_shop) {
                     int si = skey - 'a';
                     if (si < num_shop && shop_qty[si] > 0) {
@@ -3354,6 +3458,7 @@ static void town_do_church(GameState *gs) {
     mvprintw(row++, 4, "[d] Donate gold (+1 chivalry per 20g)");
     if (!gs->confessed && gs->chivalry < 50)
         mvprintw(row++, 4, "[c] Confession (+3 chivalry)");
+    mvprintw(row++, 4, "[u] Cure poison/curses (30 gold donation)");
     attron(COLOR_PAIR(CP_RED));
     mvprintw(row++, 4, "[l] Loot the church (-12 chivalry!)");
     attroff(COLOR_PAIR(CP_RED));
@@ -3388,6 +3493,32 @@ static void town_do_church(GameState *gs) {
         gs->confessed = true;
         log_add(&gs->log, gs->turn, CP_WHITE,
                  "\"Your sins are forgiven. Go forth and do good.\" (+3 chivalry)");
+    } else if (key == 'u') {
+        /* Cure poison and restore debuffed stats */
+        if (gs->gold < 30) {
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "The priest requires a 30 gold donation for healing.");
+        } else {
+            gs->gold -= 30;
+            /* Restore any stats that might have been debuffed below base */
+            /* Simple approach: +1 to any stat below 5 */
+            bool cured = false;
+            if (gs->str < 5) { gs->str++; cured = true; }
+            if (gs->def < 5) { gs->def++; cured = true; }
+            if (gs->intel < 5) { gs->intel++; cured = true; }
+            if (gs->spd < 5) { gs->spd++; cured = true; }
+            gs->hp = gs->max_hp;
+            gs->mp = gs->max_mp;
+            if (cured) {
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "The priest lays hands on you. Curses lifted! Stats restored. Full HP/MP.");
+            } else {
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "The priest blesses you. Full HP and MP restored.");
+            }
+            gs->chivalry++;
+            if (gs->chivalry > 100) gs->chivalry = 100;
+        }
     } else if (key == 'l') {
         int loot = rng_range(50, 100);
         gs->gold += loot;

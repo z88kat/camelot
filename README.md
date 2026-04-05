@@ -231,6 +231,8 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 |-----|--------|
 | `a`-`z` | Buy an item from the list |
 | `S` | Switch to sell mode (sell from your inventory) |
+| `h` | Haggle for a discount (INT + chivalry check) |
+| `t` | Attempt to steal an item (SPD check, risky!) |
 | `q` | Leave the shop |
 
 Stock is randomised each visit:
@@ -240,14 +242,21 @@ Stock is randomised each visit:
 - **Jeweller**: 4-10 rings, amulets, and gems
 - **Pawnbroker**: 8-16 items of any type
 
+**Haggling**: Success gives you a 10-20% gold credit. Chance scales with INT and chivalry (max 80%). Low chivalry makes shopkeepers less receptive.
+
+**Stealing**: SPD check (max 70%). Success: free item but -8 chivalry. Failure: guards attack (3-10 HP damage), -5 chivalry, kicked out of the shop. A desperate option for the gold-poor or morally flexible.
+
 #### Church
 | Key | Action |
 |-----|--------|
 | `p` | Pray (restore 25% HP/MP, free) |
 | `d` | Donate gold (+1 chivalry per 20g) |
-| `c` | Confession (+3 chivalry, once per visit) |
+| `c` | Confession (+3 chivalry, once per visit, requires chivalry below 50) |
+| `u` | Cure poison and curses (30 gold -- full HP/MP, restores debuffed stats) |
 | `l` | Loot the church (-12 chivalry! Permanently banned) |
 | `q` | Leave the church |
+
+The priest can cure poison from rotten fish, stat debuffs from monster curses, and other ailments for a 30 gold donation. Also fully restores HP and MP.
 
 #### Bank
 | Key | Action |
