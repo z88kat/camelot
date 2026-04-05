@@ -13,6 +13,7 @@ static void render_character_create(GameState *gs);
 static void dungeon_update_fov(GameState *gs);
 static const char *chivalry_title(int chiv);
 static void game_render(GameState *gs);
+static bool monster_at_pos(DungeonLevel *dl, int x, int y);
 
 /* Unidentified potion colour descriptions */
 static const char *potion_colours[] = {
@@ -34,6 +35,126 @@ static const char *potion_display_name(GameState *gs, Item *it) {
     int ci = gs->potion_colour_map[it->template_id] % num_potion_colours;
     snprintf(buf, sizeof(buf), "%s Potion", potion_colours[ci]);
     return buf;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dungeon boss spawning                                               */
+/* ------------------------------------------------------------------ */
+static void spawn_dungeon_boss(GameState *gs, DungeonLevel *dl, const char *dungeon_name, int depth, int max_depth) {
+    /* Only spawn boss on deepest level */
+    if (depth < max_depth - 1) return;
+    if (dl->num_monsters >= MAX_MONSTERS_PER_LEVEL - 1) return;
+
+    /* Determine boss based on dungeon */
+    const char *boss_name = NULL;
+    char boss_glyph = 'B';
+    short boss_color = CP_RED_BOLD;
+    int bhp = 40, bstr = 12, bdef = 8, bspd = 3, bxp = 100;
+    uint32_t bflags = AI_ALWAYS_CHASE | AI_OPENS_DOORS;
+
+    if (strcmp(dungeon_name, "Camelot Catacombs") == 0) {
+        boss_name = "Dark Monk"; boss_glyph = 'm'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 35; bstr = 10; bdef = 7; bxp = 60; bflags |= AI_HEAL_ALLIES;
+    } else if (strcmp(dungeon_name, "Tintagel Caves") == 0) {
+        boss_name = "Black Knight"; boss_glyph = 'K'; boss_color = CP_RED_BOLD;
+        bhp = 50; bstr = 14; bdef = 10; bxp = 120;
+    } else if (strcmp(dungeon_name, "Sherwood Depths") == 0) {
+        boss_name = "Evil Sorcerer"; boss_glyph = 'S'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 40; bstr = 12; bdef = 6; bxp = 100; bflags |= AI_RANGED_ATTACK | AI_SUMMON;
+    } else if (strcmp(dungeon_name, "Mount Draig") == 0) {
+        boss_name = "Red Dragon"; boss_glyph = 'D'; boss_color = CP_RED_BOLD;
+        bhp = 70; bstr = 18; bdef = 12; bspd = 3; bxp = 200; bflags |= AI_BREATHE_FIRE;
+    } else if (strcmp(dungeon_name, "Whitby Abbey") == 0) {
+        boss_name = "Vampire Lord"; boss_glyph = 'V'; boss_color = CP_RED_BOLD;
+        bhp = 50; bstr = 14; bdef = 8; bspd = 5; bxp = 150; bflags |= AI_DEBUFF;
+    } else if (strcmp(dungeon_name, "White Cliffs Cave") == 0) {
+        boss_name = "Sea Serpent King"; boss_glyph = 'S'; boss_color = CP_CYAN_BOLD;
+        bhp = 55; bstr = 15; bdef = 9; bxp = 130;
+    } else if (strcmp(dungeon_name, "Glastonbury Tor") == 0) {
+        boss_name = "Dark Templar"; boss_glyph = 'T'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 60; bstr = 16; bdef = 11; bxp = 180; bflags |= AI_FEAR_AURA;
+    } else if (strcmp(dungeon_name, "Avalon Shrine") == 0) {
+        boss_name = "Guardian Spirit"; boss_glyph = 'G'; boss_color = CP_CYAN_BOLD;
+        bhp = 45; bstr = 12; bdef = 8; bxp = 100; bflags |= AI_GHOST;
+    } else if (strcmp(dungeon_name, "Orkney Barrows") == 0) {
+        boss_name = "Barrow King"; boss_glyph = 'W'; boss_color = CP_GRAY;
+        bhp = 40; bstr = 11; bdef = 9; bxp = 80; bflags |= AI_SUMMON;
+    }
+    /* Abandoned castles */
+    else if (strcmp(dungeon_name, "Castle Dolorous Garde") == 0) {
+        boss_name = "Ghost Knight"; boss_glyph = 'G'; boss_color = CP_WHITE;
+        bhp = 35; bstr = 10; bdef = 5; bxp = 70; bflags |= AI_GHOST;
+    } else if (strcmp(dungeon_name, "Castle Perilous") == 0) {
+        boss_name = "Dark Enchantress"; boss_glyph = 'E'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 40; bstr = 12; bdef = 6; bxp = 90; bflags |= AI_DEBUFF | AI_RANGED_ATTACK;
+    } else if (strcmp(dungeon_name, "Bamburgh Castle") == 0) {
+        boss_name = "Bandit King"; boss_glyph = 'P'; boss_color = CP_YELLOW_BOLD;
+        bhp = 45; bstr = 13; bdef = 8; bxp = 80;
+    } else {
+        return; /* unknown dungeon */
+    }
+
+    /* If this dungeon holds the Grail and quest is active, override boss with Mordred */
+    bool is_grail_dungeon = (gs->quests.grail_quest_active && !gs->has_grail &&
+                              strcmp(dungeon_name, gs->grail_dungeon) == 0);
+    if (is_grail_dungeon) {
+        boss_name = "Mordred"; boss_glyph = 'M'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 80; bstr = 20; bdef = 14; bspd = 4; bxp = 300;
+        bflags = AI_ALWAYS_CHASE | AI_OPENS_DOORS | AI_FEAR_AURA | AI_SUMMON | AI_RANGED_ATTACK;
+    }
+
+    /* Place boss near the portal/exit on the deepest level */
+    Entity *boss = &dl->monsters[dl->num_monsters];
+    memset(boss, 0, sizeof(*boss));
+    snprintf(boss->name, MAX_NAME, "%s", boss_name);
+    boss->glyph = boss_glyph;
+    boss->color_pair = boss_color;
+    boss->hp = bhp; boss->max_hp = bhp;
+    boss->str = bstr; boss->def = bdef; boss->spd = bspd;
+    boss->xp_reward = bxp;
+    boss->alive = true;
+    boss->ai_flags = bflags;
+    boss->ai_state = AI_STATE_CHASE;
+    boss->category = MCAT_BOSS;
+
+    /* Place near stairs down or portal */
+    Vec2 bpos = dl->stairs_down[0];
+    for (int tries = 0; tries < 50; tries++) {
+        int bx = bpos.x + rng_range(-3, 3);
+        int by = bpos.y + rng_range(-3, 3);
+        if (bx > 1 && bx < MAP_WIDTH - 2 && by > 1 && by < MAP_HEIGHT - 2 &&
+            dl->tiles[by][bx].passable && !monster_at_pos(dl, bx, by)) {
+            boss->pos = (Vec2){ bx, by };
+            dl->num_monsters++;
+
+            /* If Grail dungeon, place the Grail item near the boss */
+            if (is_grail_dungeon && dl->num_ground_items < MAX_GROUND_ITEMS) {
+                Item grail;
+                memset(&grail, 0, sizeof(grail));
+                grail.template_id = -10;
+                snprintf(grail.name, sizeof(grail.name), "The Holy Grail");
+                grail.glyph = '*';
+                grail.color_pair = CP_YELLOW_BOLD;
+                grail.type = ITYPE_QUEST;
+                grail.power = 0;
+                grail.weight = 5;
+                grail.value = 0;
+                grail.pos = (Vec2){ bx, by };
+                grail.on_ground = true;
+                dl->ground_items[dl->num_ground_items++] = grail;
+            }
+            break;
+        }
+    }
+}
+
+/* Helper to check if a monster is at a position */
+static bool monster_at_pos(DungeonLevel *dl, int x, int y) {
+    for (int i = 0; i < dl->num_monsters; i++) {
+        if (dl->monsters[i].alive && dl->monsters[i].pos.x == x && dl->monsters[i].pos.y == y)
+            return true;
+    }
+    return false;
 }
 
 /* XP thresholds for leveling (20 levels) */
@@ -3277,6 +3398,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                    dl->tiles, 0, dl->stairs_up[0]);
             dungeon_spawn_items(dl);
+            spawn_dungeon_boss(gs, dl, loc->name, 0, num_levels);
             log_add(&gs->log, gs->turn, CP_GRAY, "[%d items, %d monsters on this level]",
                      dl->num_ground_items, dl->num_monsters);
             /* Level feeling based on monster danger */
@@ -3436,8 +3558,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             row++;
             /* Grail hint */
             if (gs->quests.grail_quest_active && !gs->quests.grail_quest_complete) {
-                mvprintw(row++, 4, "\"The Grail lies deep beneath Glastonbury Tor.");
-                mvprintw(row++, 4, "  Seek it at the bottom. But beware the guardian.\"");
+                mvprintw(row++, 4, "\"The Grail rests in %s, brave %s.\"",
+                         gs->grail_dungeon,
+                         gs->player_gender == GENDER_MALE ? "Sir" : "Lady");
+                mvprintw(row++, 4, "  \"Seek it at the bottom. But beware the guardian.\"");
             } else {
                 mvprintw(row++, 4, "\"Seek King Arthur at Camelot. He needs you.\"");
             }
@@ -3871,16 +3995,43 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         break;
     case NPC_TOWNFOLK:
         {
-            const char *chatter[] = {
-                "\"Lovely day, isn't it?\"",
-                "\"Watch out for bandits on the roads.\"",
-                "\"Have you visited the inn? Best ale in England!\"",
-                "\"I heard there's treasure in the old ruins.\"",
-                "\"The King rode through here last week.\"",
-                "\"Strange lights in the forest last night...\"",
-            };
-            int n = sizeof(chatter) / sizeof(chatter[0]);
-            log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
+            /* Grail hint from NPCs (30% chance of red herring) */
+            if (gs->quests.grail_quest_active && !gs->has_grail &&
+                !gs->quests.grail_quest_complete && rng_chance(25)) {
+                const char *all_dungeons[] = {
+                    "Camelot Catacombs", "Tintagel Caves", "Sherwood Depths",
+                    "Mount Draig", "Glastonbury Tor", "White Cliffs Cave",
+                    "Whitby Abbey", "Avalon Shrine", "Orkney Barrows"
+                };
+                const char *hint_dungeon;
+                if (rng_chance(70)) {
+                    /* True hint */
+                    hint_dungeon = gs->grail_dungeon;
+                } else {
+                    /* Red herring */
+                    hint_dungeon = all_dungeons[rng_range(0, 8)];
+                }
+                const char *intros[] = {
+                    "\"I heard a holy light was seen deep beneath %s...\"",
+                    "\"A pilgrim told me the Grail lies under %s.\"",
+                    "\"Rumour has it a sacred chalice is hidden in %s.\"",
+                    "\"The druids whisper of the Grail in %s...\"",
+                };
+                char hint_buf[128];
+                snprintf(hint_buf, sizeof(hint_buf), intros[rng_range(0, 3)], hint_dungeon);
+                log_add(&gs->log, gs->turn, CP_YELLOW, "%s", hint_buf);
+            } else {
+                const char *chatter[] = {
+                    "\"Lovely day, isn't it?\"",
+                    "\"Watch out for bandits on the roads.\"",
+                    "\"Have you visited the inn? Best ale in England!\"",
+                    "\"I heard there's treasure in the old ruins.\"",
+                    "\"The King rode through here last week.\"",
+                    "\"Strange lights in the forest last night...\"",
+                };
+                int n = sizeof(chatter) / sizeof(chatter[0]);
+                log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
+            }
         }
         break;
     case NPC_KING:
@@ -3921,8 +4072,66 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 gs->str += 1;
                 gs->chivalry += 5;
                 if (gs->chivalry > 100) gs->chivalry = 100;
+
+                /* Randomly assign the Grail to a dungeon */
+                {
+                    const char *grail_dungeons[] = {
+                        "Camelot Catacombs", "Tintagel Caves", "Sherwood Depths",
+                        "Mount Draig", "Glastonbury Tor", "White Cliffs Cave",
+                        "Whitby Abbey", "Avalon Shrine", "Orkney Barrows"
+                    };
+                    int gd = rng_range(0, 8);
+                    snprintf(gs->grail_dungeon, MAX_NAME, "%s", grail_dungeons[gd]);
+                }
                 log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                          "King Arthur has knighted you and granted the Grail Quest!");
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "Seek the Holy Grail! Ask Merlin or innkeepers for hints.");
+            } else if (gs->has_grail && !gs->quests.grail_quest_complete) {
+                /* Returning the Grail! */
+                if (gs->chivalry < 30) {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "Arthur: \"You have the Grail, but you are not worthy to present it.\"");
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "\"Prove your honour first. (Need chivalry 30+, have %d)\"", gs->chivalry);
+                } else {
+                    gs->quests.grail_quest_complete = true;
+                    gs->has_grail = false;
+
+                    ui_clear();
+                    int row = 3;
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "=== THE HOLY GRAIL IS RETURNED! ===");
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    row++;
+                    attron(COLOR_PAIR(CP_YELLOW));
+                    mvprintw(row++, 4, "King Arthur rises, tears in his eyes.");
+                    mvprintw(row++, 4, "\"%s, you have done what no other could.\"", gs->player_name);
+                    mvprintw(row++, 4, "\"The Holy Grail is restored to Camelot!\"");
+                    mvprintw(row++, 4, "\"The land shall heal. You are truly the greatest");
+                    mvprintw(row++, 4, " knight of the Round Table.\"");
+                    attroff(COLOR_PAIR(CP_YELLOW));
+                    row++;
+                    attron(COLOR_PAIR(CP_GREEN));
+                    mvprintw(row++, 4, "+5000 gold!");
+                    mvprintw(row++, 4, "+10 chivalry!");
+                    mvprintw(row++, 4, "Title: Grail Knight");
+                    mvprintw(row++, 4, "+500 XP!");
+                    attroff(COLOR_PAIR(CP_GREEN));
+                    row += 2;
+                    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                    mvprintw(row, 4, "Press any key to continue your adventure...");
+                    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                    ui_refresh();
+                    ui_getkey();
+
+                    gs->gold += 5000;
+                    gs->chivalry += 10;
+                    if (gs->chivalry > 100) gs->chivalry = 100;
+                    gs->xp += 500;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "*** THE HOLY GRAIL HAS BEEN RETURNED! You are the Grail Knight! ***");
+                }
             } else if (gs->quests.grail_quest_complete) {
                 log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                          "Arthur beams. \"You have saved the kingdom, %s!\"", gs->player_name);
@@ -4767,6 +4976,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                        dl->tiles, next, dl->stairs_up[0]);
                 dungeon_spawn_items(dl);
+                spawn_dungeon_boss(gs, dl, gs->dungeon->name, next, gs->dungeon->max_depth);
             }
             /* Land at matching stairs up */
             Vec2 landing = (stair_idx < dl->num_stairs_up) ?
@@ -4910,6 +5120,18 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_RED, "Your inventory is full!");
                 return;
             }
+            /* Special: Holy Grail */
+            if (it->type == ITYPE_QUEST && strcmp(it->name, "The Holy Grail") == 0) {
+                gs->has_grail = true;
+                it->on_ground = false;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "*** You have found THE HOLY GRAIL! ***");
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "Return it to King Arthur at Camelot Castle!");
+                advance_time(gs, 1);
+                return;
+            }
+
             /* Add to inventory */
             gs->inventory[gs->num_items] = *it;
             gs->inventory[gs->num_items].on_ground = false;

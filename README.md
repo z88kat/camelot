@@ -8,7 +8,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 
 ## Current State
 
-**Implemented (Phases 1-11):**
+**Implemented (Phases 1-12):**
 - Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling, random gold (30-200)
 - 50-spell system with Light, Dark, Nature, and Universal schools
 - A* pathfinding and FSM AI for monsters (IDLE/CHASE/FLEE states)
@@ -21,7 +21,8 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 - 85+ monster types, bump-to-attack combat with hit/miss rolls and critical hits
 - 150+ items: weapons, armor, potions, food, scrolls, tools, 25 rings, 25 amulets, 20 gems, 20 treasures
 - Weight-based inventory with encumbrance and 9 equipment slots (including amulet)
-- Quest system with 15 side quests
+- Quest system with 15 side quests and the Holy Grail main quest
+- Dungeon bosses on deepest levels (12 unique bosses + Mordred as Grail guardian)
 - Leveling system with 20 levels and class-based HP/MP progression
 - Chivalry system (0-100) with titles from Knave to Paragon of Virtue
 - All game data loaded from CSV files (monsters, items, spells, quests, towns, locations, creatures, names)
@@ -770,6 +771,40 @@ Press **`R`** in a dungeon to rest and recover HP/MP:
 - Recovers 1 HP every 5 turns, 1 MP every 8 turns
 - Rests until full HP or 100 turns max
 - **Interrupted** if a monster reaches an adjacent tile
+
+### The Holy Grail (Main Quest)
+
+The main quest of the game -- find the Holy Grail and return it to King Arthur.
+
+**Quest flow:**
+1. **Visit King Arthur** at Camelot Castle. He grants the quest, knights you (+2 DEF, +1 STR), and the Grail is placed in a **random dungeon** each playthrough
+2. **Gather hints**: talk to townfolk (25% chance of a Grail hint when Grail quest active). **70% of hints are true**, 30% are red herrings. Cross-reference multiple hints!
+3. **Reliable sources**: **Merlin** (Glastonbury) always gives the correct dungeon name. Trust him
+4. **Find the Grail**: reach the **deepest level** of the correct dungeon. **Mordred** guards the Grail (HP 80, STR 20, DEF 14 -- the toughest fight in the game). Defeat him and pick up the Grail (`*` yellow)
+5. **Return to Arthur**: bring the Grail to Arthur at Camelot Castle. He requires **chivalry 30+** to accept it. If too low, raise chivalry first (pray, donate, do good deeds)
+6. **Rewards**: 5000 gold, +10 chivalry, +500 XP, title "Grail Knight"
+7. **Continue playing**: the game does NOT end -- keep exploring, completing quests, and building your character
+
+### Dungeon Bosses
+
+Every dungeon has a **boss** on its deepest level:
+
+| Dungeon | Boss | Special |
+|---------|------|---------|
+| Camelot Catacombs | Dark Monk | Heals allies |
+| Tintagel Caves | Black Knight | Tough melee fighter |
+| Sherwood Depths | Evil Sorcerer | Ranged attacks, summons |
+| Mount Draig | Red Dragon | Breath weapon (fire) |
+| Glastonbury Tor | Dark Templar | Fear aura |
+| Whitby Abbey | Vampire Lord | Debuffs |
+| White Cliffs Cave | Sea Serpent King | Heavy hitter |
+| Avalon Shrine | Guardian Spirit | Walks through walls |
+| Orkney Barrows | Barrow King | Summons undead |
+| Castle Dolorous Garde | Ghost Knight | Ghost |
+| Castle Perilous | Dark Enchantress | Ranged + debuffs |
+| Bamburgh Castle | Bandit King | Tough melee |
+
+If the Grail is in a dungeon, **Mordred** replaces the normal boss as the final guardian.
 
 ## Building
 

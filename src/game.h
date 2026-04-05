@@ -121,6 +121,8 @@ typedef struct {
     int        witch_geas_turns;     /* turns left to complete witch task (0=none) */
     int        witch_geas_type;      /* which task (0-5) */
     bool       cheat_mode;           /* cheat mode enabled */
+    char       grail_dungeon[MAX_NAME]; /* which dungeon holds the Grail */
+    bool       has_grail;            /* player is carrying the Grail */
 
     /* Character creation step */
     int        create_step;  /* 0=class, 1=gender, 2=name, 3=appearance, 4=stats, 5=story */
