@@ -123,6 +123,8 @@ typedef struct {
     bool       cheat_mode;           /* cheat mode enabled */
     char       grail_dungeon[MAX_NAME]; /* which dungeon holds the Grail */
     bool       has_grail;            /* player is carrying the Grail */
+    char       cause_of_death[128];  /* what killed the player */
+    int        gold_earned;          /* lifetime gold earned */
 
     /* Character creation step */
     int        create_step;  /* 0=class, 1=gender, 2=name, 3=appearance, 4=stats, 5=story */

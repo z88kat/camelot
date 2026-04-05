@@ -14,7 +14,7 @@
 - [x] **Phase 10** -- Enemy AI & Pathfinding (A*, FSM, type-specific behaviours)
 - [x] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
 - [x] **Phase 12** -- Dungeon Bosses & The Holy Grail (Round Table membership)
-- [ ] **Phase 13** -- Save/Load, Permadeath, Death Screen & High Scores (bank, graveyard, fallen heroes)
+- [x] **Phase 13** -- Save/Load, Permadeath, Death Screen & High Scores (bank, graveyard, fallen heroes)
 - [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
 
 ### Data Files Checklist

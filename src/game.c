@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "rng.h"
 #include "pathfind.h"
+#include "save.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,6 +15,225 @@ static void dungeon_update_fov(GameState *gs);
 static const char *chivalry_title(int chiv);
 static void game_render(GameState *gs);
 static bool monster_at_pos(DungeonLevel *dl, int x, int y);
+
+/* ------------------------------------------------------------------ */
+/* Score calculation                                                   */
+/* ------------------------------------------------------------------ */
+static int calculate_score(const GameState *gs) {
+    int score = gs->kills * 10 + gs->gold_earned +
+                quest_count_completed(&gs->quests) * 150;
+    /* Chivalry multiplier: 0.5x at 0, 1.0x at 50, 2.0x at 100 */
+    int chiv_pct = 50 + gs->chivalry;
+    score = score * chiv_pct / 100;
+    if (gs->quests.grail_quest_complete) score += 5000;
+    if (gs->cheat_mode) score = 0;
+    return score;
+}
+
+/* ------------------------------------------------------------------ */
+/* Death screen                                                        */
+/* ------------------------------------------------------------------ */
+static void show_death_screen(GameState *gs) {
+    const char *class_names[] = { "Knight", "Wizard", "Ranger" };
+    int score = calculate_score(gs);
+
+    ui_clear();
+    int row = 1;
+
+    attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+    mvprintw(row++, 2, "=== YOU HAVE DIED ===");
+    attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+    row++;
+
+    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    mvprintw(row++, 4, "%s, %s %s", gs->player_name,
+             class_names[gs->player_class], chivalry_title(gs->chivalry));
+    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    row++;
+
+    attron(COLOR_PAIR(CP_RED));
+    mvprintw(row++, 4, "Cause of death: %s", gs->cause_of_death);
+    attroff(COLOR_PAIR(CP_RED));
+    row++;
+
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 4, "Level: %-3d    Turns: %d    Day: %d", gs->player_level, gs->turn, gs->day);
+    mvprintw(row++, 4, "STR: %-3d  DEF: %-3d  INT: %-3d  SPD: %-3d", gs->str, gs->def, gs->intel, gs->spd);
+    mvprintw(row++, 4, "Kills: %-4d   Gold earned: %d", gs->kills, gs->gold_earned);
+    mvprintw(row++, 4, "Quests: %d/%d completed", quest_count_completed(&gs->quests), gs->quests.num_quests);
+    mvprintw(row++, 4, "Spells: %d learned    Chivalry: %d", gs->num_spells, gs->chivalry);
+    if (gs->quests.grail_quest_complete)
+        mvprintw(row++, 4, "THE HOLY GRAIL WAS FOUND (+5000 score)");
+    attroff(COLOR_PAIR(CP_WHITE));
+    row++;
+
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 4, "FINAL SCORE: %d%s", score, gs->cheat_mode ? " (CHEAT)" : "");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row += 2;
+
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row, 4, "Press any key to continue...");
+    attroff(COLOR_PAIR(CP_GRAY));
+    ui_refresh();
+    ui_getkey();
+
+    /* Record high score */
+    if (!gs->cheat_mode) {
+        HighScore scores[MAX_HIGH_SCORES];
+        int count = scores_load(scores);
+        HighScore entry;
+        snprintf(entry.name, MAX_NAME, "%s", gs->player_name);
+        snprintf(entry.class_name, sizeof(entry.class_name), "%s", class_names[gs->player_class]);
+        entry.score = score;
+        snprintf(entry.cause, sizeof(entry.cause), "%s", gs->cause_of_death);
+        entry.found_grail = gs->quests.grail_quest_complete;
+        scores_add(scores, &count, &entry);
+        scores_save(scores, count);
+    }
+
+    /* Record fallen hero */
+    FallenHero hero;
+    snprintf(hero.name, MAX_NAME, "%s", gs->player_name);
+    snprintf(hero.class_name, sizeof(hero.class_name), "%s", class_names[gs->player_class]);
+    hero.level = gs->player_level;
+    hero.score = score;
+    hero.turns = gs->turn;
+    hero.kills = gs->kills;
+    snprintf(hero.cause, sizeof(hero.cause), "%s", gs->cause_of_death);
+    snprintf(hero.title, sizeof(hero.title), "%s", chivalry_title(gs->chivalry));
+    fallen_add(&hero);
+
+    /* Delete save */
+    delete_save();
+}
+
+/* ------------------------------------------------------------------ */
+/* Title screen                                                        */
+/* ------------------------------------------------------------------ */
+int show_title_screen(void) {
+    /* Returns: 1=new game, 2=continue, 3=high scores, 4=fallen heroes, 0=quit */
+    bool has_save = save_exists();
+
+    ui_clear();
+    int row = 3;
+
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 10, "  _  __      _       _     _        ");
+    mvprintw(row++, 10, " | |/ /     (_)     | |   | |       ");
+    mvprintw(row++, 10, " | ' / _ __  _  __ _| |__ | |_ ___  ");
+    mvprintw(row++, 10, " |  < | '_ \\| |/ _` | '_ \\| __/ __|");
+    mvprintw(row++, 10, " | . \\| | | | | (_| | | | | |_\\__ \\");
+    mvprintw(row++, 10, " |_|\\_\\_| |_|_|\\__, |_| |_|\\__|___/");
+    mvprintw(row++, 10, "                __/ |               ");
+    mvprintw(row++, 10, "   of          |___/                ");
+    mvprintw(row++, 10, "       C A M E L O T                ");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row += 2;
+
+    attron(COLOR_PAIR(CP_WHITE));
+    mvprintw(row++, 10, "The Quest for the Holy Grail");
+    attroff(COLOR_PAIR(CP_WHITE));
+    row += 2;
+
+    int menu_row = row;
+    attron(COLOR_PAIR(CP_CYAN));
+    if (has_save)
+        mvprintw(row++, 14, "[C] Continue saved game");
+    mvprintw(row++, 14, "[N] New Game");
+    mvprintw(row++, 14, "[H] High Scores");
+    mvprintw(row++, 14, "[F] Fallen Heroes");
+    mvprintw(row++, 14, "[Q] Quit");
+    attroff(COLOR_PAIR(CP_CYAN));
+    (void)menu_row;
+
+    ui_refresh();
+
+    while (1) {
+        int key = ui_getkey();
+        if (key == 'C' && has_save) return 2;
+        if (key == 'N' || key == 'n') return 1;
+        if (key == 'H' || key == 'h') return 3;
+        if (key == 'F' || key == 'f') return 4;
+        if (key == 'Q' || key == 'q') return 0;
+    }
+}
+
+void show_high_scores_screen(void) {
+    HighScore scores[MAX_HIGH_SCORES];
+    int count = scores_load(scores);
+
+    ui_clear();
+    int row = 2;
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 4, "=== High Scores ===");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row++;
+
+    if (count == 0) {
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 6, "No scores yet. Go forth and quest!");
+        attroff(COLOR_PAIR(CP_GRAY));
+    } else {
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row++, 4, " #  %-16s %-10s %6s  %s", "Name", "Class", "Score", "Cause of Death");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        for (int i = 0; i < count; i++) {
+            short cp = (i == 0) ? CP_YELLOW_BOLD : (i < 3) ? CP_YELLOW : CP_WHITE;
+            attron(COLOR_PAIR(cp));
+            mvprintw(row++, 4, "%2d. %-16s %-10s %6d  %s%s",
+                     i + 1, scores[i].name, scores[i].class_name,
+                     scores[i].score, scores[i].cause,
+                     scores[i].found_grail ? " [GRAIL]" : "");
+            attroff(COLOR_PAIR(cp));
+        }
+    }
+    row++;
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row, 4, "Press any key to return.");
+    attroff(COLOR_PAIR(CP_GRAY));
+    ui_refresh();
+    ui_getkey();
+}
+
+void show_fallen_heroes_screen(void) {
+    FallenHero heroes[MAX_FALLEN];
+    int count = fallen_load(heroes);
+
+    ui_clear();
+    int row = 2;
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(row++, 4, "=== Fallen Heroes ===");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    row++;
+
+    if (count == 0) {
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 6, "No heroes have fallen yet.");
+        attroff(COLOR_PAIR(CP_GRAY));
+    } else {
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row++, 4, "%d brave soul%s ha%s perished in the quest for the Grail.",
+                 count, count == 1 ? "" : "s", count == 1 ? "s" : "ve");
+        attroff(COLOR_PAIR(CP_WHITE));
+        row++;
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+        for (int i = 0; i < count && row < term_rows - 3; i++) {
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "%-16s Lvl %-2d  %-10s  %4d pts  \"%s\"",
+                     heroes[i].name, heroes[i].level, heroes[i].class_name,
+                     heroes[i].score, heroes[i].cause);
+            attroff(COLOR_PAIR(CP_GRAY));
+        }
+    }
+    row++;
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row, 4, "Press any key to return.");
+    attroff(COLOR_PAIR(CP_GRAY));
+    ui_refresh();
+    ui_getkey();
+}
 
 /* Unidentified potion colour descriptions */
 static const char *potion_colours[] = {
@@ -478,9 +698,10 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
 
     if (gs->hp <= 0) {
         gs->hp = 0;
-        log_add(&gs->log, gs->turn, CP_RED_BOLD,
-                 "You have been slain by the %s!", attacker->name);
-        gs->hp = 1;  /* prevent death for now -- death screen in Phase 13 */
+        snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
+                 "Slain by %s", attacker->name);
+        show_death_screen(gs);
+        gs->running = false;
     }
 }
 
@@ -977,6 +1198,9 @@ static void advance_time(GameState *gs, int minutes) {
         gs->buff_spd_turns--;
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
     }
+
+    /* Track gold earned (for score) */
+    if (gs->gold > gs->gold_earned) gs->gold_earned = gs->gold;
 
     /* Witch geas countdown and completion check */
     if (gs->witch_geas_turns > 0) {
@@ -5739,6 +5963,16 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Save game (S key on overworld) */
+    if (key == 'S' && gs->mode == MODE_OVERWORLD) {
+        if (save_game(gs)) {
+            log_add(&gs->log, gs->turn, CP_GREEN, "Game saved.");
+        } else {
+            log_add(&gs->log, gs->turn, CP_RED, "Save failed!");
+        }
+        return;
+    }
+
     /* Level-up stat choice screen */
     if (gs->pending_levelup) {
         ui_clear();
@@ -5833,7 +6067,22 @@ void game_handle_input(GameState *gs, int key) {
 
     /* Quit -- but not in town mode (q leaves town instead) */
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
-        gs->running = false;
+        int term_rows, term_cols;
+        ui_get_size(&term_rows, &term_cols);
+        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        mvprintw(term_rows - 1, 0, "Quit? [s] Save & quit  [q] Quit without saving  [Esc] Cancel");
+        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        ui_refresh();
+
+        int qk = ui_getkey();
+        if (qk == 's' || qk == 'S') {
+            if (save_game(gs))
+                log_add(&gs->log, gs->turn, CP_GREEN, "Game saved.");
+            gs->running = false;
+        } else if (qk == 'q' || qk == 'Q') {
+            gs->running = false;
+        }
+        /* Esc or any other key = cancel, continue playing */
         return;
     }
 
@@ -6436,7 +6685,33 @@ void game_handle_input(GameState *gs, int key) {
         row++;
 
         int active = 0, completed = 0;
-        /* Active quests */
+
+        /* Main Quest: Holy Grail */
+        if (gs->quests.grail_quest_active) {
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvprintw(row++, 2, "Main Quest:");
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            if (gs->quests.grail_quest_complete) {
+                attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
+                mvprintw(row++, 4, "[COMPLETE] The Holy Grail -- Returned to King Arthur!");
+                attroff(COLOR_PAIR(CP_GREEN) | A_BOLD);
+            } else if (gs->has_grail) {
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(row++, 4, "[GRAIL FOUND] Return the Holy Grail to King Arthur at Camelot Castle!");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(row++, 4, "[ACTIVE] The Holy Grail");
+                attroff(COLOR_PAIR(CP_YELLOW));
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(row++, 6, "Find the Holy Grail and return it to King Arthur.");
+                mvprintw(row++, 6, "Ask townfolk and Merlin for hints about its location.");
+                attroff(COLOR_PAIR(CP_WHITE));
+            }
+            row++;
+        }
+
+        /* Side quests */
         attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         mvprintw(row++, 2, "Active Quests:");
         attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);

@@ -8,7 +8,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 
 ## Current State
 
-**Implemented (Phases 1-12):**
+**Implemented (Phases 1-13):**
 - Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling, random gold (30-200)
 - 50-spell system with Light, Dark, Nature, and Universal schools
 - A* pathfinding and FSM AI for monsters (IDLE/CHASE/FLEE states)
@@ -25,6 +25,9 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 - Dungeon bosses on deepest levels (12 unique bosses + Mordred as Grail guardian)
 - Leveling system with 20 levels and class-based HP/MP progression
 - Chivalry system (0-100) with titles from Knave to Paragon of Virtue
+- Title screen with ASCII art, continue/new game/high scores/fallen heroes
+- Save/load with permadeath (save deleted on death)
+- Death screen with score calculation, high score table, fallen heroes record
 - All game data loaded from CSV files (monsters, items, spells, quests, towns, locations, creatures, names)
 
 ## Terrain Guide
@@ -216,6 +219,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | `F` | Forage for food (forests, grassland, hills) |
 | `K` | Cook raw food (needs Torch or Tinderbox, campable terrain) |
 | `H` | Mount/dismount horse (if owned) |
+| `S` | Save game |
 | `z` | Cast a spell |
 | `i` | Inventory |
 | `M` | Minimap (full overworld overview) |
@@ -805,6 +809,49 @@ Every dungeon has a **boss** on its deepest level:
 | Bamburgh Castle | Bandit King | Tough melee |
 
 If the Grail is in a dungeon, **Mordred** replaces the normal boss as the final guardian.
+
+### Title Screen
+When you launch the game, you see the title screen with an ASCII art banner and menu:
+- **[C] Continue** -- resume from your saved game (only shown if a save exists)
+- **[N] New Game** -- start a new character
+- **[H] High Scores** -- view the top 10 scores across all playthroughs
+- **[F] Fallen Heroes** -- view all your previous dead characters
+- **[Q] Quit**
+
+### Saving & Permadeath
+Press **`S`** on the overworld to save your game to `~/.camelot/save.dat`. Only one save slot exists -- no save scumming!
+
+**Permadeath**: when you die, your save is **deleted**. Your character is gone forever. But your legacy lives on:
+- Your **score** is added to the high score table
+- Your character is recorded in the **Fallen Heroes** list
+- Both persist across all future playthroughs
+
+### Death Screen
+When you die, a full-screen summary shows:
+- Character name, class, chivalry title
+- Cause of death (e.g. "Slain by Red Dragon")
+- Final stats (level, STR, DEF, INT, SPD)
+- Journey summary (turns, kills, gold earned, quests completed, spells learned)
+- Whether you found the Holy Grail (+5000 score bonus)
+- **Final score**
+
+### Scoring
+Your score is calculated as:
+
+```
+Score = (kills * 10) + gold_earned + (quests_completed * 150)
+Score = Score * chivalry_multiplier
+If Grail found: Score + 5000
+If cheat mode: Score = 0
+```
+
+**Chivalry multiplier**: 0.5x at chivalry 0, 1.0x at 50, up to 2.0x at 100. High chivalry rewards honourable play.
+
+### High Scores
+Top 10 scores saved to `~/.camelot/scores.dat`. Each entry shows name, class, score, cause of death, and whether the Grail was found. Viewable from the title screen.
+
+### Fallen Heroes
+Up to 50 fallen characters recorded in `~/.camelot/fallen_heroes.dat`. Shows name, level, class, score, and cause of death for each. Most recent death listed first. "X brave souls have perished in the quest for the Grail."
 
 ## Building
 
