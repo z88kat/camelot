@@ -116,6 +116,7 @@ static ItemType parse_item_type(const char *s) {
     if (strcmp(s, "food") == 0) return ITYPE_FOOD;
     if (strcmp(s, "quest") == 0) return ITYPE_QUEST;
     if (strcmp(s, "tool") == 0) return ITYPE_TOOL;
+    if (strcmp(s, "gold") == 0) return ITYPE_GOLD;
     return ITYPE_WEAPON;
 }
 

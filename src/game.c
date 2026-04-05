@@ -461,14 +461,14 @@ static bool ai_debuff_player(GameState *gs, Entity *e, int dist_sq) {
     if (dist_sq > 25) return false; /* range 5 */
     if (!rng_chance(30)) return false; /* 30% chance per turn */
 
-    /* Pick a random stat to reduce */
+    /* Pick a random stat to reduce (minimum 1) */
     int stat = rng_range(0, 3);
     const char *stat_name;
     switch (stat) {
-    case 0: gs->str -= 1; stat_name = "STR"; break;
-    case 1: gs->def -= 1; stat_name = "DEF"; break;
-    case 2: gs->intel -= 1; stat_name = "INT"; break;
-    default: gs->spd -= 1; stat_name = "SPD"; break;
+    case 0: if (gs->str > 1) gs->str -= 1; stat_name = "STR"; break;
+    case 1: if (gs->def > 1) gs->def -= 1; stat_name = "DEF"; break;
+    case 2: if (gs->intel > 1) gs->intel -= 1; stat_name = "INT"; break;
+    default: if (gs->spd > 1) gs->spd -= 1; stat_name = "SPD"; break;
     }
     e->ability_cd = 6;
     log_add(&gs->log, gs->turn, CP_MAGENTA,
@@ -794,15 +794,15 @@ static void advance_time(GameState *gs, int minutes) {
     /* Tick spell buff durations */
     if (gs->buff_str_turns > 0) {
         gs->buff_str_turns--;
-        if (gs->buff_str_turns == 0) { gs->str -= 3; }
+        if (gs->buff_str_turns == 0) { gs->str -= 3; if (gs->str < 1) gs->str = 1; }
     }
     if (gs->buff_def_turns > 0) {
         gs->buff_def_turns--;
-        if (gs->buff_def_turns == 0) { gs->def -= 3; }
+        if (gs->buff_def_turns == 0) { gs->def -= 3; if (gs->def < 1) gs->def = 1; }
     }
     if (gs->buff_spd_turns > 0) {
         gs->buff_spd_turns--;
-        if (gs->buff_spd_turns == 0) { gs->spd -= 3; }
+        if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
     }
 
     /* Slow MP regeneration: 1 MP per 20 turns */
@@ -4637,30 +4637,12 @@ static void give_starting_gear(GameState *gs) {
 /* Finalize character creation and start the game                      */
 /* ------------------------------------------------------------------ */
 static void finalize_character(GameState *gs) {
-    /* Set class-based stats */
+    /* Stats were already set by roll_stats() including class/gender bonuses.
+       Just set spell capacity here. */
     switch (gs->player_class) {
-    case CLASS_KNIGHT:
-        gs->max_hp = 30; gs->max_mp = 8;
-        gs->str += 2; gs->def += 2;
-        gs->max_spells_capacity = 4;
-        break;
-    case CLASS_WIZARD:
-        gs->max_hp = 18; gs->max_mp = 30;
-        gs->intel += 3; gs->spd += 1;
-        gs->max_spells_capacity = 15;
-        break;
-    case CLASS_RANGER:
-        gs->max_hp = 24; gs->max_mp = 15;
-        gs->str += 1; gs->spd += 2;
-        gs->max_spells_capacity = 6;
-        break;
-    }
-
-    /* Gender bonuses */
-    if (gs->player_gender == GENDER_MALE) {
-        gs->str += 1; gs->def += 1;
-    } else {
-        gs->intel += 1; gs->spd += 1;
+    case CLASS_KNIGHT: gs->max_spells_capacity = 4;  break;
+    case CLASS_WIZARD: gs->max_spells_capacity = 15; break;
+    case CLASS_RANGER: gs->max_spells_capacity = 6;  break;
     }
 
     gs->hp = gs->max_hp;

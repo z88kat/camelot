@@ -18,32 +18,22 @@
 - [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
 
 ### Data Files Checklist
-- [x] `data/monsters.csv`
-- [x] `data/items.csv`
-- [x] `data/quests.csv`
-- [x] `data/towns.csv`
-- [x] `data/locations.csv` (overworld locations: towns, castles, dungeons, landmarks)
-- [x] `data/creatures.csv` (overworld wandering creatures)
-- [ ] `data/potions.csv`
-- [ ] `data/food.csv`
-- [x] `data/spells.csv`
-- [x] `data/names.csv`
-- [ ] `data/npcs.csv`
-- [ ] `data/shops.csv`
-- [ ] `data/dialogue.csv`
-- [ ] `data/loot_tables.csv`
-- [ ] `data/terrain.csv`
-- [ ] `data/traps.csv`
-- [ ] `data/weather.csv`
-- [ ] `data/witch_tasks.csv`
-- [ ] `data/events.csv`
-- [ ] `data/names.csv`
-- [ ] `data/ammo.csv`
-- [ ] `data/special_rooms.csv`
-- [ ] `data/dungeon_terrain.csv`
-- [ ] `data/time.csv`
-- [ ] `data/monster_abilities.csv`
-*Note: rings, artifacts, potions, and food are rows in `data/items.csv` with appropriate type columns. Separate CSVs (`potions.csv`, `food.csv`) may be used if the data grows too large.*
+- [x] `data/monsters.csv` -- 85+ monsters with stats, AI flags, drops
+- [x] `data/items.csv` -- 150+ items: weapons, armor, rings, amulets, gems, treasures, potions, food, scrolls, spell scrolls, tools
+- [x] `data/quests.csv` -- 15 side quests (delivery, fetch, kill)
+- [x] `data/towns.csv` -- 43 towns, castles, abbeys with services
+- [x] `data/locations.csv` -- 70+ overworld locations with coordinates
+- [x] `data/creatures.csv` -- 12 overworld creature types
+- [x] `data/spells.csv` -- 50 spells across 4 schools
+- [x] `data/names.csv` -- 48 random character names
+- [ ] `data/traps.csv` -- 12 trap types with damage, effects, messages (currently hardcoded in game.c)
+- [ ] `data/weather.csv` -- 6 weather types with regional weights (currently hardcoded in game.c)
+- [ ] `data/events.csv` -- 11 lunar cycle events (currently hardcoded in game.c)
+- [ ] `data/loot_tables.csv` -- monster drop ranges (currently hardcoded in game.c)
+- [ ] `data/dialogue.csv` -- NPC dialogue lines (feature not yet built)
+- [ ] `data/ammo.csv` -- ranged ammo types (feature not yet built)
+- [ ] `data/witch_tasks.csv` -- witch encounter tasks (feature not yet built)
+*Note: potions, food, rings, amulets, gems, and treasures are all rows in `data/items.csv` with appropriate type columns. Terrain and time-of-day are simple enums that don't warrant separate CSV files.*
 
 ## Context
 Building "Knights of Camelot" -- a full-featured terminal ASCII roguelike in C using ncurses. Theme: Knights of Camelot and the Quest for the Holy Grail. Features an overworld map of England with towns/villages, and multiple dungeons. The repo is empty (just README/LICENSE/.gitignore).

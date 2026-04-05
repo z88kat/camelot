@@ -282,6 +282,8 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 |-----|--------|
 | `i` | Inventory |
 | `z` | Cast spell |
+| `Z` | View spellbook (all known spells with stats) |
+| `J` | Quest journal |
 | `M` | Minimap |
 | `P` | Message history (scroll with Up/Down, q to close) |
 | `q` | Quit game / leave town |
@@ -301,7 +303,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 ### Classes & Spells
 
 #### Spell Casting
-Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Each spell costs MP. Spells are colour-coded by school:
+Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Each spell costs MP. Spells you can't afford are greyed out. Spells are colour-coded by school:
 - **Universal** (white): available to all classes
 - **Light** (yellow): healing, protection, holy damage
 - **Dark** (magenta): draining, cursing, summoning undead
@@ -317,6 +319,34 @@ Press **`z`** to open the spell menu. Select a spell with `a`-`z` to cast it. Ea
 - **Detect** (Detect Traps, Identify): reveals hidden traps
 - **Fear** (Fear, Turn Undead, Nightmare): forces nearby enemies to flee
 - **Drain** (Drain Life, Sacred Flame, Soul Steal): damages an enemy and heals you for half the damage dealt
+
+#### Spellbook
+Press **`Z`** (Shift+Z) to view your spellbook. Shows all known spells with their effect type, MP cost, damage, range, and school. This is a reference screen -- to actually cast, press `z` instead.
+
+#### Learning New Spells
+You start with **1 spell** based on your class. To learn more:
+1. Find **Spell Scrolls** in dungeons (they appear as `?` like regular scrolls but are named "Scroll: [Spell Name]")
+2. Buy them from the **Apothecary** in towns (they stock scrolls alongside potions)
+3. Open your **inventory** (`i`), select the spell scroll, and press **`u`** to use it
+
+**Requirements to learn:**
+- You must meet the spell's **level requirement** (shown in spells.csv). If you're too low level: "You cannot comprehend the magic within..."
+- You can't learn a spell you already know
+
+**Spell capacity by class:**
+| Class | Max Spells | What happens when full |
+|-------|-----------|----------------------|
+| Knight | 4 | A random existing spell is forgotten and replaced |
+| Ranger | 6 | A random existing spell is forgotten and replaced |
+| Wizard | 15 | Can freely learn up to 15 spells |
+
+When a spell is replaced: "The new magic pushes an old spell from your mind... you forget [old spell] and learn [new spell]!" You cannot choose which spell is lost.
+
+**24 Spell Scrolls** can be found, covering all four schools:
+- **Universal**: Magic Missile, Light, Shield, Teleport, Haste, Blink, Fireball
+- **Light**: Heal, Greater Heal, Holy Strike, Divine Shield, Smite, Turn Undead, Blessing
+- **Dark**: Drain Life, Shadow Step, Curse, Fear, Dark Bolt
+- **Nature**: Entangle, Lightning, Bark Skin, Regrowth, Walk on Water
 
 #### MP Regeneration
 - **1 MP every 20 turns** (passive regeneration)
