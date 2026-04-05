@@ -359,9 +359,10 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
         /* King on the throne */
         add_npc(tm, NPC_KING, throne_x, throne_y + 1, 'K', CP_YELLOW_BOLD, "King", false);
 
-        /* Queen beside the throne (50% chance present) */
-        if (rng_chance(50)) {
-            add_npc(tm, NPC_QUEEN, throne_x - 2, throne_y + 1, 'Q', CP_MAGENTA_BOLD, "Queen", false);
+        /* Queen beside the throne (always present in Camelot Castle, 50% elsewhere) */
+        if (strcmp(td->name, "Camelot Castle") == 0 || rng_chance(50)) {
+            const char *qlabel = (strcmp(td->name, "Camelot Castle") == 0) ? "Guinevere" : "Queen";
+            add_npc(tm, NPC_QUEEN, throne_x - 2, throne_y + 1, 'Q', CP_MAGENTA_BOLD, qlabel, false);
         }
 
         /* Guards at the throne room entrance */

@@ -515,7 +515,55 @@ Press Enter on a landmark to interact:
 - **Faerie Ring**: random effect -- stat boost, gold, teleport
 - **Avalon**: full HP/MP restore
 - **Holy Island**: +2 chivalry, full HP restore
+- **Lady of the Lake**: offers Excalibur (see Famous Characters below)
+- **Magic Circles**: random effect -- healing, mana, blessing, gold, teleport, or fire/drain. Renew after 10-30 days
 - **Rainbow** (`=` cycling colours): appears after rain. Race to its end for 100-500 gold!
+
+### Famous Characters
+
+Legendary figures from Arthurian myth appear at fixed locations. Bump into them to interact.
+
+#### King Arthur (Camelot Castle)
+Your first visit to Arthur is the most important event in the game. He grants you:
+- **The Grail Quest** -- the main quest to find the Holy Grail
+- **Knighthood** -- +2 DEF, +1 STR, +5 chivalry
+- A narrative cutscene with dialogue
+
+After you've completed **3 or more side quests**, return to Arthur to receive a **Bastard Sword** as a reward for your service.
+
+#### Queen Guinevere (Camelot Castle)
+Arthur's queen responds to your chivalry:
+- **Chivalry 50+**: warm greeting. If your Light affinity is 15+, she gives you an **Amulet of Insight**
+- **Below 50**: cool dismissal -- prove yourself first
+
+#### Merlin (Glastonbury)
+The wizard Merlin replaces the regular Mystic in Glastonbury. When you visit him:
+- He **teaches you a spell** you don't know (if your spellbook has room)
+- If your spellbook is full, he instead grants **+1 INT** and **+3 max MP**
+- He gives a **hint about the Grail's location** in Glastonbury Tor
+- Visiting Merlin grants **+3 Light affinity**
+
+#### Morgan le Fay (Cornwall)
+The sorceress Morgan replaces the regular Mystic in Cornwall. She offers a **dark bargain**:
+- A powerful permanent stat boost (+3 STR, +3 INT, or +3 SPD)
+- At a cost: permanent max HP reduction (-8 to -10)
+- Accepting grants +5 Dark affinity but costs -3 chivalry
+- You can **decline** with no penalty
+
+This is a genuine dilemma -- the stat boost is huge but losing max HP is permanent. Choose wisely.
+
+#### Lady of the Lake (overworld landmark)
+A mystical figure at a lake who offers **Excalibur**, the most powerful weapon in the game (power 14, +2 STR). To receive it you must prove worthy:
+- **Chivalry 40+** AND
+- **5 completed quests** OR **Light affinity 15+**
+
+If you're not yet worthy, she tells you to return later. Excalibur is a one-time gift.
+
+#### Other Kings (castles)
+Kings in other castles react based on your chivalry:
+- **60+**: "Your fame precedes you!" -- warm welcome
+- **30-59**: neutral greeting
+- **Below 30**: "I have heard troubling things about you..." -- suspicion
 
 ### Beer & Drunkenness
 Buy beer at any inn (2-4g per pint). Each pint increases drunkenness:
