@@ -1820,6 +1820,7 @@ static void handle_overworld_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 /* Town service forward declarations                                   */
 static void town_do_inn(GameState *gs);
+static void game_render(GameState *gs);
 static void town_do_church(GameState *gs);
 static void town_do_mystic(GameState *gs);
 static void town_do_bank(GameState *gs);
@@ -3482,7 +3483,7 @@ void game_handle_input(GameState *gs, int key) {
 
     /* Look/identify mode (; key) -- examine visible tiles */
     if (key == ';' && gs->mode == MODE_DUNGEON && gs->dungeon) {
-        log_add(&gs->log, gs->turn, CP_WHITE, "Look mode: move cursor, Enter to identify, q to exit");
+        log_add(&gs->log, gs->turn, CP_WHITE, "Look mode: move cursor to examine. Press ; or Esc to exit.");
 
         DungeonLevel *dl_look = current_dungeon_level(gs);
         if (dl_look) {
@@ -3572,7 +3573,7 @@ void game_handle_input(GameState *gs, int key) {
                 ui_refresh();
 
                 int lkey = ui_getkey();
-                if (lkey == 'q' || lkey == 'Q' || lkey == 27 || lkey == ';') break;
+                if (lkey == 27 || lkey == ';') break;  /* Esc or ; to exit look mode */
 
                 Direction ldir = key_to_direction(lkey);
                 if (ldir != DIR_NONE) {

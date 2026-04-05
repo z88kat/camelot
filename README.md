@@ -327,18 +327,25 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 |-----|--------|
 | `<` | Ascend stairs (return to overworld from level 1) |
 | `>` | Descend stairs / use exit portal |
+| `g` | Pick up item on the ground |
+| `i` | Open inventory (works in all modes) |
+| `;` | Look/identify mode -- examine tiles, monsters, items |
 | `o` + direction | Open a door |
 | `c` + direction | Close a door |
 | `s` | Search adjacent walls for secret doors |
 | `D` | Disarm an adjacent revealed trap (INT+SPD check) |
+| `R` | Rest to recover HP/MP (interrupted if monster approaches) |
 | `M` | Dungeon minimap (full level overview) |
 | `T` | Toggle torch on/off (light radius 10 vs 2) |
 | `q` | Quit game |
 
 - Walking into a closed door `+` (brown) auto-opens it.
 - Locked doors `+` (red) require bashing -- walk into them for a STR check.
+- Walking into a monster attacks it (bump-to-attack).
 - Traps are hidden until triggered or passively detected (10% within 2 tiles). Revealed traps `^` (red) are safe to walk over.
 - Walk onto chests `=`, gold piles `$`, altars `_`, coffins `-`, and bookshelves `|` to interact.
+- Stepping on an item shows "You see here: [item name]" -- press `g` to pick up.
+- Weapons show as `|`, armor as `[`, potions as `!`, food as `%`, scrolls as `?`, tools as `(`.
 
 ### UI (all modes)
 | Key | Action |
@@ -434,6 +441,34 @@ Seven historical abbeys (`A` white) are scattered across England. Press Enter to
 
 ### Magical Deer
 Deer (`d` brown) roam the forests. When you bump into one, there's a **10% chance** it glows with golden light and grants **+1 to a random stat**!
+
+### Items & Inventory
+- Press **`i`** anywhere to open your inventory (works on overworld, in towns, and dungeons).
+- **Equipment slots**: Weapon, Armor, Shield, Helmet, Boots, Gloves, Ring 1, Ring 2.
+- Select an item with `a`-`z`, then: **`e`** equip, **`d`** drop, **`u`** use (potions/food).
+- **Equipped weapon** adds power to your attack damage. **All armor** stacks for defense.
+- Items spawn in dungeon rooms (`|` weapons, `[` armor, `!` potions, `%` food, `$` gold, `?` scrolls, `(` tools).
+- Press **`g`** to pick up items on the ground. Gold goes straight to your wallet.
+- Monsters drop items on death: knights drop weapons, warlocks drop potions, beasts drop food.
+- **Shops** in towns sell items -- bump into the Blacksmith `$`, Apothecary `!`, or Pawnbroker `P`.
+- Press **`S`** in a shop to sell items from your inventory.
+- You start with: Rusty Sword (equipped), Leather Armor (equipped), 3x Bread.
+
+### Look/Identify Mode
+Press **`;`** in a dungeon to enter look mode:
+- Move a cursor with hjkl/arrow keys across visible tiles.
+- **Monsters** show: name, HP, STR, DEF, SPD, XP reward.
+- **Items** show: name, type, power, value, weight.
+- **Tiles** show: description (Wall, Shallow water, Lava, Magic circle, etc.)
+- Press **`;`** again or **Escape** to exit. (`q` does NOT exit look mode.)
+
+### Resting
+Press **`R`** in a dungeon to rest and recover HP/MP:
+- Recovers 1 HP every 5 turns, 1 MP every 8 turns.
+- Rests until full HP or 100 turns max.
+- **Monsters still move** while you rest -- they can reach you!
+- **Interrupted** if a monster reaches an adjacent tile.
+- **3% chance per turn** of a new monster spawning nearby.
 
 ### Combat
 - **Bump-to-attack**: walk into an enemy to attack. Both overworld (red creatures) and dungeon monsters.
