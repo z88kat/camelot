@@ -47,6 +47,10 @@ static void get_dungeon_depth(const char *name, int *min_d, int *max_d) {
     else if (strcmp(name, "Whitby Abbey") == 0) { *min_d = 2; *max_d = 4; }
     else if (strcmp(name, "Avalon Shrine") == 0) { *min_d = 3; *max_d = 5; }
     else if (strcmp(name, "Orkney Barrows") == 0) { *min_d = 2; *max_d = 4; }
+    /* Abandoned castles */
+    else if (strcmp(name, "Castle Dolorous Garde") == 0) { *min_d = 2; *max_d = 3; }
+    else if (strcmp(name, "Castle Perilous") == 0) { *min_d = 2; *max_d = 3; }
+    else if (strcmp(name, "Bamburgh Castle") == 0) { *min_d = 2; *max_d = 3; }
     else { *min_d = 3; *max_d = 8; }  /* default */
 }
 
@@ -1663,7 +1667,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
             case LOC_CASTLE_ABANDONED:
                 log_add(&gs->log, gs->turn, CP_GRAY,
-                         "The ruins of %s loom before you.", loc->name);
+                         "The ruins of %s loom before you. Press > to explore.", loc->name);
                 break;
             case LOC_DUNGEON_ENTRANCE:
                 log_add(&gs->log, gs->turn, CP_WHITE,
@@ -2437,7 +2441,8 @@ static void handle_overworld_input(GameState *gs, int key) {
     if (key == '>') {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
-        if (loc && (loc->type == LOC_DUNGEON_ENTRANCE || loc->type == LOC_VOLCANO)) {
+        if (loc && (loc->type == LOC_DUNGEON_ENTRANCE || loc->type == LOC_VOLCANO ||
+                    loc->type == LOC_CASTLE_ABANDONED)) {
             gs->ow_player_pos = gs->player_pos;
 
             /* Create the dungeon if not already entered */
@@ -2490,8 +2495,22 @@ static void handle_overworld_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_BROWN, "You dismount and leave your horse at the entrance.");
             }
             dungeon_update_fov(gs);
-            log_add(&gs->log, gs->turn, CP_WHITE,
-                     "You descend into %s... (%d levels deep)", loc->name, num_levels);
+            if (loc->type == LOC_CASTLE_ABANDONED) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "You enter the ruins of %s... (%d floors)", loc->name, num_levels);
+                if (strcmp(loc->name, "Castle Dolorous Garde") == 0)
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "A haunted chill fills the air. Ghosts wander these halls.");
+                else if (strcmp(loc->name, "Castle Perilous") == 0)
+                    log_add(&gs->log, gs->turn, CP_MAGENTA,
+                             "Dark sorcery taints this place. Beware magical traps.");
+                else if (strcmp(loc->name, "Bamburgh Castle") == 0)
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "Bandits have made this ruin their stronghold. Steel yourself.");
+            } else {
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "You descend into %s... (%d levels deep)", loc->name, num_levels);
+            }
         } else {
             log_add(&gs->log, gs->turn, CP_GRAY, "There is no entrance here.");
         }

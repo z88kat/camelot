@@ -551,8 +551,8 @@ Your chivalry score (0-100) determines how NPCs treat you and grants a title:
 
 Your title is displayed in town alongside your chivalry score.
 
-Raise chivalry by: donating at churches, confession, visiting Holy Island, completing quests.
-Lower chivalry by: looting churches (-12), bad choices.
+Raise chivalry by: donating at churches, confession, visiting Holy Island, completing quests, curing at church (+1).
+Lower chivalry by: looting churches (-12), desecrating magic circles (-15), stealing from shops (-8), getting caught stealing (-5), accepting dark bargains (-3).
 
 ### Abbeys
 Eight historical abbeys (`A` white) across England:
@@ -568,7 +568,7 @@ Press Enter on a landmark to interact:
 - **Avalon**: full HP/MP restore
 - **Holy Island**: +2 chivalry, full HP restore
 - **Lady of the Lake**: offers Excalibur (see Famous Characters below)
-- **Magic Circles**: random effect -- healing, mana, blessing, gold, teleport, or fire/drain. Renew after 10-30 days
+- **Magic Circles**: random effect -- healing, mana, blessing, gold, teleport, or fire/drain. Renew after 10-30 days. You can also choose to **loot** a circle (`l`) for 80-200 gold, but at -15 chivalry and a 40% chance of a stat curse. Desecrating a sacred site is never without consequence
 - **Rainbow** (`=` cycling colours): appears after rain. Race to its end for 100-500 gold!
 
 ### Famous Characters
