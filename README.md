@@ -200,6 +200,7 @@ Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors.
 | `Enter` | Enter a town, castle, or interact with landmark |
 | `>` | Descend into a dungeon entrance |
 | `c` | Camp (rest 8 hours, restore 50% HP/MP) |
+| `H` | Mount/dismount horse (if owned) |
 | `z` | Cast a spell |
 | `i` | Inventory |
 | `M` | Minimap (full overworld overview) |
@@ -252,6 +253,11 @@ Stock is randomised each visit:
 | `w` | Withdraw 50 gold |
 | `W` | Withdraw all gold |
 | `q` | Leave the bank |
+
+#### Stable
+| Key | Action |
+|-----|--------|
+| `b` | Buy a horse (150 gold, one-time purchase) |
 
 #### Mystic
 Pay 5 gold for a fortune. 60% chance of +1 to a random stat, 40% chance of -1.
@@ -368,8 +374,8 @@ Gain XP by killing monsters and completing quests. When you reach the next XP th
 ### Time & Travel
 - Time passes with every action. Each step advances the game clock.
 - **Dungeon movement**: 1 minute per step.
-- **Overworld movement**: varies by terrain. Roads (5 min), grassland (10 min), forest (20 min), hills (25 min), swamp (35 min).
-- **Stick to roads** when possible -- they are 7x faster than swamps.
+- **Overworld movement**: varies by terrain. Roads (5 min), grassland (10 min), forest (20 min), hills (25 min), swamp (35 min). **Riding a horse halves all travel times.**
+- **Stick to roads** when possible -- they are 7x faster than swamps. Buy a horse early for even faster travel.
 - **Day/night cycle**: shops close at night, castles lock their gates, visibility drops. Time shown on status bar: [Dawn], [Morning], [Midday], [Afternoon], [Dusk], [Evening], [Night].
 - **Weather** changes as you travel. Affects visibility and travel speed. Scotland is colder, Wales is foggy, Whitby is always raining.
 
@@ -378,6 +384,17 @@ Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP.
 
 ### Boats & Lakes
 Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto land to disembark.
+
+### Horses
+Buy a horse from any **Stablemaster** (`S`) for **150 gold** (one-time purchase). Once owned:
+- Press **`H`** on the overworld to mount or dismount
+- **Doubles your travel speed** on all terrain (roads: 5→3 min, grassland: 10→5 min, swamp: 35→18 min)
+- Status bar shows **"Riding"** while mounted
+- You **automatically dismount** when entering a town, castle, dungeon, or boat
+- You **automatically remount** when leaving a town or dungeon back to the overworld
+- Stables are found in major towns: Camelot, London, York, Winchester
+
+A horse is one of the best early investments -- it makes exploring the large overworld much faster.
 
 ### Dungeons
 - Walk onto a dungeon entrance `>` on the overworld and press `>` to enter.

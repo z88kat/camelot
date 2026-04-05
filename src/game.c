@@ -285,7 +285,9 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     int armor_pow = 0;
     for (int s = SLOT_ARMOR; s <= SLOT_GLOVES; s++)
         if (gs->equipment[s].template_id >= 0) armor_pow += gs->equipment[s].power;
-    int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow;
+    /* Destrier war horse grants +2 DEF when mounted */
+    int mount_def = (gs->riding && gs->horse_type == 3) ? 2 : 0;
+    int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow - mount_def;
     if (damage < 1) damage = 1;
 
     /* Shield spell absorb */
@@ -1099,7 +1101,21 @@ static int overworld_travel_time(GameState *gs, TileType type) {
     case TILE_SWAMP:   base = 35; break;
     default:           base = 10; break;
     }
-    return base + weather_speed_penalty(gs->weather);
+    int total = base + weather_speed_penalty(gs->weather);
+    /* Horse speed bonus depends on type */
+    if (gs->riding) {
+        switch (gs->horse_type) {
+        case 1: /* Pony: 1.5x speed, no hill penalty */
+            if (type == TILE_HILLS) total = 10; /* hills same as grassland */
+            else total = total * 2 / 3;
+            break;
+        case 2: /* Palfrey: 2x speed */
+        case 3: /* Destrier: 2x speed */
+            total = (total + 1) / 2;
+            break;
+        }
+    }
+    return total;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1177,6 +1193,7 @@ static void handle_overworld_input(GameState *gs, int key) {
         /* Stepping onto a boat tile from land -- board the boat and clear the tile */
         if (!gs->in_boat && target_glyph == 'B' && passable) {
             gs->in_boat = true;
+            if (gs->riding) { gs->riding = false; }
             /* Remove the boat from this tile -- we're taking it with us */
             Tile *bt = &gs->overworld->map[ny][nx];
             if (bt->type == TILE_LAKE || bt->type == TILE_WATER) {
@@ -1548,6 +1565,10 @@ static void handle_overworld_input(GameState *gs, int key) {
                 gs->well_explored = false;
                 gs->confessed = false;
                 gs->beers_drunk = 0;
+                if (gs->riding) {
+                    gs->riding = false;
+                    log_add(&gs->log, gs->turn, CP_BROWN, "You dismount and tie your horse outside.");
+                }
                 bool has_quest = (quest_find_available(&gs->quests, td->name, gs->chivalry) != NULL);
                 town_generate_map(&gs->town_map, td, has_quest);
                 gs->town_player_pos = gs->town_map.entrance;
@@ -2008,6 +2029,17 @@ static void handle_overworld_input(GameState *gs, int key) {
         return;
     }
 
+    /* Mount/dismount horse */
+    if (key == 'H' && gs->horse_type > 0) {
+        gs->riding = !gs->riding;
+        if (gs->riding) {
+            log_add(&gs->log, gs->turn, CP_BROWN, "You mount your horse. Travel speed doubled!");
+        } else {
+            log_add(&gs->log, gs->turn, CP_BROWN, "You dismount.");
+        }
+        return;
+    }
+
     /* Camp on overworld */
     if (key == 'c') {
         TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
@@ -2115,6 +2147,10 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
 
             gs->mode = MODE_DUNGEON;
+            if (gs->riding) {
+                gs->riding = false;
+                log_add(&gs->log, gs->turn, CP_BROWN, "You dismount and leave your horse at the entrance.");
+            }
             dungeon_update_fov(gs);
             log_add(&gs->log, gs->turn, CP_WHITE,
                      "You descend into %s... (%d levels deep)", loc->name, num_levels);
@@ -2389,8 +2425,66 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         }
         break;
     case NPC_STABLE:
-        log_add(&gs->log, gs->turn, CP_GRAY,
-                 "The stablemaster says: \"No horses available yet.\"");
+        if (gs->horse_type > 0) {
+            const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
+            log_add(&gs->log, gs->turn, CP_BROWN,
+                     "The stablemaster says: \"Your %s looks well cared for, %s.\"",
+                     hnames[gs->horse_type],
+                     gs->player_gender == GENDER_MALE ? "sir" : "my lady");
+        } else {
+            /* Price varies by town -- hash town name for deterministic variation */
+            unsigned int th = 0;
+            if (gs->current_town) {
+                for (const char *p = gs->current_town->name; *p; p++)
+                    th = th * 31 + (unsigned char)*p;
+            }
+            int pony_cost    = 40 + (int)(th % 25);          /* 40-64 */
+            int palfrey_cost = 85 + (int)((th / 25) % 35);   /* 85-119 */
+            int destrier_cost= 170 + (int)((th / 100) % 65); /* 170-234 */
+
+            /* Show horse selection menu */
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "=== Stablemaster ===");
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_BROWN));
+            mvprintw(row++, 4, "\"Welcome! I have fine steeds for sale:\"");
+            attroff(COLOR_PAIR(CP_BROWN));
+            row++;
+            attron(COLOR_PAIR(CP_CYAN));
+            mvprintw(row++, 6, "[1] Pony      - %3d gold  -- 1.5x speed, good in hills", pony_cost);
+            mvprintw(row++, 6, "[2] Palfrey   - %3d gold  -- 2x speed, standard riding horse", palfrey_cost);
+            mvprintw(row++, 6, "[3] Destrier  - %3d gold  -- 2x speed, +2 DEF (war horse)", destrier_cost);
+            attroff(COLOR_PAIR(CP_CYAN));
+            row++;
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 6, "Press 1-3 to buy, or q to leave.");
+            mvprintw(row++, 6, "You have %d gold.", gs->gold);
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            int skey = ui_getkey();
+            int cost = 0, htype = 0;
+            const char *hname = "";
+            if (skey == '1')      { cost = pony_cost;     htype = 1; hname = "Pony"; }
+            else if (skey == '2') { cost = palfrey_cost;  htype = 2; hname = "Palfrey"; }
+            else if (skey == '3') { cost = destrier_cost; htype = 3; hname = "Destrier"; }
+
+            if (htype > 0) {
+                if (gs->gold >= cost) {
+                    gs->gold -= cost;
+                    gs->horse_type = htype;
+                    gs->riding = true;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "You buy a %s! Press 'H' on the overworld to mount/dismount.", hname);
+                } else {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "You don't have enough gold. (need %d, have %d)", cost, gs->gold);
+                }
+            }
+        }
         break;
     case NPC_TOWNFOLK:
         {
@@ -3059,7 +3153,12 @@ static void handle_town_input(GameState *gs, int key) {
         gs->beers_drunk = 0;
         gs->well_explored = false;
         gs->confessed = false;
-        log_add(&gs->log, gs->turn, CP_WHITE, "You leave the town.");
+        if (gs->horse_type > 0) {
+            gs->riding = true;
+            log_add(&gs->log, gs->turn, CP_WHITE, "You leave the town and mount your horse.");
+        } else {
+            log_add(&gs->log, gs->turn, CP_WHITE, "You leave the town.");
+        }
         return;
     }
 }
@@ -3080,8 +3179,14 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 /* Return to overworld */
                 gs->player_pos = gs->ow_player_pos;
                 gs->mode = MODE_OVERWORLD;
-                log_add(&gs->log, gs->turn, CP_WHITE,
-                         "You climb back to the surface.");
+                if (gs->horse_type > 0) {
+                    gs->riding = true;
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "You climb back to the surface and mount your horse.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "You climb back to the surface.");
+                }
                 dungeon_free(gs->dungeon);
                 gs->dungeon = NULL;
             } else {
@@ -5244,7 +5349,16 @@ static void game_render(GameState *gs) {
         Location *loc = overworld_location_at(gs->overworld,
                                                gs->player_pos.x, gs->player_pos.y);
         int moon = game_get_moon_day(gs);
-        const char *tname = gs->in_boat ? "Sailing" : terrain_name(t->type);
+        char tname_buf[64];
+        if (gs->in_boat) {
+            snprintf(tname_buf, sizeof(tname_buf), "Sailing");
+        } else if (gs->riding) {
+            const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
+            snprintf(tname_buf, sizeof(tname_buf), "%s (%s)", terrain_name(t->type), hnames[gs->horse_type]);
+        } else {
+            snprintf(tname_buf, sizeof(tname_buf), "%s", terrain_name(t->type));
+        }
+        const char *tname = tname_buf;
         if (loc) {
             snprintf(status, sizeof(status), "%s | %s | %s %s | Day %d %02d:%02d %s | %s",
                      loc->name, tname,

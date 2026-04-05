@@ -66,6 +66,8 @@ typedef struct {
     int        gold;
     bool       in_boat;     /* currently sailing across water */
     bool       has_torch;   /* carrying a lit torch */
+    int        horse_type;  /* 0=none, 1=Pony, 2=Palfrey, 3=Destrier */
+    bool       riding;      /* currently mounted */
     int        beers_drunk; /* current drunkenness counter */
     int        drunk_turns; /* turns of drunkenness remaining */
     const TownDef *current_town; /* town we're currently in (NULL if not in town) */
