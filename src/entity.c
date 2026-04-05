@@ -113,6 +113,10 @@ static uint32_t parse_ai_flags(const char *s) {
 static DropType parse_drop(const char *s) {
     if (strcmp(s, "gold") == 0) return DROP_GOLD;
     if (strcmp(s, "gold_large") == 0) return DROP_GOLD_LARGE;
+    if (strcmp(s, "weapon") == 0) return DROP_ITEM_WEAPON;
+    if (strcmp(s, "armor") == 0) return DROP_ITEM_ARMOR;
+    if (strcmp(s, "potion") == 0) return DROP_ITEM_POTION;
+    if (strcmp(s, "food") == 0) return DROP_ITEM_FOOD;
     return DROP_NONE;
 }
 
@@ -262,7 +266,7 @@ void entity_spawn_monsters(Entity monsters[], int *num_monsters,
 
     /* Pre-build list of all valid floor tiles for fast placement */
     typedef struct { int x, y; } Pos;
-    static Pos floor_tiles[4000];
+    static Pos floor_tiles[8000];
     int num_floors = 0;
     for (int y = 3; y < MAP_HEIGHT - 3; y++) {
         for (int x = 3; x < MAP_WIDTH - 3; x++) {
@@ -272,7 +276,7 @@ void entity_spawn_monsters(Entity monsters[], int *num_monsters,
             /* Don't spawn right on top of player (3 tile buffer) */
             int dx = x - player_pos.x, dy = y - player_pos.y;
             if (dx * dx + dy * dy < 9) continue;
-            if (num_floors < 4000) {
+            if (num_floors < 8000) {
                 floor_tiles[num_floors++] = (Pos){ x, y };
             }
         }

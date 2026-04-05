@@ -44,7 +44,11 @@ typedef struct {
 typedef enum {
     DROP_NONE,
     DROP_GOLD,
-    DROP_GOLD_LARGE
+    DROP_GOLD_LARGE,
+    DROP_ITEM_WEAPON,   /* drops a depth-appropriate weapon */
+    DROP_ITEM_ARMOR,    /* drops armor */
+    DROP_ITEM_POTION,   /* drops a potion */
+    DROP_ITEM_FOOD      /* drops food */
 } DropType;
 
 /* Spawn group behaviour */

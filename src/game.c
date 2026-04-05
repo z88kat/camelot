@@ -211,21 +211,43 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         /* Monster drops */
         DungeonLevel *dl = current_dungeon_level(gs);
         if (dl) {
-            /* Find template to get drop type */
+            /* Determine drop type from monster's AI flags stored on entity */
             int tcount;
             const MonsterTemplate *tmps = entity_get_templates(&tcount);
+            DropType drop = DROP_NONE;
             for (int ti = 0; ti < tcount; ti++) {
-                if (tmps[ti].glyph == target->glyph && tmps[ti].hp == target->max_hp - rng_range(-2,2)) {
-                    /* Close enough match */
-                    if (tmps[ti].drop == DROP_GOLD) {
-                        int gold = rng_range(3, 15);
-                        gs->gold += gold;
-                        log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold.", gold);
-                    } else if (tmps[ti].drop == DROP_GOLD_LARGE) {
-                        int gold = rng_range(15, 50);
-                        gs->gold += gold;
-                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "You find %d gold!", gold);
-                    }
+                if (strcmp(tmps[ti].name, target->name) == 0) {
+                    drop = tmps[ti].drop;
+                    break;
+                }
+            }
+
+            if (drop == DROP_GOLD) {
+                int gold = rng_range(3, 15);
+                gs->gold += gold;
+                log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold.", gold);
+            } else if (drop == DROP_GOLD_LARGE) {
+                int gold = rng_range(15, 50);
+                gs->gold += gold;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "You find %d gold!", gold);
+            } else if (drop >= DROP_ITEM_WEAPON && dl->num_ground_items < MAX_GROUND_ITEMS) {
+                /* Drop a themed item on the monster's death tile */
+                ItemType wanted = ITYPE_WEAPON;
+                if (drop == DROP_ITEM_ARMOR) wanted = ITYPE_ARMOR;
+                else if (drop == DROP_ITEM_POTION) wanted = ITYPE_POTION;
+                else if (drop == DROP_ITEM_FOOD) wanted = ITYPE_FOOD;
+
+                int itcount;
+                const ItemTemplate *itms = item_get_templates(&itcount);
+                /* Find a matching item */
+                for (int tries = 0; tries < 30; tries++) {
+                    int ti = rng_range(0, itcount - 1);
+                    if (itms[ti].type != wanted) continue;
+                    dl->ground_items[dl->num_ground_items] =
+                        item_create(ti, target->pos.x, target->pos.y);
+                    dl->num_ground_items++;
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "The %s drops: %s!", target->name, itms[ti].name);
                     break;
                 }
             }
@@ -379,17 +401,55 @@ static void dungeon_enemy_turns(GameState *gs) {
 
 /* Spawn items on a dungeon level */
 static void dungeon_spawn_items(DungeonLevel *dl) {
-    int num_items = rng_range(3, 8 + dl->depth);
-    if (num_items > MAX_GROUND_ITEMS) num_items = MAX_GROUND_ITEMS;
+    int num_items = rng_range(8, 16 + dl->depth * 2);
+    if (num_items > MAX_GROUND_ITEMS - 10) num_items = MAX_GROUND_ITEMS - 10;  /* leave room for drops */
 
     int tcount;
     const ItemTemplate *tmps = item_get_templates(&tcount);
     dl->num_ground_items = 0;
 
+    /* Spawn gold piles (2-4 per level) */
+    int num_gold = rng_range(2, 4);
+    for (int g = 0; g < num_gold && dl->num_ground_items < MAX_GROUND_ITEMS; g++) {
+        for (int tries = 0; tries < 200; tries++) {
+            int x = rng_range(3, MAP_WIDTH - 4);
+            int y = rng_range(3, MAP_HEIGHT - 4);
+            if (!dl->tiles[y][x].passable) continue;
+            char tg = dl->tiles[y][x].glyph;
+            if (tg == '<' || tg == '>' || tg == '0' || tg == '(' || tg == '=' || tg == '_') continue;
+            /* Prefer rooms (many open neighbours) */
+            int open = 0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx > 0 && nx < MAP_WIDTH-1 && ny > 0 && ny < MAP_HEIGHT-1 &&
+                        dl->tiles[ny][nx].passable) open++;
+                }
+            if (open < 5) continue;  /* skip corridors */
+
+            Item gold;
+            memset(&gold, 0, sizeof(gold));
+            gold.template_id = -2;  /* special: gold pile */
+            int amount = rng_range(5, 20 + dl->depth * 5);
+            snprintf(gold.name, sizeof(gold.name), "%d gold coins", amount);
+            gold.glyph = '$';
+            gold.color_pair = CP_YELLOW_BOLD;
+            gold.type = ITYPE_GOLD;
+            gold.value = amount;
+            gold.power = amount;
+            gold.weight = 0;
+            gold.pos = (Vec2){ x, y };
+            gold.on_ground = true;
+            dl->ground_items[dl->num_ground_items++] = gold;
+            break;
+        }
+    }
+
+    /* Spawn regular items -- favour rooms over corridors */
     for (int i = 0; i < num_items && dl->num_ground_items < MAX_GROUND_ITEMS; i++) {
-        /* Pick a depth-appropriate item */
+        /* Pick a depth-appropriate item with weighted selection */
         int best = -1, best_w = 0;
-        for (int tries = 0; tries < 20; tries++) {
+        for (int tries = 0; tries < 30; tries++) {
             int ti = rng_range(0, tcount - 1);
             if (tmps[ti].min_depth > dl->depth) continue;
             if (tmps[ti].max_depth > 0 && tmps[ti].max_depth < dl->depth) continue;
@@ -398,12 +458,25 @@ static void dungeon_spawn_items(DungeonLevel *dl) {
         }
         if (best < 0) continue;
 
-        /* Find a floor tile */
-        for (int tries = 0; tries < 200; tries++) {
+        /* Find a floor tile -- prefer rooms (70%) over corridors (30%) */
+        for (int tries = 0; tries < 300; tries++) {
             int x = rng_range(3, MAP_WIDTH - 4);
             int y = rng_range(3, MAP_HEIGHT - 4);
             if (!dl->tiles[y][x].passable) continue;
-            if (dl->tiles[y][x].glyph != '.') continue;
+            { char gg = dl->tiles[y][x].glyph;
+              if (gg == '<' || gg == '>' || gg == '0' || gg == '(' || gg == '=' || gg == '_') continue; }
+
+            /* Check if in a room */
+            int open = 0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx > 0 && nx < MAP_WIDTH-1 && ny > 0 && ny < MAP_HEIGHT-1 &&
+                        dl->tiles[ny][nx].passable) open++;
+                }
+            bool in_room = (open >= 5);
+            /* 70% chance to require room placement */
+            if (!in_room && rng_chance(70)) continue;
 
             dl->ground_items[dl->num_ground_items] = item_create(best, x, y);
             dl->num_ground_items++;
@@ -1698,6 +1771,8 @@ static void handle_overworld_input(GameState *gs, int key) {
             entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                    dl->tiles, 0, dl->stairs_up[0]);
             dungeon_spawn_items(dl);
+            log_add(&gs->log, gs->turn, CP_GRAY, "[%d items, %d monsters on this level]",
+                     dl->num_ground_items, dl->num_monsters);
             /* Level feeling based on monster danger */
             {
                 int danger = 0;
@@ -2845,6 +2920,16 @@ static void handle_dungeon_input(GameState *gs, int key) {
             if (!it->on_ground) continue;
             if (it->pos.x != gs->player_pos.x || it->pos.y != gs->player_pos.y) continue;
 
+            /* Gold goes straight to wallet */
+            if (it->type == ITYPE_GOLD) {
+                gs->gold += it->value;
+                it->on_ground = false;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You pick up %d gold coins!", it->value);
+                advance_time(gs, 1);
+                return;
+            }
+
             if (gs->num_items >= MAX_INVENTORY) {
                 log_add(&gs->log, gs->turn, CP_RED, "Your inventory is full!");
                 return;
@@ -2861,6 +2946,74 @@ static void handle_dungeon_input(GameState *gs, int key) {
             return;
         }
         log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing here to pick up.");
+        return;
+    }
+
+    /* Rest to recover HP (R key) */
+    if (key == 'R') {
+        if (gs->hp >= gs->max_hp) {
+            log_add(&gs->log, gs->turn, CP_GRAY, "You are already at full health.");
+            return;
+        }
+
+        log_add(&gs->log, gs->turn, CP_WHITE, "You rest...");
+        DungeonLevel *dl = current_dungeon_level(gs);
+        int rested = 0;
+        bool interrupted = false;
+
+        while (gs->hp < gs->max_hp && rested < 100) {
+            advance_time(gs, 1);
+            rested++;
+
+            /* Recover 1 HP every 5 turns resting */
+            if (rested % 5 == 0) {
+                gs->hp++;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+            }
+
+            /* Recover 1 MP every 8 turns resting */
+            if (rested % 8 == 0) {
+                gs->mp++;
+                if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+            }
+
+            /* Monster turns happen while resting */
+            if (dl) dungeon_enemy_turns(gs);
+
+            /* Check if any monster is now adjacent -- interrupts rest */
+            if (dl) {
+                for (int mi = 0; mi < dl->num_monsters; mi++) {
+                    Entity *e = &dl->monsters[mi];
+                    if (!e->alive) continue;
+                    int dx = abs(e->pos.x - gs->player_pos.x);
+                    int dy = abs(e->pos.y - gs->player_pos.y);
+                    if (dx <= 1 && dy <= 1) {
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "Your rest is interrupted by a %s!", e->name);
+                        interrupted = true;
+                        break;
+                    }
+                }
+            }
+            if (interrupted) break;
+
+            /* Random chance of monster appearing (3% per turn) */
+            if (dl && rng_chance(3)) {
+                int radius = gs->has_torch ? FOV_RADIUS : 2;
+                if (entity_spawn_one(dl->monsters, &dl->num_monsters,
+                                      dl->tiles, dl->depth, gs->player_pos, radius)) {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You hear something stirring in the darkness...");
+                }
+            }
+        }
+
+        if (!interrupted) {
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "You finish resting. HP: %d/%d MP: %d/%d (%d turns)",
+                     gs->hp, gs->max_hp, gs->mp, gs->max_mp, rested);
+        }
+        dungeon_update_fov(gs);
         return;
     }
 
@@ -2945,6 +3098,21 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 check_traps(gs);
                 dungeon_update_fov(gs);
                 dungeon_enemy_turns(gs);
+
+                /* Notify player of items on this tile */
+                {
+                    DungeonLevel *dl_step = current_dungeon_level(gs);
+                    if (dl_step) {
+                        for (int ii = 0; ii < dl_step->num_ground_items; ii++) {
+                            Item *it = &dl_step->ground_items[ii];
+                            if (it->on_ground && it->pos.x == nx && it->pos.y == ny) {
+                                log_add(&gs->log, gs->turn, CP_CYAN,
+                                         "You see here: %s (press g to pick up)", it->name);
+                                break;  /* only show first item */
+                            }
+                        }
+                    }
+                }
 
                 /* Shallow water damage */
                 if (tiles[ny][nx].glyph == '~') {
@@ -3309,6 +3477,114 @@ void game_handle_input(GameState *gs, int key) {
     /* Quit -- but not in town mode (q leaves town instead) */
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         gs->running = false;
+        return;
+    }
+
+    /* Look/identify mode (; key) -- examine visible tiles */
+    if (key == ';' && gs->mode == MODE_DUNGEON && gs->dungeon) {
+        log_add(&gs->log, gs->turn, CP_WHITE, "Look mode: move cursor, Enter to identify, q to exit");
+
+        DungeonLevel *dl_look = current_dungeon_level(gs);
+        if (dl_look) {
+            Vec2 cursor = gs->player_pos;
+
+            while (1) {
+                /* Render the map normally */
+                game_render(gs);
+
+                /* Draw cursor */
+                int cam_x = gs->player_pos.x - 40; /* approximate */
+                int cam_y = gs->player_pos.y - 13;
+                int term_rows, term_cols;
+                ui_get_size(&term_rows, &term_cols);
+                int vw = term_cols - SIDEBAR_WIDTH - 1;
+                if (cam_x < 0) cam_x = 0;
+                if (cam_y < 0) cam_y = 0;
+                if (cam_x + vw > MAP_WIDTH) cam_x = MAP_WIDTH - vw;
+                if (cam_y + VIEW_HEIGHT_DEFAULT > MAP_HEIGHT) cam_y = MAP_HEIGHT - VIEW_HEIGHT_DEFAULT;
+
+                int cx = cursor.x - cam_x;
+                int cy = cursor.y - cam_y;
+                if (cx >= 0 && cx < vw && cy >= 0 && cy < VIEW_HEIGHT_DEFAULT) {
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+                    mvaddch(cy, cx, 'X');
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+                }
+
+                /* Show info about cursor tile at bottom */
+                Tile *ct = &dl_look->tiles[cursor.y][cursor.x];
+                int info_row = VIEW_HEIGHT_DEFAULT + 1;
+
+                attron(COLOR_PAIR(CP_WHITE));
+                if (ct->visible) {
+                    /* Check for monster */
+                    Entity *mon = monster_at(gs, cursor.x, cursor.y);
+                    if (mon) {
+                        mvprintw(info_row, 1, "Monster: %s  HP:%d/%d  STR:%d  DEF:%d  SPD:%d  XP:%d    ",
+                                 mon->name, mon->hp, mon->max_hp, mon->str, mon->def, mon->spd, mon->xp_reward);
+                    } else {
+                        /* Check for item */
+                        bool found_item = false;
+                        for (int ii = 0; ii < dl_look->num_ground_items; ii++) {
+                            Item *it = &dl_look->ground_items[ii];
+                            if (it->on_ground && it->pos.x == cursor.x && it->pos.y == cursor.y) {
+                                mvprintw(info_row, 1, "Item: %s [%s]  Power:%d  Value:%dg  Weight:%d    ",
+                                         it->name, item_type_name(it->type), it->power, it->value, it->weight / 10);
+                                found_item = true;
+                                break;
+                            }
+                        }
+                        if (!found_item) {
+                            /* Show tile info */
+                            const char *tile_desc = "";
+                            switch (ct->glyph) {
+                            case '#': tile_desc = "Wall"; break;
+                            case '.': tile_desc = "Floor"; break;
+                            case '+': tile_desc = ct->color_pair == CP_RED ? "Locked door" : "Closed door"; break;
+                            case '/': tile_desc = "Open door"; break;
+                            case '<': tile_desc = "Stairs up"; break;
+                            case '>': tile_desc = "Stairs down"; break;
+                            case '0': tile_desc = "Exit portal"; break;
+                            case '~': tile_desc = ct->passable ? "Shallow water" : "Deep water"; break;
+                            case '^': tile_desc = ct->color_pair == CP_RED ? "Revealed trap" : "Lava"; break;
+                            case '_': tile_desc = "Ice"; break;
+                            case '"': tile_desc = "Fungal growth"; break;
+                            case '%': tile_desc = "Rubble"; break;
+                            case '*': tile_desc = "Crystal formation"; break;
+                            case '(': tile_desc = "Magic circle"; break;
+                            case 'O': tile_desc = "Pillar"; break;
+                            case '$': tile_desc = "Gold pile"; break;
+                            case '=': tile_desc = "Chest"; break;
+                            case '|': tile_desc = "Bookshelf"; break;
+                            case '-': tile_desc = "Coffin"; break;
+                            default: tile_desc = "Unknown"; break;
+                            }
+                            mvprintw(info_row, 1, "Tile: %s ('%c')                                        ", tile_desc, ct->glyph);
+                        }
+                    }
+                } else if (ct->revealed) {
+                    mvprintw(info_row, 1, "Tile: (remembered, not currently visible)                    ");
+                } else {
+                    mvprintw(info_row, 1, "Tile: (unexplored)                                          ");
+                }
+                attroff(COLOR_PAIR(CP_WHITE));
+
+                ui_refresh();
+
+                int lkey = ui_getkey();
+                if (lkey == 'q' || lkey == 'Q' || lkey == 27 || lkey == ';') break;
+
+                Direction ldir = key_to_direction(lkey);
+                if (ldir != DIR_NONE) {
+                    int nx2 = cursor.x + dir_dx[ldir];
+                    int ny2 = cursor.y + dir_dy[ldir];
+                    if (nx2 >= 0 && nx2 < MAP_WIDTH && ny2 >= 0 && ny2 < MAP_HEIGHT) {
+                        cursor.x = nx2;
+                        cursor.y = ny2;
+                    }
+                }
+            }
+        }
         return;
     }
 
@@ -3898,6 +4174,8 @@ static void game_render(GameState *gs) {
                         Item *it = &dl_items->ground_items[i];
                         if (!it->on_ground) continue;
                         if (!dl_items->tiles[it->pos.y][it->pos.x].visible) continue;
+                        /* Don't draw items under the player */
+                        if (it->pos.x == gs->player_pos.x && it->pos.y == gs->player_pos.y) continue;
 
                         int sx = it->pos.x - icam_x;
                         int sy = it->pos.y - icam_y;

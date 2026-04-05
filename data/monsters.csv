@@ -10,10 +10,10 @@
 Giant Rat,r,brown,6,3,1,4,5,0,3,beast,5,small,flee|erratic,none
 Bat Swarm,b,gray,4,2,0,6,3,0,4,beast,5,large,erratic,none
 Adder,s,green,5,4,1,5,6,0,3,beast,4,single,flee,none
-Wild Boar,B,brown,10,5,2,3,8,1,5,beast,3,single,none,none
+Wild Boar,B,brown,10,5,2,3,8,1,5,beast,3,single,none,food
 Wolf,w,gray,10,5,2,5,10,1,5,beast,4,small,flee,none
 Giant Spider,S,green,12,6,2,4,12,2,6,beast,3,single,none,none
-Bear,U,brown,18,8,3,3,18,3,7,beast,2,single,none,none
+Bear,U,brown,18,8,3,3,18,3,7,beast,2,single,none,food
 Giant Beetle,a,green,8,4,4,2,7,1,4,beast,4,small,erratic,none
 Stag,s,brown,8,3,1,6,4,0,3,beast,3,single,flee,none
 Rabid Dog,d,brown,9,5,1,5,7,0,4,beast,3,single,erratic,none
@@ -45,10 +45,10 @@ Death Knight,D,red,35,12,8,4,50,8,15,undead,1,single,doors,gold_large
 # ===== Dark Knights & Warriors =====
 Dark Squire,q,red,15,6,5,3,14,3,7,dark_knight,3,single,doors,gold
 Mercenary,q,yellow,20,8,5,4,20,4,8,dark_knight,2,single,doors,gold
-Rogue Knight,K,red,25,9,7,3,28,5,9,dark_knight,2,single,doors,gold_large
-Iron Golem,I,gray,35,12,10,1,40,7,12,dark_knight,1,single,doors,gold_large
-Black Knight,K,red,30,10,8,3,35,6,10,dark_knight,1,single,doors,gold_large
-Fallen Paladin,K,magenta,35,11,9,3,45,7,12,dark_knight,1,single,doors,gold_large
+Rogue Knight,K,red,25,9,7,3,28,5,9,dark_knight,2,single,doors,weapon
+Iron Golem,I,gray,35,12,10,1,40,7,12,dark_knight,1,single,doors,armor
+Black Knight,K,red,30,10,8,3,35,6,10,dark_knight,1,single,doors,weapon
+Fallen Paladin,K,magenta,35,11,9,3,45,7,12,dark_knight,1,single,doors,weapon
 #
 # ===== Magical Creatures =====
 Imp,i,red,8,4,1,7,8,2,6,magical,3,small,erratic|ranged,none
@@ -56,9 +56,9 @@ Dark Monk,m,magenta,18,7,5,3,20,4,8,magical,2,single,ranged,gold
 Hellhound,h,red,20,9,3,6,24,5,9,magical,2,single,ranged,none
 Witch,W,green,16,6,3,4,18,4,8,magical,2,single,ranged|flee,gold
 Evil Sorcerer,S,magenta,24,9,4,4,30,6,10,magical,1,single,ranged|flee,gold_large
-Necromancer,N,magenta,20,7,3,3,25,6,10,magical,1,single,ranged,gold_large
+Necromancer,N,magenta,20,7,3,3,25,6,10,magical,1,single,ranged,potion
 Enchantress,E,magenta,18,6,3,5,22,5,9,magical,1,single,ranged|flee,gold
-Warlock,W,magenta,22,8,4,4,28,6,10,magical,1,single,ranged|flee,gold_large
+Warlock,W,magenta,22,8,4,4,28,6,10,magical,1,single,ranged|flee,potion
 Shadow Fiend,F,magenta,25,10,3,5,32,7,12,magical,1,single,erratic,gold_large
 Demon,&,red,38,13,6,4,55,9,15,magical,1,single,ranged|doors,gold_large
 #

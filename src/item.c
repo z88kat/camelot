@@ -11,23 +11,23 @@
 /*                        name                glyph color       type         pow  wt  val min max rar */
 static const ItemTemplate builtin_templates[] = {
     /* Weapons -- Swords */
-    { "Rusty Sword",       '/', CP_GRAY,     ITYPE_WEAPON,     3,  50,  10, 0, 3, 5 },
-    { "Dagger",            '/', CP_WHITE,    ITYPE_WEAPON,     2,  20,  15, 0, 4, 5 },
-    { "Short Sword",       '/', CP_WHITE,    ITYPE_WEAPON,     4,  40,  30, 1, 5, 4 },
-    { "Longsword",         '/', CP_CYAN,     ITYPE_WEAPON,     6,  50,  60, 2, 8, 3 },
-    { "Broadsword",        '/', CP_CYAN,     ITYPE_WEAPON,     7,  60,  80, 3, 9, 3 },
-    { "Claymore",          '/', CP_WHITE,    ITYPE_WEAPON,     9,  80, 120, 5, 12, 2 },
-    { "Bastard Sword",     '/', CP_YELLOW,   ITYPE_WEAPON,     8,  70, 100, 4, 10, 2 },
-    { "Silver Dagger",     '/', CP_WHITE,    ITYPE_WEAPON,     3,  20,  50, 2, 8, 2 },
+    { "Rusty Sword",       '|', CP_GRAY,     ITYPE_WEAPON,     3,  50,  10, 0, 3, 5 },
+    { "Dagger",            '|', CP_WHITE,    ITYPE_WEAPON,     2,  20,  15, 0, 4, 5 },
+    { "Short Sword",       '|', CP_WHITE,    ITYPE_WEAPON,     4,  40,  30, 1, 5, 4 },
+    { "Longsword",         '|', CP_CYAN,     ITYPE_WEAPON,     6,  50,  60, 2, 8, 3 },
+    { "Broadsword",        '|', CP_CYAN,     ITYPE_WEAPON,     7,  60,  80, 3, 9, 3 },
+    { "Claymore",          '|', CP_WHITE,    ITYPE_WEAPON,     9,  80, 120, 5, 12, 2 },
+    { "Bastard Sword",     '|', CP_YELLOW,   ITYPE_WEAPON,     8,  70, 100, 4, 10, 2 },
+    { "Silver Dagger",     '|', CP_WHITE,    ITYPE_WEAPON,     3,  20,  50, 2, 8, 2 },
 
     /* Weapons -- Axes & Maces */
-    { "Hand Axe",          '/', CP_BROWN,    ITYPE_WEAPON,     4,  40,  25, 1, 5, 4 },
-    { "Battle Axe",        '/', CP_BROWN,    ITYPE_WEAPON,     7,  70,  70, 3, 8, 3 },
-    { "Mace",              '/', CP_GRAY,     ITYPE_WEAPON,     5,  60,  40, 2, 7, 3 },
-    { "War Hammer",        '/', CP_GRAY,     ITYPE_WEAPON,     8,  80,  90, 4, 10, 2 },
+    { "Hand Axe",          '|', CP_BROWN,    ITYPE_WEAPON,     4,  40,  25, 1, 5, 4 },
+    { "Battle Axe",        '|', CP_BROWN,    ITYPE_WEAPON,     7,  70,  70, 3, 8, 3 },
+    { "Mace",              '|', CP_GRAY,     ITYPE_WEAPON,     5,  60,  40, 2, 7, 3 },
+    { "War Hammer",        '|', CP_GRAY,     ITYPE_WEAPON,     8,  80,  90, 4, 10, 2 },
 
     /* Weapons -- Staves */
-    { "Wooden Staff",      '/', CP_BROWN,    ITYPE_WEAPON,     3,  30,  15, 0, 4, 4 },
+    { "Wooden Staff",      '|', CP_BROWN,    ITYPE_WEAPON,     3,  30,  15, 0, 4, 4 },
 
     /* Armor -- Body */
     { "Tattered Robes",    '[', CP_BROWN,    ITYPE_ARMOR,      1,  20,   5, 0, 2, 5 },

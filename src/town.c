@@ -462,7 +462,7 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
                 int rx = rng_range(3, TOWN_MAP_W - 4);
                 int ry = rng_range(3, TOWN_MAP_H - 4);
                 if (tm->map[ry][rx].passable && !town_npc_at(tm, rx, ry)) {
-                    add_npc(tm, NPC_TOWNFOLK, rx, ry, '@', CP_WHITE, "Townfolk", true);
+                    add_npc(tm, NPC_TOWNFOLK, rx, ry, 'T', CP_WHITE, "Townfolk", true);
                     break;
                 }
             }

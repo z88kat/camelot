@@ -19,7 +19,7 @@
 
 ### Data Files Checklist
 - [x] `data/monsters.csv`
-- [ ] `data/items.csv`
+- [x] `data/items.csv`
 - [ ] `data/potions.csv`
 - [ ] `data/food.csv`
 - [ ] `data/spells.csv`
