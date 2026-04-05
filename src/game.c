@@ -318,6 +318,21 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     log_add(&gs->log, gs->turn, CP_RED,
              "The %s hits you for %d damage!", attacker->name, damage);
 
+    /* Werewolf bite: 10% chance of lycanthropy (20% for Alpha) */
+    if (!gs->has_lycanthropy &&
+        (strstr(attacker->name, "Werewolf") || strstr(attacker->name, "werewolf"))) {
+        int bite_chance = strstr(attacker->name, "Alpha") ? 20 : 10;
+        if (rng_chance(bite_chance)) {
+            gs->has_lycanthropy = true;
+            gs->str += 3;
+            gs->spd += 2;
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "The werewolf's bite burns! You feel a dark change within...");
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "LYCANTHROPY! +3 STR, +2 SPD, but beware the full moon!");
+        }
+    }
+
     if (gs->hp <= 0) {
         gs->hp = 0;
         log_add(&gs->log, gs->turn, CP_RED_BOLD,
@@ -938,13 +953,57 @@ static void check_lunar_events(GameState *gs, int old_hour) {
                      "Tomorrow is the Full Moon. Beware the night...");
             break;
         case 15:
-            /* Full Moon: werewolf danger, but also +1 STR temporarily */
+            /* Full Moon: werewolf danger */
             log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                      "FULL MOON tonight! Werewolves roam. Stay indoors.");
-            log_add(&gs->log, gs->turn, CP_YELLOW,
-                     "The moonlight fills you with restless energy. (+1 STR today)");
-            gs->str += 1;
-            gs->buff_str_turns = 100; /* wears off after ~100 turns */
+            if (gs->has_lycanthropy) {
+                /* Lycanthropy transformation! */
+                log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                         "The moon rises full... you feel the change coming... AWOOOO!");
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "You black out. When you awake, it is dawn...");
+                /* Teleport to random location */
+                if (gs->mode == MODE_OVERWORLD) {
+                    for (int t = 0; t < 200; t++) {
+                        int rx = gs->player_pos.x + rng_range(-40, 40);
+                        int ry = gs->player_pos.y + rng_range(-40, 40);
+                        if (overworld_is_passable(gs->overworld, rx, ry)) {
+                            gs->player_pos = (Vec2){ rx, ry };
+                            break;
+                        }
+                    }
+                }
+                /* Advance to morning */
+                gs->hour = 7; gs->minute = 0;
+                /* Lose 1-2 random items */
+                int lost = rng_range(1, 2);
+                for (int li = 0; li < lost && gs->num_items > 0; li++) {
+                    int idx = rng_range(0, gs->num_items - 1);
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "You lost your %s during the rampage!", gs->inventory[idx].name);
+                    for (int j = idx; j < gs->num_items - 1; j++)
+                        gs->inventory[j] = gs->inventory[j + 1];
+                    gs->inventory[--gs->num_items].template_id = -1;
+                }
+                /* 20% chance killed an NPC */
+                if (rng_chance(20)) {
+                    gs->chivalry -= 5;
+                    if (gs->chivalry < 0) gs->chivalry = 0;
+                    log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                             "You have vague memories of violence... (-5 chivalry)");
+                }
+                /* Hunger restored */
+                gs->hp = gs->max_hp;
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "You awaken in an unfamiliar place. Full HP (you... ate something).");
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "Cure lycanthropy: Purify spell, church cure, or Holy Water.");
+            } else {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "The moonlight fills you with restless energy. (+1 STR today)");
+                gs->str += 1;
+                gs->buff_str_turns = 100;
+            }
             break;
         case 18:
             /* Tournament Day: XP bonus for combat */
@@ -2286,6 +2345,71 @@ static void handle_overworld_input(GameState *gs, int key) {
                     }
                     log_add(&gs->log, gs->turn, CP_MAGENTA,
                              "A faerie snaps its fingers! The world spins... you're somewhere else!");
+                } else if (!gs->faerie_queen_met && rng_chance(50)) {
+                    /* Faerie Queen encounter (once per game) */
+                    gs->faerie_queen_met = true;
+                    ui_clear();
+                    int row = 3;
+                    attron(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "The air shimmers and a radiant figure appears!");
+                    mvprintw(row++, 4, "The Faerie Queen stands before you.");
+                    attroff(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    row++;
+                    attron(COLOR_PAIR(CP_GREEN));
+                    mvprintw(row++, 4, "\"Mortal, I offer you a pact. My power for your service.\"");
+                    mvprintw(row++, 4, "\"Accept, and I shall grant you a faerie blade and");
+                    mvprintw(row++, 4, " the blessing of Nature. But you owe me a favour...\"");
+                    attroff(COLOR_PAIR(CP_GREEN));
+                    row++;
+                    attron(COLOR_PAIR(CP_CYAN));
+                    mvprintw(row++, 4, "Reward: +10 Nature affinity, Faerie Blade (pow 10)");
+                    attroff(COLOR_PAIR(CP_CYAN));
+                    row++;
+                    attron(COLOR_PAIR(CP_GRAY));
+                    mvprintw(row++, 4, "[a] Accept the pact    [d] Decline politely");
+                    attroff(COLOR_PAIR(CP_GRAY));
+                    ui_refresh();
+
+                    int fk = ui_getkey();
+                    if (fk == 'a') {
+                        gs->nature_affinity += 10;
+                        /* Give Faerie Blade */
+                        if (gs->num_items < MAX_INVENTORY) {
+                            Item fblade;
+                            memset(&fblade, 0, sizeof(fblade));
+                            fblade.template_id = -5;
+                            snprintf(fblade.name, sizeof(fblade.name), "Faerie Blade");
+                            fblade.glyph = '|'; fblade.color_pair = CP_GREEN_BOLD;
+                            fblade.type = ITYPE_WEAPON; fblade.power = 10;
+                            fblade.weight = 20; fblade.value = 300;
+                            fblade.on_ground = false;
+                            gs->inventory[gs->num_items++] = fblade;
+                        }
+                        /* Teach a Nature spell */
+                        int scount;
+                        const SpellDef *spells = spell_get_defs(&scount);
+                        for (int si = 0; si < scount; si++) {
+                            if (spells[si].affiliation == AFF_NATURE &&
+                                spells[si].level_required <= gs->player_level) {
+                                bool known = false;
+                                for (int k = 0; k < gs->num_spells; k++)
+                                    if (gs->spells_known[k] == si) { known = true; break; }
+                                if (!known && gs->num_spells < gs->max_spells_capacity) {
+                                    gs->spells_known[gs->num_spells++] = si;
+                                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                             "The Faerie Queen teaches you: %s!", spells[si].name);
+                                    break;
+                                }
+                            }
+                        }
+                        log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                 "You accept the pact! +10 Nature affinity, Faerie Blade received.");
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "\"We shall meet again, mortal. You owe me a favour...\"");
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "\"As you wish. Perhaps another time.\" The Queen fades away.");
+                    }
                 } else {
                     /* Nothing happens */
                     log_add(&gs->log, gs->turn, CP_GREEN,
@@ -2296,6 +2420,109 @@ static void handle_overworld_input(GameState *gs, int key) {
                 gs->mp = gs->max_mp;
                 log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                          "The mystical air of Avalon restores you. HP and MP fully restored.");
+            } else if (strcmp(loc->name, "Loch Ness") == 0) {
+                if (gs->nessie_defeated) {
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "The loch is peaceful. Nessie is no longer a threat.");
+                } else {
+                    ui_clear();
+                    int row = 3;
+                    attron(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "The dark waters of Loch Ness ripple...");
+                    mvprintw(row++, 4, "A massive shape rises from the depths!");
+                    mvprintw(row++, 4, "NESSIE, the legendary sea monster!");
+                    attroff(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    row++;
+
+                    /* Check for fish to appease */
+                    int fish_idx = -1;
+                    for (int ii = 0; ii < gs->num_items; ii++) {
+                        if (strstr(gs->inventory[ii].name, "Fish") ||
+                            strstr(gs->inventory[ii].name, "Salmon")) {
+                            fish_idx = ii; break;
+                        }
+                    }
+
+                    attron(COLOR_PAIR(CP_CYAN));
+                    mvprintw(row++, 4, "[f] Fight Nessie (very dangerous!)");
+                    if (fish_idx >= 0)
+                        mvprintw(row++, 4, "[o] Offer fish to appease her");
+                    mvprintw(row++, 4, "[r] Run away");
+                    attroff(COLOR_PAIR(CP_CYAN));
+                    ui_refresh();
+
+                    int nk = ui_getkey();
+                    if (nk == 'f') {
+                        /* Fight Nessie: HP 60, STR 14, DEF 8 */
+                        int nessie_hp = 60;
+                        int nessie_str = 14, nessie_def = 8;
+                        log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                                 "You charge at Nessie!");
+                        /* Multi-round combat */
+                        for (int round = 0; round < 6 && nessie_hp > 0 && gs->hp > 1; round++) {
+                            int wpow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ?
+                                        gs->equipment[SLOT_WEAPON].power : 0;
+                            int pdmg = gs->str + wpow + rng_range(-2, 2) - nessie_def;
+                            if (pdmg < 1) pdmg = 1;
+                            nessie_hp -= pdmg;
+                            log_add(&gs->log, gs->turn, CP_WHITE,
+                                     "You strike Nessie for %d damage! (HP: %d)", pdmg,
+                                     nessie_hp > 0 ? nessie_hp : 0);
+
+                            if (nessie_hp > 0) {
+                                int edmg = nessie_str + rng_range(-2, 3) - gs->def;
+                                if (edmg < 2) edmg = 2;
+                                gs->hp -= edmg;
+                                if (gs->hp < 1) gs->hp = 1;
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "Nessie thrashes and hits you for %d!", edmg);
+                            }
+                        }
+                        if (nessie_hp <= 0) {
+                            gs->nessie_defeated = true;
+                            gs->xp += 200;
+                            gs->kills++;
+                            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                     "Nessie is defeated! +200 XP!");
+                            /* Drop unique scale armor */
+                            if (gs->num_items < MAX_INVENTORY) {
+                                Item scale;
+                                memset(&scale, 0, sizeof(scale));
+                                scale.template_id = -4;
+                                snprintf(scale.name, sizeof(scale.name), "Nessie Scale Mail");
+                                scale.glyph = '['; scale.color_pair = CP_GREEN_BOLD;
+                                scale.type = ITYPE_ARMOR; scale.power = 7;
+                                scale.weight = 80; scale.value = 400;
+                                scale.on_ground = false;
+                                gs->inventory[gs->num_items++] = scale;
+                                log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                                         "You pry a scale from Nessie -- Nessie Scale Mail! (DEF +7)");
+                            }
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "Nessie retreats beneath the waves. She'll be back...");
+                        }
+                    } else if (nk == 'o' && fish_idx >= 0) {
+                        /* Appease with fish */
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You toss the %s into the water...", gs->inventory[fish_idx].name);
+                        for (int j = fish_idx; j < gs->num_items - 1; j++)
+                            gs->inventory[j] = gs->inventory[j + 1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+
+                        gs->nessie_defeated = true;
+                        int gold = rng_range(100, 250);
+                        gs->gold += gold;
+                        gs->xp += 50;
+                        log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                                 "Nessie accepts your offering and dives deep...");
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "She surfaces with treasure from the loch bed! +%dg, +50 XP", gold);
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_GRAY,
+                                 "You back away slowly. Nessie sinks beneath the waves.");
+                    }
+                }
             } else if (strcmp(loc->name, "Lady of the Lake") == 0) {
                 /* The Lady of the Lake offers Excalibur */
                 int qc = quest_count_completed(&gs->quests);
@@ -3629,6 +3856,15 @@ static void town_do_church(GameState *gs) {
             if (gs->spd < 5) { gs->spd++; cured = true; }
             gs->hp = gs->max_hp;
             gs->mp = gs->max_mp;
+            /* Cure lycanthropy */
+            if (gs->has_lycanthropy) {
+                gs->has_lycanthropy = false;
+                gs->str -= 3; if (gs->str < 1) gs->str = 1;
+                gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "The priest performs a holy ritual. Lycanthropy cured!");
+                cured = true;
+            }
             if (cured) {
                 log_add(&gs->log, gs->turn, CP_GREEN,
                          "The priest lays hands on you. Curses lifted! Stats restored. Full HP/MP.");

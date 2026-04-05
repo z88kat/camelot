@@ -104,8 +104,13 @@ typedef struct {
     int        buff_def_turns;
     int        buff_spd_turns;
 
+    /* Curses and special states */
+    bool       has_lycanthropy;      /* werewolf curse */
+    bool       nessie_defeated;      /* Loch Ness encounter done */
+    bool       faerie_queen_met;     /* Faerie Queen pact done */
+
     /* Character creation step */
-    int        create_step;  /* 0=class, 1=gender, 2=name, 3=stats, 4=story */
+    int        create_step;  /* 0=class, 1=gender, 2=name, 3=appearance, 4=stats, 5=story */
 
     /* Time */
     int        turn;
