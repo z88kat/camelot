@@ -3493,20 +3493,24 @@ void game_handle_input(GameState *gs, int key) {
                 /* Render the map normally */
                 game_render(gs);
 
-                /* Draw cursor */
-                int cam_x = gs->player_pos.x - 40; /* approximate */
-                int cam_y = gs->player_pos.y - 13;
+                /* Draw cursor -- match camera calculation from game_render */
                 int term_rows, term_cols;
                 ui_get_size(&term_rows, &term_cols);
                 int vw = term_cols - SIDEBAR_WIDTH - 1;
+                if (vw > MAP_WIDTH) vw = MAP_WIDTH;
+                int vh = term_rows - LOG_LINES - 2;
+                if (vh > VIEW_HEIGHT_DEFAULT) vh = VIEW_HEIGHT_DEFAULT;
+                if (vh < 5) vh = 5;
+                int cam_x = gs->player_pos.x - vw / 2;
+                int cam_y = gs->player_pos.y - vh / 2;
                 if (cam_x < 0) cam_x = 0;
                 if (cam_y < 0) cam_y = 0;
                 if (cam_x + vw > MAP_WIDTH) cam_x = MAP_WIDTH - vw;
-                if (cam_y + VIEW_HEIGHT_DEFAULT > MAP_HEIGHT) cam_y = MAP_HEIGHT - VIEW_HEIGHT_DEFAULT;
+                if (cam_y + vh > MAP_HEIGHT) cam_y = MAP_HEIGHT - vh;
 
                 int cx = cursor.x - cam_x;
                 int cy = cursor.y - cam_y;
-                if (cx >= 0 && cx < vw && cy >= 0 && cy < VIEW_HEIGHT_DEFAULT) {
+                if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
                     attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
                     mvaddch(cy, cx, 'X');
                     attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
@@ -3514,7 +3518,7 @@ void game_handle_input(GameState *gs, int key) {
 
                 /* Show info about cursor tile at bottom */
                 Tile *ct = &dl_look->tiles[cursor.y][cursor.x];
-                int info_row = VIEW_HEIGHT_DEFAULT + 1;
+                int info_row = vh + 1;
 
                 attron(COLOR_PAIR(CP_WHITE));
                 if (ct->visible) {
