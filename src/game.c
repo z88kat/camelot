@@ -198,7 +198,9 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
     }
 
     int weapon_pow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
-    int damage = gs->str + weapon_pow + rng_range(-2, 2) - target->def;
+    /* Mounted charge bonus: +2 STR on overworld */
+    int mount_str = (gs->riding && gs->mode == MODE_OVERWORLD) ? 2 : 0;
+    int damage = gs->str + mount_str + weapon_pow + rng_range(-2, 2) - target->def;
     if (damage < 1) damage = 1;
 
     /* Critical hit: 10% chance, 2x damage */
@@ -805,6 +807,25 @@ static void advance_time(GameState *gs, int minutes) {
     if (gs->buff_spd_turns > 0) {
         gs->buff_spd_turns--;
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
+    }
+
+    /* Horse waiting outside -- chance of wandering off */
+    if (gs->horse_type > 0 && !gs->riding) {
+        gs->horse_wait_turns++;
+        /* In dungeon: 5% chance per 100 turns */
+        if (gs->mode == MODE_DUNGEON && gs->horse_wait_turns % 100 == 0 && rng_chance(5)) {
+            gs->horse_type = 0;
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Your horse got bored and trotted away...");
+        }
+        /* In town: 10% chance after 200 turns */
+        if (gs->mode == MODE_TOWN && gs->horse_wait_turns > 200 && rng_chance(10)) {
+            gs->horse_type = 0;
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Your horse grew restless and wandered off!");
+        }
+    } else {
+        gs->horse_wait_turns = 0;
     }
 
     /* Slow MP regeneration: 1 MP per 20 turns */
@@ -2427,10 +2448,20 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
     case NPC_STABLE:
         if (gs->horse_type > 0) {
             const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
+            int sell_prices[] = { 0, 25, 50, 100 };
+            int sell_val = sell_prices[gs->horse_type];
             log_add(&gs->log, gs->turn, CP_BROWN,
-                     "The stablemaster says: \"Your %s looks well cared for, %s.\"",
-                     hnames[gs->horse_type],
-                     gs->player_gender == GENDER_MALE ? "sir" : "my lady");
+                     "\"Fine %s you have there! I'd buy it for %d gold. Press 's' to sell.\"",
+                     hnames[gs->horse_type], sell_val);
+            game_render(gs);
+            int sk = ui_getkey();
+            if (sk == 's') {
+                gs->gold += sell_val;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You sell your %s for %d gold.", hnames[gs->horse_type], sell_val);
+                gs->horse_type = 0;
+                gs->riding = false;
+            }
         } else {
             /* Price varies by town -- hash town name for deterministic variation */
             unsigned int th = 0;
@@ -2476,9 +2507,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 if (gs->gold >= cost) {
                     gs->gold -= cost;
                     gs->horse_type = htype;
-                    gs->riding = true;
                     log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                             "You buy a %s! Press 'H' on the overworld to mount/dismount.", hname);
+                             "You buy a %s! It will be waiting outside for you.", hname);
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "Press 'H' on the overworld to mount/dismount.");
                 } else {
                     log_add(&gs->log, gs->turn, CP_RED,
                              "You don't have enough gold. (need %d, have %d)", cost, gs->gold);
@@ -5101,6 +5133,23 @@ static void game_render(GameState *gs) {
 
         ui_render_map_generic((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
                               gs->player_pos, map_view_width, map_view_height);
+
+        /* Override player glyph when mounted */
+        if (gs->riding) {
+            int cam_x_p = gs->player_pos.x - map_view_width / 2;
+            int cam_y_p = gs->player_pos.y - map_view_height / 2;
+            if (cam_x_p < 0) cam_x_p = 0;
+            if (cam_y_p < 0) cam_y_p = 0;
+            if (cam_x_p + map_view_width > OW_WIDTH) cam_x_p = OW_WIDTH - map_view_width;
+            if (cam_y_p + map_view_height > OW_HEIGHT) cam_y_p = OW_HEIGHT - map_view_height;
+            int ppx = gs->player_pos.x - cam_x_p;
+            int ppy = gs->player_pos.y - cam_y_p;
+            if (ppx >= 0 && ppx < map_view_width && ppy >= 0 && ppy < map_view_height) {
+                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                mvaddch(ppy, ppx, 'H');
+                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            }
+        }
 
         /* Draw wandering creatures on the overworld -- only within sight radius */
         {
