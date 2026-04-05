@@ -67,7 +67,9 @@ typedef struct {
     int        str, def, intel, spd;
     int        gold;
     bool       in_boat;     /* currently sailing across water */
-    bool       has_torch;   /* carrying a lit torch */
+    bool       has_torch;   /* a light source is lit */
+    int        torch_fuel;  /* turns of fuel remaining (0 = out) */
+    int        torch_type;  /* 0=none, 1=torch, 2=lantern */
     int        horse_type;  /* 0=none, 1=Pony, 2=Palfrey, 3=Destrier */
     bool       riding;      /* currently mounted */
     int        horse_wait_turns; /* turns horse has been waiting outside */

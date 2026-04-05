@@ -137,7 +137,10 @@ Scroll of Monster Detection,?,red,scroll,1,5,30,2,0,2
 Scroll of Holy Word,?,yellow,scroll,1,5,60,4,0,1
 #
 # ===== Tools =====
-Torch,(,yellow,tool,1,15,5,0,0,5
+# power field for light sources: fuel in turns (torch=200, lantern=500)
+Torch,(,yellow,tool,200,15,5,0,0,5
+Lantern,(,yellow,tool,500,20,25,0,0,3
+Oil Flask,(,brown,tool,300,10,10,0,0,4
 Lockpick,(,gray,tool,1,5,20,1,0,3
 Tinderbox,(,brown,tool,1,10,10,0,0,3
 Pickaxe,(,gray,tool,1,30,15,0,0,3

@@ -852,6 +852,25 @@ static void advance_time(GameState *gs, int minutes) {
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
     }
 
+    /* Torch/lantern fuel consumption */
+    if (gs->has_torch && gs->torch_fuel > 0) {
+        gs->torch_fuel--;
+        if (gs->torch_fuel == 20) {
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Your %s flickers... running low on fuel!",
+                     gs->torch_type == 2 ? "lantern" : "torch");
+        }
+        if (gs->torch_fuel <= 0) {
+            gs->has_torch = false;
+            gs->torch_fuel = 0;
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "Your %s goes out! You are plunged into darkness.",
+                     gs->torch_type == 2 ? "lantern" : "torch");
+            /* Lantern remains usable with oil refuel, torch is consumed */
+            if (gs->torch_type == 1) gs->torch_type = 0;
+        }
+    }
+
     /* Horse waiting outside -- chance of wandering off */
     if (gs->horse_type > 0 && !gs->riding) {
         gs->horse_wait_turns++;
@@ -4642,15 +4661,72 @@ static void handle_dungeon_input(GameState *gs, int key) {
         return;
     }
 
-    /* Toggle torch (T key) */
+    /* Toggle light source (T key) */
     if (key == 'T') {
-        gs->has_torch = !gs->has_torch;
         if (gs->has_torch) {
-            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                     "You light your torch. The dungeon glows with warm light.");
-        } else {
+            /* Extinguish current light */
+            gs->has_torch = false;
+            const char *lname = gs->torch_type == 2 ? "lantern" : "torch";
             log_add(&gs->log, gs->turn, CP_GRAY,
-                     "You extinguish your torch. Darkness closes in...");
+                     "You extinguish your %s. Darkness closes in... (%d fuel left)",
+                     lname, gs->torch_fuel);
+        } else {
+            /* Try to light something -- search inventory for torch, lantern, or oil */
+            /* First check if we have fuel remaining from a previous light */
+            if (gs->torch_fuel > 0) {
+                gs->has_torch = true;
+                const char *lname = gs->torch_type == 2 ? "lantern" : "torch";
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "You relight your %s. (%d turns of fuel)", lname, gs->torch_fuel);
+            } else {
+                /* Search inventory for a light source */
+                int found_idx = -1, found_type = 0, found_fuel = 0;
+                for (int ii = 0; ii < gs->num_items; ii++) {
+                    if (strcmp(gs->inventory[ii].name, "Lantern") == 0) {
+                        found_idx = ii; found_type = 2; found_fuel = gs->inventory[ii].power; break;
+                    }
+                }
+                if (found_idx < 0) {
+                    for (int ii = 0; ii < gs->num_items; ii++) {
+                        if (strcmp(gs->inventory[ii].name, "Torch") == 0) {
+                            found_idx = ii; found_type = 1; found_fuel = gs->inventory[ii].power; break;
+                        }
+                    }
+                }
+                /* Check for oil flask to refuel an existing lantern */
+                if (found_idx < 0 && gs->torch_type == 2) {
+                    for (int ii = 0; ii < gs->num_items; ii++) {
+                        if (strcmp(gs->inventory[ii].name, "Oil Flask") == 0) {
+                            gs->torch_fuel += gs->inventory[ii].power;
+                            gs->has_torch = true;
+                            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                     "You refuel your lantern with oil. (%d turns of fuel)", gs->torch_fuel);
+                            /* Consume oil flask */
+                            for (int j = ii; j < gs->num_items - 1; j++)
+                                gs->inventory[j] = gs->inventory[j + 1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                            found_idx = -2; /* mark as handled */
+                            break;
+                        }
+                    }
+                }
+
+                if (found_idx >= 0) {
+                    gs->has_torch = true;
+                    gs->torch_type = found_type;
+                    gs->torch_fuel = found_fuel;
+                    const char *lname = found_type == 2 ? "Lantern" : "Torch";
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "You light the %s. (%d turns of fuel)", lname, found_fuel);
+                    /* Consume the item from inventory */
+                    for (int j = found_idx; j < gs->num_items - 1; j++)
+                        gs->inventory[j] = gs->inventory[j + 1];
+                    gs->inventory[--gs->num_items].template_id = -1;
+                } else if (found_idx != -2) {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "You have no torch, lantern, or oil to light.");
+                }
+            }
         }
         dungeon_update_fov(gs);
         return;
@@ -6511,7 +6587,9 @@ void game_init(GameState *gs) {
     gs->minute = 0;
     gs->weather = WEATHER_CLEAR;
     gs->weather_turns_left = rng_range(100, 200);
-    gs->has_torch = true;
+    gs->has_torch = false;
+    gs->torch_fuel = 0;
+    gs->torch_type = 0;
     gs->dungeon = NULL;
     gs->running = true;
 
@@ -6908,11 +6986,18 @@ static void game_render(GameState *gs) {
         }
     } else {
         if (gs->dungeon) {
-            snprintf(status, sizeof(status), "%s Lvl %d/%d | Day %d %02d:%02d %s | Turn %d",
+            const char *light_str = "";
+            char light_buf[32] = "";
+            if (gs->has_torch) {
+                snprintf(light_buf, sizeof(light_buf), " | %s:%d",
+                         gs->torch_type == 2 ? "Lamp" : "Torch", gs->torch_fuel);
+                light_str = light_buf;
+            }
+            snprintf(status, sizeof(status), "%s Lvl %d/%d | Day %d %02d:%02d %s | Turn %d%s",
                      gs->dungeon->name,
                      gs->dungeon->current_level + 1, gs->dungeon->max_depth,
                      gs->day, gs->hour, gs->minute,
-                     time_of_day_name(gs->hour), gs->turn);
+                     time_of_day_name(gs->hour), gs->turn, light_str);
         } else {
             snprintf(status, sizeof(status), "Dungeon | Day %d %02d:%02d %s | Turn %d",
                      gs->day, gs->hour, gs->minute,

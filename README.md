@@ -212,6 +212,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | `>` | Descend into a dungeon entrance or abandoned castle |
 | `c` | Camp (rest 8 hours, restore 50% HP/MP, risk of ambush) |
 | `f` | Fish from a shore tile (must be adjacent to water) |
+| `F` | Forage for food (forests, grassland, hills) |
 | `K` | Cook raw food (needs Torch or Tinderbox, campable terrain) |
 | `H` | Mount/dismount horse (if owned) |
 | `z` | Cast a spell |
@@ -302,7 +303,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | `D` | Disarm an adjacent revealed trap (INT+SPD check) |
 | `R` | Rest to recover HP/MP (interrupted if monster approaches) |
 | `M` | Dungeon minimap (full level overview) |
-| `T` | Toggle torch on/off (light radius 10 vs 2) |
+| `T` | Light/extinguish torch or lantern (uses fuel) |
 | `q` | Quit game |
 
 ### UI (all modes)
@@ -321,9 +322,9 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 
 ### Getting Started
 1. **Create your character**: choose a class, gender, name, and roll your stats. Starting gold is random (30-200). Each class plays differently:
-   - **Knight**: High HP (30), strong melee (+2 STR/DEF), limited magic (4 spells, 8 MP). Starts with Longsword, Chainmail, Shield spell.
-   - **Wizard**: Low HP (18), powerful magic (15 spells, 30 MP, +3 INT). Starts with Wooden Staff, Tattered Robes, Magic Missile.
-   - **Ranger**: Balanced (24 HP, 6 spells, 15 MP, +2 SPD). Starts with Short Sword, Leather Armor, Detect Traps.
+   - **Knight**: High HP (30), strong melee (+2 STR/DEF), limited magic (4 spells, 8 MP). Starts with Longsword, Chainmail, Shield spell, Torch, Bread.
+   - **Wizard**: Low HP (18), powerful magic (15 spells, 30 MP, +3 INT). Starts with Wooden Staff, Tattered Robes, Magic Missile, Torch, Bread.
+   - **Ranger**: Balanced (24 HP, 6 spells, 15 MP, +2 SPD). Starts with Short Sword, Leather Armor, Detect Traps, Torch, Bread.
 2. You start at **Camelot** on the overworld. Walk to the yellow `*` and press **Enter** to visit the town.
 3. Inside the town, **bump into NPCs** to interact -- Innkeeper, Blacksmith, Baker, Jeweller, etc.
 4. Walk through the **gate** (`/` at the bottom) to leave and explore the world.
@@ -446,6 +447,32 @@ Press **`f`** on the overworld while standing next to water (lake, river, or sea
 
 Fishing is a free, repeatable way to stock up on food without spending gold. Look for shore tiles near lakes and rivers.
 
+### Foraging
+Press **`F`** (Shift+F) on the overworld to search for wild food. Works in **forests** (apples, berries, mushrooms), **grassland** (apples, berries, turnips), and **hills** (berries, mushrooms). Takes 30 minutes of game time.
+- **35% chance**: Find food (added to inventory)
+- **10% chance**: Find healing herbs (+3-8 HP on the spot)
+- **5% chance**: Find scattered coins (2-10 gold)
+- **50% chance**: Nothing found
+
+A free way to keep your food supply topped up while travelling. Combine with cooking (`K`) for maximum benefit -- forage Raw Meat from beast encounters, then cook it for 3x healing power.
+
+### Cottages & Caves
+**Cottages** (`n` brown) and **caves** (`O` gray) are scattered across the map. Press Enter to explore. Each has a random encounter inside:
+
+**Cottages** (4 outcomes):
+- **Empty** (30%): abandoned shelter, rest for +25% HP/MP
+- **Friendly NPC** (35%): hermit (dungeon rumours), healer (full HP), retired knight (+1 STR), or peasant (+50% HP). Always +2 chivalry
+- **Bandits** (20%): fight two bandits (3-8 HP damage), loot 8-25 gold
+- **Alchemist lab** (15%): find gold and a mana potion (+10 MP)
+
+**Caves** (4 outcomes):
+- **Empty** (25%): dry shelter, rest for +25% HP
+- **Bear lair** (30%): fight a bear (4-10 HP damage), loot 5-15 gold
+- **Hermit** (35%): blessing (+1 random stat, +2 chivalry)
+- **Bandit hideout** (10%): fight bandits (2-6 HP damage), loot 15-40 gold
+
+Both reset after **5-20 days** (cottages) or **7-20 days** (caves) for revisiting.
+
 ### Horses
 Buy a horse from any **Stablemaster** (`S`) for **150 gold** (one-time purchase). Once owned:
 - Press **`H`** on the overworld to mount or dismount
@@ -469,6 +496,26 @@ A horse is one of the best early investments -- it makes exploring the large ove
 - Press `M` for a **dungeon minimap**.
 - Levels are **persistent** -- items stay where you left them.
 - **Level feelings** on entry warn you of danger: "This seems quiet" to "This level is DEADLY!"
+
+#### Torches & Lanterns
+Dungeons are dark -- without a light source your vision radius is only **2 tiles**. Press **`T`** to light a torch or lantern from your inventory.
+
+| Light Source | Fuel (turns) | Cost | Notes |
+|-------------|-------------|------|-------|
+| **Torch** | 200 | 5g | Cheap, short burn. Consumed when spent |
+| **Lantern** | 500 | 25g | Long burn. Stays when empty -- refuel with Oil Flask |
+| **Oil Flask** | +300 | 10g | Refuels a spent lantern. Press `T` to use |
+
+- Lit light gives **FOV radius 10** (full dungeon visibility)
+- Fuel decreases by 1 each turn. Warning at 20 fuel remaining
+- At 0 fuel: auto-extinguishes -- "Plunged into darkness!"
+- **Extinguish** with `T` to save fuel -- relight later
+- Dungeon status bar shows remaining fuel: `Torch:143` or `Lamp:387`
+- **Lanterns** are reusable -- when empty, refuel with an Oil Flask (press `T`)
+- **Torches** are single-use -- when spent, they're gone
+- Buy from Blacksmith or Pawnbroker. You start with one Torch in your inventory
+
+**Tip:** Carry a Lantern and a couple of Oil Flasks for long dungeon runs. Extinguish your light when resting to conserve fuel.
 
 ### Combat
 - **Bump-to-attack**: walk into an enemy to attack.
