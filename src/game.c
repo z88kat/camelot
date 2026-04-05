@@ -2034,6 +2034,66 @@ static void handle_overworld_input(GameState *gs, int key) {
                 gs->mp = gs->max_mp;
                 log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                          "The mystical air of Avalon restores you. HP and MP fully restored.");
+            } else if (strcmp(loc->name, "Lady of the Lake") == 0) {
+                /* The Lady of the Lake offers Excalibur */
+                int qc = quest_count_completed(&gs->quests);
+                if (loc->visited) {
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "The lake is still. The Lady has already bestowed her gift.");
+                } else if (gs->chivalry >= 40 && (qc >= 5 || gs->light_affinity >= 15)) {
+                    /* Worthy -- receive Excalibur */
+                    ui_clear();
+                    int row = 3;
+                    attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "A hand rises from the still waters, holding a gleaming sword.");
+                    attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+                    row++;
+                    attron(COLOR_PAIR(CP_CYAN));
+                    mvprintw(row++, 4, "\"You have proven yourself worthy, %s.", gs->player_name);
+                    mvprintw(row++, 4, " Take Excalibur, the sword of kings.\"");
+                    attroff(COLOR_PAIR(CP_CYAN));
+                    row++;
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "You receive Excalibur! (+2 STR while wielded)");
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    row += 2;
+                    attron(COLOR_PAIR(CP_GRAY));
+                    mvprintw(row, 4, "Press any key.");
+                    attroff(COLOR_PAIR(CP_GRAY));
+                    ui_refresh();
+                    ui_getkey();
+
+                    /* Create Excalibur as a powerful unique sword */
+                    Item excalibur;
+                    memset(&excalibur, 0, sizeof(excalibur));
+                    excalibur.template_id = -3;
+                    snprintf(excalibur.name, sizeof(excalibur.name), "Excalibur");
+                    excalibur.glyph = '|';
+                    excalibur.color_pair = CP_YELLOW_BOLD;
+                    excalibur.type = ITYPE_WEAPON;
+                    excalibur.power = 14;
+                    excalibur.weight = 30;
+                    excalibur.value = 999;
+                    excalibur.on_ground = false;
+
+                    Item old = gs->equipment[SLOT_WEAPON];
+                    gs->equipment[SLOT_WEAPON] = excalibur;
+                    if (old.template_id >= 0 && gs->num_items < MAX_INVENTORY) {
+                        gs->inventory[gs->num_items] = old;
+                        gs->inventory[gs->num_items].on_ground = false;
+                        gs->num_items++;
+                    }
+                    gs->str += 2;
+                    gs->light_affinity += 10;
+                    loc->visited = true;
+                } else {
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "A voice from the water: \"Return when you have proven worthy...\"");
+                    if (gs->chivalry < 40)
+                        log_add(&gs->log, gs->turn, CP_GRAY, "(Need chivalry 40+)");
+                    else
+                        log_add(&gs->log, gs->turn, CP_GRAY, "(Need 5+ quests or Light affinity 15+)");
+                }
             } else if (strcmp(loc->name, "Holy Island") == 0) {
                 gs->chivalry += 2;
                 if (gs->chivalry > 100) gs->chivalry = 100;
@@ -2236,7 +2296,128 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         town_do_church(gs);
         break;
     case NPC_MYSTIC:
-        town_do_mystic(gs);
+        if (gs->current_town && strcmp(gs->current_town->name, "Glastonbury") == 0) {
+            /* Merlin in Glastonbury */
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "Merlin the Wizard peers at you with ancient eyes.");
+            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_CYAN));
+            mvprintw(row++, 4, "\"Ah, %s. I have been expecting you.\"", gs->player_name);
+            row++;
+
+            /* Merlin teaches a spell or buffs INT */
+            int scount;
+            const SpellDef *spells = spell_get_defs(&scount);
+            /* Find a spell the player doesn't know */
+            int teach = -1;
+            for (int tries = 0; tries < 50; tries++) {
+                int si = rng_range(0, scount - 1);
+                if (spells[si].level_required > gs->player_level) continue;
+                bool known = false;
+                for (int k = 0; k < gs->num_spells; k++)
+                    if (gs->spells_known[k] == si) { known = true; break; }
+                if (!known) { teach = si; break; }
+            }
+
+            if (teach >= 0 && gs->num_spells < gs->max_spells_capacity) {
+                gs->spells_known[gs->num_spells++] = teach;
+                mvprintw(row++, 4, "\"Let me teach you something useful...\"");
+                row++;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD));
+                mvprintw(row++, 4, "Merlin teaches you: %s!", spells[teach].name);
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD));
+            } else {
+                gs->intel += 1;
+                gs->max_mp += 3;
+                mvprintw(row++, 4, "\"Your mind has great potential. Let me sharpen it.\"");
+                row++;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(row++, 4, "+1 INT, +3 max MP!");
+                attroff(COLOR_PAIR(CP_GREEN));
+            }
+
+            row++;
+            /* Grail hint */
+            if (gs->quests.grail_quest_active && !gs->quests.grail_quest_complete) {
+                mvprintw(row++, 4, "\"The Grail lies deep beneath Glastonbury Tor.");
+                mvprintw(row++, 4, "  Seek it at the bottom. But beware the guardian.\"");
+            } else {
+                mvprintw(row++, 4, "\"Seek King Arthur at Camelot. He needs you.\"");
+            }
+            attroff(COLOR_PAIR(CP_CYAN));
+            row++;
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row, 4, "Press any key to continue.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+            ui_getkey();
+            gs->light_affinity += 3;
+        } else if (gs->current_town && strcmp(gs->current_town->name, "Cornwall") == 0) {
+            /* Morgan le Fay in Cornwall */
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_MAGENTA_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "A dark-robed woman steps from the shadows.");
+            mvprintw(row++, 4, "\"I am Morgan le Fay. I have a bargain for you.\"");
+            attroff(COLOR_PAIR(CP_MAGENTA_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_MAGENTA));
+            int offer = rng_range(0, 2);
+            const char *boon_desc, *cost_desc;
+            int boon_stat = 0, cost_hp = 0;
+            switch (offer) {
+            case 0:
+                boon_desc = "+3 STR (permanent)";
+                cost_desc = "-10 max HP (permanent)";
+                boon_stat = 0; cost_hp = 10;
+                break;
+            case 1:
+                boon_desc = "+3 INT (permanent)";
+                cost_desc = "-8 max HP (permanent)";
+                boon_stat = 2; cost_hp = 8;
+                break;
+            default:
+                boon_desc = "+3 SPD (permanent)";
+                cost_desc = "-8 max HP (permanent)";
+                boon_stat = 3; cost_hp = 8;
+                break;
+            }
+            mvprintw(row++, 4, "\"I offer you: %s\"", boon_desc);
+            mvprintw(row++, 4, "\"The cost:    %s\"", cost_desc);
+            attroff(COLOR_PAIR(CP_MAGENTA));
+            row++;
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "Press 'a' to accept the bargain, or 'q' to decline.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            int mk = ui_getkey();
+            if (mk == 'a') {
+                switch (boon_stat) {
+                case 0: gs->str += 3; break;
+                case 2: gs->intel += 3; break;
+                case 3: gs->spd += 3; break;
+                }
+                gs->max_hp -= cost_hp;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                if (gs->max_hp < 5) gs->max_hp = 5;
+                gs->dark_affinity += 5;
+                gs->chivalry -= 3;
+                if (gs->chivalry < 0) gs->chivalry = 0;
+                log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
+                         "Morgan le Fay's dark power flows through you. %s, %s.",
+                         boon_desc, cost_desc);
+            } else {
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "\"Perhaps another time...\" Morgan fades into the shadows.");
+            }
+        } else {
+            /* Regular mystic */
+            town_do_mystic(gs);
+        }
         break;
     case NPC_BANKER:
         town_do_bank(gs);
@@ -2533,25 +2714,126 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         }
         break;
     case NPC_KING:
-        {
-            const char *msgs[] = {
-                "The King nods gravely. \"Seek the Holy Grail, brave knight.\"",
-                "\"England needs heroes. Do not fail us.\"",
-                "\"Have you news from the road? Speak!\"",
-                "\"Prove your worth and you shall sit at the Round Table.\"",
-                "\"Be vigilant. Dark forces stir in the land.\"",
-            };
-            int n = sizeof(msgs) / sizeof(msgs[0]);
-            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "%s", msgs[rng_range(0, n - 1)]);
+        if (gs->current_town && strcmp(gs->current_town->name, "Camelot Castle") == 0) {
+            /* King Arthur at Camelot Castle */
+            if (!gs->quests.grail_quest_active) {
+                /* First visit: Arthur grants the Grail quest and knighthood */
+                ui_clear();
+                int row = 2;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(row++, 4, "King Arthur rises from the throne.");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                row++;
+                attron(COLOR_PAIR(CP_YELLOW));
+                mvprintw(row++, 4, "\"Welcome, %s. England is in peril.", gs->player_name);
+                mvprintw(row++, 4, " The Holy Grail has been lost, and with it,");
+                mvprintw(row++, 4, " the land's power fades. I charge you with");
+                mvprintw(row++, 4, " this sacred quest: find the Grail and return");
+                mvprintw(row++, 4, " it to Camelot.\"");
+                row++;
+                mvprintw(row++, 4, "Arthur draws his sword and taps your shoulders.");
+                mvprintw(row++, 4, "\"I knight thee %s %s. Rise, and go forth!\"",
+                         gs->player_gender == GENDER_MALE ? "Sir" : "Lady", gs->player_name);
+                attroff(COLOR_PAIR(CP_YELLOW));
+                row++;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(row++, 4, "You receive: +2 DEF, +1 STR, the Grail Quest.");
+                attroff(COLOR_PAIR(CP_GREEN));
+                row++;
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row, 4, "Press any key to continue.");
+                attroff(COLOR_PAIR(CP_GRAY));
+                ui_refresh();
+                ui_getkey();
+
+                gs->quests.grail_quest_active = true;
+                gs->def += 2;
+                gs->str += 1;
+                gs->chivalry += 5;
+                if (gs->chivalry > 100) gs->chivalry = 100;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "King Arthur has knighted you and granted the Grail Quest!");
+            } else if (gs->quests.grail_quest_complete) {
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "Arthur beams. \"You have saved the kingdom, %s!\"", gs->player_name);
+            } else {
+                int qc = quest_count_completed(&gs->quests);
+                if (qc >= 3 && !gs->quests.grail_quest_complete) {
+                    /* Arthur gives a royal sword after 3+ quests */
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "\"You have proven yourself worthy. Take this royal blade.\"");
+                    /* Give a Bastard Sword if room in inventory */
+                    if (gs->num_items < MAX_INVENTORY) {
+                        int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                        for (int ti = 0; ti < tcount; ti++) {
+                            if (strcmp(tmps[ti].name, "Bastard Sword") == 0) {
+                                gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                log_add(&gs->log, gs->turn, CP_YELLOW, "Received: Bastard Sword!");
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    const char *msgs[] = {
+                        "\"The Grail awaits, brave knight. Seek it in the deep places.\"",
+                        "\"England needs heroes. Do not fail us.\"",
+                        "\"Have you news from the road? Speak!\"",
+                        "\"Prove your worth and you shall sit at the Round Table.\"",
+                        "\"Be vigilant. Dark forces stir in the land.\"",
+                    };
+                    int n = sizeof(msgs) / sizeof(msgs[0]);
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "Arthur: %s", msgs[rng_range(0, n - 1)]);
+                }
+            }
+        } else {
+            /* Generic king at other castles */
+            const char *title = gs->player_gender == GENDER_MALE ? "Sir" : "Lady";
+            if (gs->chivalry >= 60) {
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "The King rises. \"Welcome, %s %s! Your fame precedes you.\"",
+                         title, gs->player_name);
+            } else if (gs->chivalry >= 30) {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "The King nods. \"What brings you to my court, %s?\"", title);
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "The King frowns. \"I have heard troubling things about you...\"");
+            }
         }
         break;
     case NPC_QUEEN:
-        {
+        if (gs->current_town && strcmp(gs->current_town->name, "Camelot Castle") == 0) {
+            /* Queen Guinevere at Camelot */
+            if (gs->chivalry >= 50) {
+                /* High chivalry: she gives a blessed amulet or shop discount */
+                log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
+                         "Guinevere smiles. \"Your honour is an example to us all, %s.\"",
+                         gs->player_name);
+                if (gs->light_affinity >= 15 && gs->num_items < MAX_INVENTORY) {
+                    /* Give Amulet of Insight if Light affinity is high enough */
+                    int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                    for (int ti = 0; ti < tcount; ti++) {
+                        if (strcmp(tmps[ti].name, "Amulet of Insight") == 0) {
+                            gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                            gs->inventory[gs->num_items].on_ground = false;
+                            gs->num_items++;
+                            log_add(&gs->log, gs->turn, CP_CYAN,
+                                     "\"Take this blessed amulet. It will guide you.\"");
+                            break;
+                        }
+                    }
+                }
+            } else {
+                log_add(&gs->log, gs->turn, CP_MAGENTA,
+                         "Guinevere regards you coolly. \"Prove your honour, and we may speak further.\"");
+            }
+        } else {
             const char *msgs[] = {
                 "The Queen smiles warmly. \"You are always welcome here.\"",
                 "\"The court whispers of your deeds, brave one.\"",
                 "\"Please, bring peace to our troubled land.\"",
-                "\"My lord the King places great faith in you.\"",
             };
             int n = sizeof(msgs) / sizeof(msgs[0]);
             log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD, "%s", msgs[rng_range(0, n - 1)]);
