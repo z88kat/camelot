@@ -827,33 +827,6 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
         }
     }
 
-    /* Hide solid rock -- only show walls adjacent to open space */
-    for (int y = 0; y < MAP_HEIGHT; y++) {
-        for (int x = 0; x < MAP_WIDTH; x++) {
-            if (level->tiles[y][x].type != TILE_WALL) continue;
-
-            /* Check if any adjacent tile (8-dir) is non-wall */
-            bool near_open = false;
-            for (int dy = -1; dy <= 1 && !near_open; dy++) {
-                for (int dx = -1; dx <= 1 && !near_open; dx++) {
-                    if (dx == 0 && dy == 0) continue;
-                    int nx = x + dx, ny = y + dy;
-                    if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
-                    TileType tt = level->tiles[ny][nx].type;
-                    if (tt != TILE_WALL && tt != TILE_NONE) {
-                        near_open = true;
-                    }
-                }
-            }
-
-            if (!near_open) {
-                /* Solid rock -- show as empty space */
-                level->tiles[y][x].glyph = ' ';
-                level->tiles[y][x].color_pair = CP_DEFAULT;
-            }
-        }
-    }
-
     /* Maze region on deeper levels (depth >= 4) -- fill one area with a maze */
     if (depth >= 4 && rng_chance(40 + depth * 5)) {
         /* Find a rectangular area of solid wall to carve a maze into */
@@ -1051,6 +1024,34 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
 
     /* Place traps */
     place_traps(level);
+
+    /* Hide solid rock -- only show walls adjacent to open space.
+       This MUST run last, after all corridor/floor carving is done. */
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            if (level->tiles[y][x].type != TILE_WALL) continue;
+
+            /* Check if any adjacent tile (8-dir) is non-wall */
+            bool near_open = false;
+            for (int dy = -1; dy <= 1 && !near_open; dy++) {
+                for (int dx = -1; dx <= 1 && !near_open; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+                    TileType tt = level->tiles[ny][nx].type;
+                    if (tt != TILE_WALL && tt != TILE_NONE) {
+                        near_open = true;
+                    }
+                }
+            }
+
+            if (!near_open) {
+                /* Solid rock -- show as empty space */
+                level->tiles[y][x].glyph = ' ';
+                level->tiles[y][x].color_pair = CP_DEFAULT;
+            }
+        }
+    }
 
     bsp_free(root);
 }

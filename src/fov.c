@@ -42,9 +42,11 @@ void fov_compute(Tile *tiles, int map_w, int map_h, Vec2 origin, int radius) {
 
             if (tx < 0 || tx >= map_w || ty < 0 || ty >= map_h) break;
 
-            /* Check true distance with aspect correction */
-            double ddx = (double)(tx - origin.x);
-            double ddy = (double)(ty - origin.y) / aspect;
+            /* Check distance with aspect correction -- scale horizontal
+               distance down so the FOV extends wider east/west to
+               compensate for narrow terminal characters */
+            double ddx = (double)(tx - origin.x) * aspect;
+            double ddy = (double)(ty - origin.y);
             if (ddx * ddx + ddy * ddy > radius_sq) break;
 
             Tile *t = &tiles[ty * map_w + tx];
