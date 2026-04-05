@@ -898,47 +898,110 @@ static const char *moon_phase_name(int moon_day) {
     return "Waning Crescent";
 }
 
-/* Check for lunar event and notify player */
+/* Check for lunar event and notify player, apply gameplay effects */
 static void check_lunar_events(GameState *gs, int old_hour) {
     int moon = game_get_moon_day(gs);
     /* Only notify once per day at dawn */
     if (old_hour < 5 && gs->hour >= 5) {
         switch (moon) {
         case 1:
-            log_add(&gs->log, gs->turn, CP_CYAN, "New Moon tonight. The darkness will be absolute.");
+            log_add(&gs->log, gs->turn, CP_CYAN,
+                     "New Moon tonight. The darkness will be absolute.");
             break;
         case 5:
-            log_add(&gs->log, gs->turn, CP_YELLOW, "Feast Day at Camelot! A grand celebration awaits.");
+            /* Feast Day: free HP/MP restore */
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Feast Day at Camelot! A grand celebration awaits.");
+            gs->hp = gs->max_hp;
+            gs->mp = gs->max_mp;
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "The festive spirit restores you! Full HP and MP.");
             break;
         case 10:
-            log_add(&gs->log, gs->turn, CP_YELLOW, "Market Day! Merchants gather in Camelot and London.");
+            /* Market Day: bonus gold */
+            {
+                int bonus = rng_range(10, 30);
+                gs->gold += bonus;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "Market Day! Merchants gather with bargains. (+%dg found trading)", bonus);
+            }
             break;
         case 12:
-            log_add(&gs->log, gs->turn, CP_GREEN, "The Druid Gathering at Stonehenge begins today.");
+            /* Druid Gathering: nature affinity boost */
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "The Druid Gathering at Stonehenge begins today.");
+            gs->nature_affinity += 2;
+            log_add(&gs->log, gs->turn, CP_GREEN, "Nature magic stirs. (+2 Nature affinity)");
             break;
         case 14:
-            log_add(&gs->log, gs->turn, CP_WHITE, "Tomorrow is the Full Moon. Beware the night...");
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "Tomorrow is the Full Moon. Beware the night...");
             break;
         case 15:
-            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "FULL MOON tonight! Werewolves roam. Stay indoors.");
+            /* Full Moon: werewolf danger, but also +1 STR temporarily */
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "FULL MOON tonight! Werewolves roam. Stay indoors.");
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "The moonlight fills you with restless energy. (+1 STR today)");
+            gs->str += 1;
+            gs->buff_str_turns = 100; /* wears off after ~100 turns */
             break;
         case 18:
-            log_add(&gs->log, gs->turn, CP_YELLOW, "Tournament Day! Jousting at a nearby castle.");
+            /* Tournament Day: XP bonus for combat */
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Tournament Day! Jousting at castles. Combat XP doubled today!");
+            /* Mark tournament active -- checked in combat_attack_monster */
             break;
         case 20:
-            log_add(&gs->log, gs->turn, CP_WHITE, "Holy Day. Visit a shrine for double blessings.");
+            /* Holy Day: church blessings doubled, +chivalry */
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "Holy Day. Sacred power fills the land.");
+            gs->chivalry += 2;
+            if (gs->chivalry > 100) gs->chivalry = 100;
+            gs->light_affinity += 2;
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "+2 chivalry, +2 Light affinity.");
             break;
         case 22:
-            log_add(&gs->log, gs->turn, CP_MAGENTA, "The Witching Hour approaches. Dark magic stirs.");
+            /* Witching Hour: dark affinity boost, danger */
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "The Witching Hour approaches. Dark magic stirs.");
+            gs->dark_affinity += 2;
+            log_add(&gs->log, gs->turn, CP_MAGENTA, "+2 Dark affinity.");
             break;
         case 25:
-            log_add(&gs->log, gs->turn, CP_YELLOW, "King's Court today! Arthur holds court at Camelot.");
+            /* King's Court: chivalry bonus */
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "King's Court today! Arthur holds court at Camelot.");
+            if (gs->quests.grail_quest_active) {
+                gs->chivalry += 1;
+                if (gs->chivalry > 100) gs->chivalry = 100;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "Your quest is spoken of at court. (+1 chivalry)");
+            }
             break;
         case 27:
-            log_add(&gs->log, gs->turn, CP_CYAN, "Night of Spirits! The dead walk tonight.");
+            /* Night of Spirits: undead encounters more dangerous */
+            log_add(&gs->log, gs->turn, CP_CYAN,
+                     "Night of Spirits! The dead walk tonight. Beware dungeons.");
             break;
         case 30:
-            log_add(&gs->log, gs->turn, CP_GREEN, "Harvest Moon. Food is plentiful today.");
+            /* Harvest Moon: free food */
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "Harvest Moon. Food is plentiful today.");
+            if (gs->num_items < MAX_INVENTORY) {
+                int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                for (int ti = 0; ti < tcount; ti++) {
+                    if (strcmp(tmps[ti].name, "Bread") == 0) {
+                        gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                        gs->inventory[gs->num_items].on_ground = false;
+                        gs->num_items++;
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "You find fresh bread from the harvest! (+1 Bread)");
+                        break;
+                    }
+                }
+            }
             break;
         default:
             break;
@@ -2398,11 +2461,49 @@ static void handle_overworld_input(GameState *gs, int key) {
             if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
             log_add(&gs->log, gs->turn, CP_GREEN,
                      "You feel rested. HP and MP partially restored.");
-            /* Night ambush chance */
+            /* Night ambush chance -- spawn and fight an enemy */
             if (is_night(gs->hour) && rng_chance(15)) {
+                TileType camp_terrain = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+                const char *ename; int ehp, estr, edef, exp_r;
+                if (camp_terrain == TILE_FOREST) {
+                    ename = "Wolf"; ehp = 10; estr = 5; edef = 2; exp_r = 10;
+                } else if (camp_terrain == TILE_ROAD) {
+                    ename = "Bandit"; ehp = 12; estr = 5; edef = 3; exp_r = 10;
+                } else {
+                    ename = "Skeleton"; ehp = 10; estr = 5; edef = 3; exp_r = 10;
+                }
+                log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                         "You are awakened by a %s attacking your camp!", ename);
+
+                /* Enemy gets a free hit (surprise attack) */
+                int ambush_dmg = estr + rng_range(-1, 2) - gs->def;
+                if (ambush_dmg < 1) ambush_dmg = 1;
+                gs->hp -= ambush_dmg;
+                if (gs->hp < 1) gs->hp = 1;
                 log_add(&gs->log, gs->turn, CP_RED,
-                         "You are awakened by sounds in the dark! (Ambush!)");
-                /* TODO: trigger encounter when combat is implemented */
+                         "The %s strikes you while you sleep! -%d HP!", ename, ambush_dmg);
+
+                /* Player fights back */
+                int wpow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
+                int pdmg = gs->str + wpow + rng_range(-2, 2) - edef;
+                if (pdmg < 1) pdmg = 1;
+                ehp -= pdmg;
+                if (ehp <= 0) {
+                    gs->xp += exp_r;
+                    gs->kills++;
+                    int gold = rng_range(3, 12);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You grab your weapon and slay the %s! +%d XP, +%dg", ename, exp_r, gold);
+                } else {
+                    /* Second exchange */
+                    int edmg2 = estr + rng_range(-1, 2) - gs->def;
+                    if (edmg2 < 1) edmg2 = 1;
+                    gs->hp -= edmg2;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The %s hits you again for %d! You drive it off into the night.", ename, edmg2);
+                }
             }
             check_lunar_events(gs, old_hour);
         } else {
