@@ -1439,6 +1439,81 @@ static void handle_overworld_input(GameState *gs, int key) {
         /* Move overworld creatures */
         overworld_move_creatures(gs->overworld, gs->player_pos);
 
+        /* Random ambush check -- hostile creatures can spawn near player */
+        {
+            TileType terrain = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+            TimeOfDay tod = game_get_tod(gs);
+
+            /* Base ambush chance varies by terrain and time */
+            int ambush_chance = 0;
+            if (terrain == TILE_FOREST)      ambush_chance = 4;
+            else if (terrain == TILE_HILLS)  ambush_chance = 3;
+            else if (terrain == TILE_MARSH || terrain == TILE_SWAMP) ambush_chance = 5;
+            else if (terrain == TILE_ROAD)   ambush_chance = 1;
+            else if (terrain == TILE_GRASS)  ambush_chance = 2;
+
+            /* Higher at night */
+            if (tod == TOD_NIGHT) ambush_chance *= 2;
+            else if (tod == TOD_EVENING || tod == TOD_DAWN) ambush_chance = ambush_chance * 3 / 2;
+
+            /* Weather increases chance */
+            if (gs->weather == WEATHER_FOG || gs->weather == WEATHER_STORM)
+                ambush_chance += 2;
+
+            if (ambush_chance > 0 && rng_chance(ambush_chance)) {
+                /* Spawn a hostile creature adjacent to player */
+                OWCreature *slot = NULL;
+                for (int ci = 0; ci < gs->overworld->num_creatures; ci++) {
+                    if (gs->overworld->creatures[ci].pos.x < 0) {
+                        slot = &gs->overworld->creatures[ci];
+                        break;
+                    }
+                }
+                if (!slot && gs->overworld->num_creatures < MAX_OW_CREATURES)
+                    slot = &gs->overworld->creatures[gs->overworld->num_creatures++];
+
+                if (slot) {
+                    /* Pick creature type based on terrain */
+                    const char *name; char glyph; int hp, str, def, xp_r;
+                    if (terrain == TILE_FOREST) {
+                        name = "Wolf"; glyph = 'w'; hp = 10; str = 5; def = 2; xp_r = 10;
+                    } else if (terrain == TILE_HILLS) {
+                        name = "Wild Boar"; glyph = 'B'; hp = 10; str = 5; def = 2; xp_r = 8;
+                    } else if (terrain == TILE_MARSH || terrain == TILE_SWAMP) {
+                        name = "Skeleton"; glyph = 'z'; hp = 10; str = 5; def = 3; xp_r = 10;
+                    } else {
+                        name = "Bandit"; glyph = 'p'; hp = 12; str = 5; def = 3; xp_r = 10;
+                    }
+
+                    /* Find adjacent tile to place the ambusher */
+                    for (int tries = 0; tries < 8; tries++) {
+                        int d = rng_range(0, 7);
+                        int ax = gs->player_pos.x + dir_dx[d];
+                        int ay = gs->player_pos.y + dir_dy[d];
+                        if (ax > 0 && ax < OW_WIDTH - 1 && ay > 0 && ay < OW_HEIGHT - 1 &&
+                            gs->overworld->map[ay][ax].passable &&
+                            !overworld_creature_at(gs->overworld, ax, ay)) {
+                            memset(slot, 0, sizeof(*slot));
+                            slot->type = OW_ENEMY_BANDIT;
+                            slot->pos = (Vec2){ ax, ay };
+                            slot->glyph = glyph;
+                            slot->color_pair = CP_RED;
+                            snprintf(slot->name, MAX_NAME, "%s", name);
+                            slot->hostile = true;
+                            slot->hp = hp; slot->max_hp = hp;
+                            slot->str = str; slot->def = def;
+                            slot->xp_reward = xp_r;
+
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "A %s ambushes you from the %s!",
+                                     name, tod == TOD_NIGHT ? "darkness" : "undergrowth");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         /* Rainbow countdown and pot of gold check */
         if (gs->rainbow_active) {
             gs->rainbow_turns--;
@@ -5525,7 +5600,7 @@ static void handle_character_create(GameState *gs, int key) {
                 /* Randomise initial appearance */
                 for (int i = 0; i < 4; i++) gs->appearance[i] = rng_range(0, 20);
             }
-        } else if (key == 'r' && len == 0) {
+        } else if (key == 'r') {
             snprintf(gs->player_name, MAX_NAME, "%s", random_name(gs->player_gender));
         } else if (key == KEY_BACKSPACE || key == 127 || key == 8) {
             if (len > 0) gs->player_name[len - 1] = '\0';

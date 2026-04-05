@@ -289,6 +289,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 ### UI (all modes)
 | Key | Action |
 |-----|--------|
+| `@` | Character sheet (appearance, stats, affinities, combat info) |
 | `i` | Inventory |
 | `z` | Cast spell |
 | `Z` | View spellbook (all known spells with stats) |
@@ -388,7 +389,15 @@ Knights also gain an extra +2 max HP per level from level 6 onwards.
 **XP thresholds:** 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000
 
 #### Appearance
-During character creation you customise your appearance (hair colour, eye colour, build, and distinguishing feature). These are purely cosmetic and displayed on the character creation screen. Press number keys to cycle options or `r` to randomise.
+During character creation you customise your appearance (hair colour, eye colour, build, and distinguishing feature). These are purely cosmetic. Press number keys to cycle options or `r` to randomise.
+
+#### Character Sheet
+Press **`@`** at any time to view your full character sheet, including:
+- Name, class, gender, level, and chivalry title
+- Appearance (hair, eyes, build, distinguishing feature)
+- All stats (HP/MP, STR/DEF/INT/SPD, gold, weight)
+- Spell affinities (Light, Dark, Nature)
+- Combat summary (XP, kills, quests completed, shield absorb, mount status, spells known)
 
 ### Time & Travel
 - Time passes with every action. Each step advances the game clock.
