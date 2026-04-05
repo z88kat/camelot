@@ -706,6 +706,57 @@ Kings in other castles react based on your chivalry:
 - **30-59**: neutral greeting
 - **Below 30**: "I have heard troubling things about you..." -- suspicion
 
+### Special Overworld Encounters
+
+As you explore, rare events trigger based on your location, time, and luck:
+
+#### Breunis sans Pitie (Recurring Villain)
+A merciless knight who ambushes you on roads and grassland (~1 per 300 turns, 20% chance). A tough multi-round fight that gets **harder each time** -- he gains +2 STR, +1 DEF, +5 HP per defeat. First victory drops the **Dark Blade of Breunis** (power 11, unique weapon). He always comes back for more.
+
+#### Mad Knights
+Rare encounters on roads (~1 per 400 turns). Unpredictable -- 50/50 aggressive or passive:
+- **Aggressive**: attacks immediately (5-12 HP damage), drops gold on death
+- **Passive**: wanders off muttering, sometimes drops gold
+- **Cursed** (10% chance): if you have **Holy Water** or the **Purify spell**, you can cure them for **+5 chivalry**, a Longsword, and +30 XP. A major reward for mercy
+
+#### Damsel in Distress
+Random rescue events (~1 per 350 turns). Fight off attackers to save her. Rewards vary:
+- Gold (20-60g)
+- A kiss (full HP/MP restore)
+- A lucky charm (+1 STR or +1 INT)
+- All rescues grant **+5 chivalry**
+
+#### Witch Encounters & Geas
+In swamps, forests, and marshes (~1 per 500 turns), a witch curses you with a **geas** -- a timed task you must complete or be cursed. Tasks include:
+- Bring a gem from a dungeon
+- Slay a wolf
+- Stand in a stone circle at midnight
+- Bring a potion
+- Fetch a mushroom from the forest
+- Deliver an offering to Canterbury
+
+**Complete in time**: geas lifts, +2 Dark affinity, -2 chivalry (doing a witch's bidding is dishonourable). The required item is consumed.
+**Fail**: cursed with -2 to a random stat and -3 chivalry. Cure at a church or with Purify spell.
+
+The witch's geas is always a dilemma -- complete it (small chivalry loss) or refuse (bigger loss + curse).
+
+### Castle Cat
+Bump into a cat (`c` yellow) in any castle to pick it up as a pet:
+- **+1 SPD** while the cat follows you
+- **No rat encounters** spawn while you have the cat
+- The cat wanders off after **100-300 turns** (because cats)
+- **30% chance** the cat leaves a gift before departing: a shiny coin (5g), a mouse (Dried Meat), or a hairball (nothing useful)
+- Only one cat at a time
+
+### Cheat Mode
+On the stats screen during character creation, press **`C`** to open the cheat menu:
+- **God Mode**: HP/MP set to 999
+- **Rich Start**: Gold set to 9999
+- **Max Stats**: all stats set to 15
+- **All of the above**
+
+Cheats permanently mark your character -- score is always 0 and the run is flagged as CHEAT.
+
 ### Beer & Drunkenness
 Buy beer at any inn (2-4g per pint). Each pint increases drunkenness:
 1. Merry -- no effect

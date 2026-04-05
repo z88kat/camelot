@@ -114,6 +114,13 @@ typedef struct {
     bool       has_lycanthropy;      /* werewolf curse */
     bool       nessie_defeated;      /* Loch Ness encounter done */
     bool       faerie_queen_met;     /* Faerie Queen pact done */
+    int        breunis_kills;        /* times Breunis sans Pitie defeated */
+    bool       has_cat;              /* castle cat following player */
+    int        cat_turns;            /* turns until cat wanders off */
+    Vec2       cat_pos;             /* cat's position (trails behind player) */
+    int        witch_geas_turns;     /* turns left to complete witch task (0=none) */
+    int        witch_geas_type;      /* which task (0-5) */
+    bool       cheat_mode;           /* cheat mode enabled */
 
     /* Character creation step */
     int        create_step;  /* 0=class, 1=gender, 2=name, 3=appearance, 4=stats, 5=story */

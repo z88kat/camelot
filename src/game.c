@@ -571,6 +571,11 @@ static void dungeon_enemy_turns(GameState *gs) {
         bool player_visible = dl->tiles[e->pos.y][e->pos.x].visible;
         int awake_range = (FOV_RADIUS + 5) * (FOV_RADIUS + 5);
 
+        /* Cat scares rats -- they flee! */
+        if (gs->has_cat && (e->glyph == 'r' || strstr(e->name, "Rat"))) {
+            e->ai_state = AI_STATE_FLEE;
+        }
+
         /* IDLE → CHASE: player in sight or always-chase flag */
         if (e->ai_state == AI_STATE_IDLE) {
             if ((e->ai_flags & AI_ALWAYS_CHASE) && dist_sq <= awake_range) {
@@ -850,6 +855,121 @@ static void advance_time(GameState *gs, int minutes) {
     if (gs->buff_spd_turns > 0) {
         gs->buff_spd_turns--;
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
+    }
+
+    /* Witch geas countdown and completion check */
+    if (gs->witch_geas_turns > 0) {
+        /* Check if task is completed based on type */
+        bool geas_done = false;
+        switch (gs->witch_geas_type) {
+        case 0: /* "Bring me a gem" - have any gem in inventory */
+            for (int ii = 0; ii < gs->num_items; ii++)
+                if (gs->inventory[ii].type == ITYPE_GEM) { geas_done = true; break; }
+            break;
+        case 1: /* "Slay a wolf" - kill count increased since geas started */
+            /* Simplified: any kill counts */
+            if (gs->kills > 0 && rng_chance(5)) geas_done = true;
+            break;
+        case 2: /* "Stand in a stone circle at midnight" */
+            if (gs->hour >= 23 || gs->hour < 1) {
+                Location *loc = overworld_location_at(gs->overworld, gs->player_pos.x, gs->player_pos.y);
+                if (loc && (loc->type == LOC_MAGIC_CIRCLE || strcmp(loc->name, "Stonehenge") == 0))
+                    geas_done = true;
+            }
+            break;
+        case 3: /* "Bring me a potion" - have any potion */
+            for (int ii = 0; ii < gs->num_items; ii++)
+                if (gs->inventory[ii].type == ITYPE_POTION) { geas_done = true; break; }
+            break;
+        case 4: /* "Fetch me a mushroom" - have mushroom */
+            for (int ii = 0; ii < gs->num_items; ii++)
+                if (strcmp(gs->inventory[ii].name, "Mushroom") == 0) { geas_done = true; break; }
+            break;
+        case 5: /* "Deliver offering to Canterbury" - be in Canterbury */
+            if (gs->current_town && strcmp(gs->current_town->name, "Canterbury") == 0)
+                geas_done = true;
+            break;
+        }
+
+        if (geas_done) {
+            gs->witch_geas_turns = 0;
+            gs->dark_affinity += 2;
+            gs->chivalry -= 2;
+            if (gs->chivalry < 0) gs->chivalry = 0;
+            log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
+                     "The witch's geas is fulfilled! The curse lifts.");
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "+2 Dark affinity, -2 chivalry. The witch cackles in the distance.");
+            /* Consume the required item */
+            for (int ii = 0; ii < gs->num_items; ii++) {
+                bool consume = false;
+                if (gs->witch_geas_type == 0 && gs->inventory[ii].type == ITYPE_GEM) consume = true;
+                if (gs->witch_geas_type == 3 && gs->inventory[ii].type == ITYPE_POTION) consume = true;
+                if (gs->witch_geas_type == 4 && strcmp(gs->inventory[ii].name, "Mushroom") == 0) consume = true;
+                if (consume) {
+                    for (int j = ii; j < gs->num_items - 1; j++)
+                        gs->inventory[j] = gs->inventory[j + 1];
+                    gs->inventory[--gs->num_items].template_id = -1;
+                    break;
+                }
+            }
+        }
+
+        gs->witch_geas_turns--;
+        if (gs->witch_geas_turns == 10) {
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "The witch's geas burns! Only 10 turns left to complete the task!");
+        }
+        if (gs->witch_geas_turns <= 0) {
+            /* Failed -- cursed! */
+            gs->witch_geas_turns = 0;
+            int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+            const char *snames[] = { "STR", "DEF", "INT", "SPD" };
+            int si = rng_range(0, 3);
+            if (*stats[si] > 2) *stats[si] -= 2; else *stats[si] = 1;
+            gs->chivalry -= 3;
+            if (gs->chivalry < 0) gs->chivalry = 0;
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "The witch's geas expires! You are cursed! -2 %s, -3 chivalry!", snames[si]);
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "Cure at a church or with Purify spell.");
+        }
+    }
+
+    /* Castle cat timer */
+    if (gs->has_cat) {
+        gs->cat_turns--;
+        if (gs->cat_turns <= 0) {
+            gs->has_cat = false;
+            gs->spd -= 1; if (gs->spd < 1) gs->spd = 1;
+            /* 30% chance cat leaves a gift */
+            if (rng_chance(30)) {
+                int gift = rng_range(1, 3);
+                if (gift == 1) {
+                    gs->gold += 5;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "The cat drops a shiny coin at your feet before leaving. (+5g)");
+                } else if (gift == 2 && gs->num_items < MAX_INVENTORY) {
+                    int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                    for (int ti = 0; ti < tcount; ti++) {
+                        if (strcmp(tmps[ti].name, "Dried Meat") == 0) {
+                            gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                            gs->inventory[gs->num_items].on_ground = false;
+                            gs->num_items++;
+                            log_add(&gs->log, gs->turn, CP_BROWN,
+                                     "The cat drops a mouse at your feet before leaving. (Got: Dried Meat)");
+                            break;
+                        }
+                    }
+                } else {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "The cat coughs up a hairball before leaving. Lovely.");
+                }
+            } else {
+                log_add(&gs->log, gs->turn, CP_BROWN,
+                         "The cat loses interest and saunters away...");
+            }
+        }
     }
 
     /* Torch/lantern fuel consumption */
@@ -1695,6 +1815,10 @@ static void handle_overworld_input(GameState *gs, int key) {
             return;
         }
 
+        /* Cat trails behind player */
+        if (gs->has_cat) {
+            gs->cat_pos = gs->player_pos; /* cat moves to where player was */
+        }
         gs->player_pos.x = nx;
         gs->player_pos.y = ny;
         TileType stepped_on = gs->overworld->map[ny][nx].type;
@@ -1779,6 +1903,211 @@ static void handle_overworld_input(GameState *gs, int key) {
                     }
                 }
             }
+        }
+
+        /* ---- Special overworld encounters ---- */
+        TileType ow_terrain = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+
+        /* Breunis sans Pitie (recurring villain, ~1 per 300 turns on roads) */
+        if (gs->turn % 300 == 150 && rng_chance(20) &&
+            (ow_terrain == TILE_ROAD || ow_terrain == TILE_GRASS)) {
+            int b_str = 10 + gs->breunis_kills * 2;
+            int b_def = 8 + gs->breunis_kills;
+            int b_hp = 30 + gs->breunis_kills * 5;
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "Breunis sans Pitie blocks your path! \"We meet again!\"");
+            /* Multi-round combat */
+            for (int r = 0; r < 5 && b_hp > 0 && gs->hp > 1; r++) {
+                int wpow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
+                int pdmg = gs->str + wpow + rng_range(-2, 2) - b_def;
+                if (pdmg < 1) pdmg = 1;
+                b_hp -= pdmg;
+                log_add(&gs->log, gs->turn, CP_WHITE, "You strike Breunis for %d!", pdmg);
+                if (b_hp > 0) {
+                    int edmg = b_str + rng_range(-1, 3) - gs->def;
+                    if (edmg < 2) edmg = 2;
+                    gs->hp -= edmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED, "Breunis strikes back for %d!", edmg);
+                }
+            }
+            if (b_hp <= 0) {
+                gs->breunis_kills++;
+                int gold = 30 + gs->breunis_kills * 10;
+                gs->gold += gold;
+                gs->xp += 50 + gs->breunis_kills * 20;
+                gs->kills++;
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "Breunis falls! +%dg, +%d XP. He'll be back stronger...",
+                         gold, 50 + gs->breunis_kills * 20);
+                if (gs->breunis_kills == 1 && gs->num_items < MAX_INVENTORY) {
+                    Item dark_sword;
+                    memset(&dark_sword, 0, sizeof(dark_sword));
+                    dark_sword.template_id = -6;
+                    snprintf(dark_sword.name, sizeof(dark_sword.name), "Dark Blade of Breunis");
+                    dark_sword.glyph = '|'; dark_sword.color_pair = CP_MAGENTA_BOLD;
+                    dark_sword.type = ITYPE_WEAPON; dark_sword.power = 11;
+                    dark_sword.weight = 50; dark_sword.value = 250;
+                    dark_sword.on_ground = false;
+                    gs->inventory[gs->num_items++] = dark_sword;
+                    log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
+                             "He drops the Dark Blade of Breunis! (power 11)");
+                }
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY, "Breunis retreats. \"Next time...\"");
+            }
+        }
+
+        /* Mad Knight encounter (~1 per 400 turns) */
+        if (gs->turn % 400 == 200 && rng_chance(15) &&
+            (ow_terrain == TILE_ROAD || ow_terrain == TILE_GRASS)) {
+            bool aggressive = rng_chance(50);
+            bool cursed = rng_chance(10);
+            if (aggressive && !cursed) {
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "A mad knight charges at you, screaming gibberish!");
+                int edmg = rng_range(5, 12) - gs->def;
+                if (edmg < 1) edmg = 1;
+                gs->hp -= edmg;
+                if (gs->hp < 1) gs->hp = 1;
+                int gold = rng_range(5, 20);
+                gs->gold += gold;
+                gs->xp += 15;
+                gs->kills++;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You defeat the mad knight. -%d HP, +%dg, +15 XP. A tragic encounter.", edmg, gold);
+            } else if (cursed) {
+                /* Cursed knight -- can be cured */
+                bool has_holy = false;
+                for (int ii = 0; ii < gs->num_items; ii++) {
+                    if (strcmp(gs->inventory[ii].name, "Holy Water") == 0) {
+                        has_holy = true; break;
+                    }
+                }
+                /* Check for Purify spell */
+                int scount; const SpellDef *sps = spell_get_defs(&scount);
+                bool has_purify = false;
+                for (int si = 0; si < gs->num_spells; si++) {
+                    const SpellDef *sp = spell_get(gs->spells_known[si]);
+                    if (sp && strcmp(sp->name, "Purify") == 0) { has_purify = true; break; }
+                }
+                (void)sps; (void)scount;
+                if (has_holy || has_purify) {
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "A cursed knight stumbles toward you, eyes glazed...");
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "You use %s to break the curse!", has_purify ? "Purify" : "Holy Water");
+                    if (has_holy && !has_purify) {
+                        for (int ii = 0; ii < gs->num_items; ii++) {
+                            if (strcmp(gs->inventory[ii].name, "Holy Water") == 0) {
+                                for (int j = ii; j < gs->num_items - 1; j++)
+                                    gs->inventory[j] = gs->inventory[j + 1];
+                                gs->inventory[--gs->num_items].template_id = -1;
+                                break;
+                            }
+                        }
+                    }
+                    gs->chivalry += 5;
+                    if (gs->chivalry > 100) gs->chivalry = 100;
+                    gs->xp += 30;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "\"Thank you! Take my sword.\" +5 chivalry, +30 XP.");
+                    if (gs->num_items < MAX_INVENTORY) {
+                        int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                        for (int ti = 0; ti < tcount; ti++) {
+                            if (strcmp(tmps[ti].name, "Longsword") == 0) {
+                                gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "A cursed knight staggers past, muttering madly...");
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "(Holy Water or Purify spell could cure him.)");
+                }
+            } else {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "A mad knight wanders past, muttering to himself. He ignores you.");
+                if (rng_chance(30)) {
+                    int gold = rng_range(2, 8);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "He drops %d gold as he stumbles away.", gold);
+                }
+            }
+        }
+
+        /* Damsel in Distress (~1 per 350 turns) */
+        if (gs->turn % 350 == 175 && rng_chance(20)) {
+            const char *scenarios[] = {
+                "A damsel is cornered by bandits on the road!",
+                "A young woman is being chased by wolves!",
+                "A noblewoman calls for help -- a monster blocks her path!"
+            };
+            int si = rng_range(0, 2);
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "%s", scenarios[si]);
+            log_add(&gs->log, gs->turn, CP_WHITE, "You rush to her aid and fight off the attackers!");
+
+            /* Quick combat */
+            int edmg = rng_range(3, 8) - gs->def;
+            if (edmg < 1) edmg = 1;
+            gs->hp -= edmg;
+            if (gs->hp < 1) gs->hp = 1;
+            gs->xp += 20;
+            gs->kills++;
+
+            /* Random reward */
+            int reward = rng_range(1, 4);
+            if (reward == 1) {
+                int gold = rng_range(20, 60);
+                gs->gold += gold;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "\"My hero!\" She rewards you with %d gold. +5 chivalry.", gold);
+            } else if (reward == 2) {
+                gs->hp = gs->max_hp;
+                gs->mp = gs->max_mp;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "\"My hero!\" She kisses your cheek. Full HP/MP restored! +5 chivalry.");
+            } else if (reward == 3) {
+                gs->str += 1;
+                log_add(&gs->log, gs->turn, CP_CYAN,
+                         "\"Take this charm for luck.\" +1 STR, +5 chivalry.");
+            } else {
+                gs->intel += 1;
+                log_add(&gs->log, gs->turn, CP_CYAN,
+                         "\"There is treasure hidden near Glastonbury...\" +1 INT, +5 chivalry.");
+            }
+            gs->chivalry += 5;
+            if (gs->chivalry > 100) gs->chivalry = 100;
+        }
+
+        /* Witch encounter & Geas (~1 per 500 turns, higher in swamps/forests) */
+        if (gs->witch_geas_turns == 0 && gs->turn % 500 == 250 &&
+            (ow_terrain == TILE_SWAMP || ow_terrain == TILE_FOREST || ow_terrain == TILE_MARSH) &&
+            rng_chance(25)) {
+            const char *tasks[] = {
+                "Bring me a gem from a dungeon",
+                "Slay a wolf for me",
+                "Stand in a stone circle at midnight",
+                "Bring me a potion",
+                "Fetch me a mushroom from the forest",
+                "Deliver an offering to Canterbury"
+            };
+            int task = rng_range(0, 5);
+            int turns = 60 + task * 15;
+            gs->witch_geas_type = task;
+            gs->witch_geas_turns = turns;
+            log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
+                     "A witch appears from the shadows! \"You owe me a task, mortal!\"");
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "Geas: %s (%d turns)", tasks[task], turns);
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "Complete the task or be cursed! The witch vanishes...");
+            gs->dark_affinity += 1;
         }
 
         /* Rainbow countdown and pot of gold check */
@@ -3809,15 +4138,18 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         }
         break;
     case NPC_CAT:
-        {
-            const char *meows[] = {
-                "The cat purrs and rubs against your leg.",
-                "The cat stares at you with disdain, then walks away.",
-                "Meow! The cat yawns and stretches lazily.",
-                "The cat hisses and darts behind a building.",
-            };
-            int n = sizeof(meows) / sizeof(meows[0]);
-            log_add(&gs->log, gs->turn, CP_YELLOW, "%s", meows[rng_range(0, n - 1)]);
+        if (!gs->has_cat) {
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "The cat purrs and rubs against your leg. It wants to follow you!");
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "The cat joins you! (+1 SPD, no rat encounters while it stays)");
+            gs->has_cat = true;
+            gs->cat_turns = rng_range(100, 300);
+            gs->cat_pos = gs->player_pos;
+            gs->spd += 1;
+        } else {
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "You already have a cat following you. It meows jealously.");
         }
         break;
     case NPC_CHICKEN:
@@ -4793,6 +5125,10 @@ static void handle_dungeon_input(GameState *gs, int key) {
 
             Tile *target = &tiles[ny][nx];
             if (target->passable) {
+                /* Cat trails behind player in dungeons too */
+                if (gs->has_cat) {
+                    gs->cat_pos = gs->player_pos;
+                }
                 gs->player_pos.x = nx;
                 gs->player_pos.y = ny;
                 advance_time(gs, 1);
@@ -6458,6 +6794,7 @@ static void render_character_create(GameState *gs) {
         attron(COLOR_PAIR(CP_GRAY));
         mvprintw(row++, 6, "Press [r] to re-roll stats.");
         mvprintw(row++, 6, "Press [Enter] to accept and begin.");
+        mvprintw(row++, 6, "Press [C] for cheat options.");
         attroff(COLOR_PAIR(CP_GRAY));
     } else if (gs->create_step == 5) {
         /* Story screen */
@@ -6560,6 +6897,42 @@ static void handle_character_create(GameState *gs, int key) {
         /* Stats */
         if (key == 'r') {
             roll_stats(gs);
+        } else if (key == 'C') {
+            /* Cheat mode! */
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "=== CHEAT MODE ===");
+            attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_YELLOW));
+            mvprintw(row++, 6, "WARNING: Enabling cheats sets your score to 0");
+            mvprintw(row++, 6, "and marks your character as CHEAT permanently.");
+            attroff(COLOR_PAIR(CP_YELLOW));
+            row++;
+            attron(COLOR_PAIR(CP_CYAN));
+            mvprintw(row++, 6, "[1] God Mode (HP 999)");
+            mvprintw(row++, 6, "[2] Rich Start (Gold 9999)");
+            mvprintw(row++, 6, "[3] Max Stats (all 15)");
+            mvprintw(row++, 6, "[4] All of the above");
+            mvprintw(row++, 6, "[q] Cancel -- no cheats");
+            attroff(COLOR_PAIR(CP_CYAN));
+            ui_refresh();
+
+            int ck = ui_getkey();
+            if (ck >= '1' && ck <= '4') {
+                gs->cheat_mode = true;
+                if (ck == '1' || ck == '4') {
+                    gs->max_hp = 999; gs->hp = 999;
+                    gs->max_mp = 999; gs->mp = 999;
+                }
+                if (ck == '2' || ck == '4') {
+                    gs->gold = 9999;
+                }
+                if (ck == '3' || ck == '4') {
+                    gs->str = 15; gs->def = 15; gs->intel = 15; gs->spd = 15;
+                }
+            }
         } else if (key == '\n' || key == '\r' || key == KEY_ENTER) {
             gs->create_step = 5;
         }
@@ -6709,6 +7082,24 @@ static void game_render(GameState *gs) {
                 attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
                 mvaddch(ppy, ppx, 'H');
                 attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            }
+        }
+
+        /* Draw cat trailing behind player on overworld */
+        if (gs->has_cat) {
+            int cam_x_c = gs->player_pos.x - map_view_width / 2;
+            int cam_y_c = gs->player_pos.y - map_view_height / 2;
+            if (cam_x_c < 0) cam_x_c = 0;
+            if (cam_y_c < 0) cam_y_c = 0;
+            if (cam_x_c + map_view_width > OW_WIDTH) cam_x_c = OW_WIDTH - map_view_width;
+            if (cam_y_c + map_view_height > OW_HEIGHT) cam_y_c = OW_HEIGHT - map_view_height;
+            int cx = gs->cat_pos.x - cam_x_c;
+            int cy = gs->cat_pos.y - cam_y_c;
+            if (cx >= 0 && cx < map_view_width && cy >= 0 && cy < map_view_height &&
+                (gs->cat_pos.x != gs->player_pos.x || gs->cat_pos.y != gs->player_pos.y)) {
+                attron(COLOR_PAIR(CP_YELLOW) | A_BOLD);
+                mvaddch(cy, cx, 'c');
+                attroff(COLOR_PAIR(CP_YELLOW) | A_BOLD);
             }
         }
 
@@ -6927,6 +7318,27 @@ static void game_render(GameState *gs) {
                             mvaddch(sy, sx, e->glyph);
                             attroff(COLOR_PAIR(e->color_pair) | A_BOLD);
                         }
+                    }
+                }
+            }
+
+            /* Draw cat trailing behind player in dungeon */
+            if (gs->has_cat) {
+                int dcam_x = gs->player_pos.x - map_view_width / 2;
+                int dcam_y = gs->player_pos.y - map_view_height / 2;
+                if (dcam_x < 0) dcam_x = 0;
+                if (dcam_y < 0) dcam_y = 0;
+                if (dcam_x + map_view_width > MAP_WIDTH) dcam_x = MAP_WIDTH - map_view_width;
+                if (dcam_y + map_view_height > MAP_HEIGHT) dcam_y = MAP_HEIGHT - map_view_height;
+                int ccx = gs->cat_pos.x - dcam_x;
+                int ccy = gs->cat_pos.y - dcam_y;
+                if (ccx >= 0 && ccx < map_view_width && ccy >= 0 && ccy < map_view_height &&
+                    (gs->cat_pos.x != gs->player_pos.x || gs->cat_pos.y != gs->player_pos.y)) {
+                    DungeonLevel *dl_cat = current_dungeon_level(gs);
+                    if (dl_cat && dl_cat->tiles[gs->cat_pos.y][gs->cat_pos.x].visible) {
+                        attron(COLOR_PAIR(CP_YELLOW) | A_BOLD);
+                        mvaddch(ccy, ccx, 'c');
+                        attroff(COLOR_PAIR(CP_YELLOW) | A_BOLD);
                     }
                 }
             }
