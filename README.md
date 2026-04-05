@@ -203,6 +203,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | `Enter` | Enter a town, castle, or interact with landmark |
 | `>` | Descend into a dungeon entrance |
 | `c` | Camp (rest 8 hours, restore 50% HP/MP) |
+| `f` | Fish from a shore tile (must be adjacent to water) |
 | `H` | Mount/dismount horse (if owned) |
 | `z` | Cast a spell |
 | `i` | Inventory |
@@ -411,7 +412,21 @@ Press **`@`** at any time to view your full character sheet, including:
 Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP.
 
 ### Boats & Lakes
-Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto land to disembark.
+Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto land to disembark -- the boat is left at the water's edge behind you for later use.
+
+**While sailing**, each move has a chance of an encounter:
+- **Water monster attack** (3%): A Water Serpent, Kelpie, Giant Pike, or Nixie rises from the depths. Quick combat -- you strike first, then it retaliates if alive
+- **Auto-fishing** (1%): You trail a line and catch a fish
+- **Ghost Ship** (1%): A spectral ship emerges from the mist! Drowned knights attack (5-12 damage), but you plunder 50-200 gold and 50 XP from the hold
+- **Atmospheric flavour** (3%): Descriptions of the water, mist, and splashing
+
+### Fishing
+Press **`f`** on the overworld while standing next to water (lake, river, or sea) to cast a line. Fishing takes 30 minutes of game time.
+- **40% chance**: Catch a fish (Fresh Fish, Salted Fish, or Smoked Salmon) -- good food for dungeon delving
+- **15% chance**: Reel in an old pouch with 5-25 gold
+- **45% chance**: Nothing bites -- try again later
+
+Fishing is a free, repeatable way to stock up on food without spending gold. Look for shore tiles near lakes and rivers.
 
 ### Horses
 Buy a horse from any **Stablemaster** (`S`) for **150 gold** (one-time purchase). Once owned:

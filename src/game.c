@@ -1190,6 +1190,104 @@ static void handle_overworld_input(GameState *gs, int key) {
         if (gs->in_boat) {
             if (tt == TILE_WATER || tt == TILE_LAKE) {
                 passable = true;
+
+                /* Lake encounters while sailing */
+                int encounter_roll = rng_range(1, 100);
+                if (encounter_roll <= 3) {
+                    /* Water monster attack! */
+                    const char *wnames[] = { "Water Serpent", "Kelpie", "Giant Pike", "Nixie" };
+                    int whp[]  = { 14, 18, 10, 8 };
+                    int wstr[] = { 6, 8, 5, 4 };
+                    int wdef[] = { 2, 3, 2, 1 };
+                    int wxp[]  = { 14, 20, 10, 8 };
+                    char wgl[] = { 'S', 'k', 'f', 'n' };
+                    int wi = rng_range(0, 3);
+
+                    log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                             "A %s rises from the water and attacks your boat!", wnames[wi]);
+
+                    /* Quick combat: player attacks first */
+                    int phit = 70 + gs->str - wdef[wi] * 2;
+                    if (phit > 95) phit = 95;
+                    if (rng_chance(phit)) {
+                        int wpow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
+                        int pdmg = gs->str + wpow + rng_range(-2, 2) - wdef[wi];
+                        if (pdmg < 1) pdmg = 1;
+                        log_add(&gs->log, gs->turn, CP_WHITE,
+                                 "You strike the %s for %d damage!", wnames[wi], pdmg);
+                        if (pdmg >= whp[wi]) {
+                            gs->xp += wxp[wi];
+                            gs->kills++;
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "The %s sinks beneath the waves! +%d XP", wnames[wi], wxp[wi]);
+                        } else {
+                            /* Monster strikes back */
+                            int edmg = wstr[wi] + rng_range(-1, 2) - gs->def;
+                            if (edmg < 1) edmg = 1;
+                            gs->hp -= edmg;
+                            if (gs->hp < 1) gs->hp = 1;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "The %s thrashes and hits you for %d!", wnames[wi], edmg);
+                        }
+                    } else {
+                        int edmg = wstr[wi] + rng_range(-1, 2) - gs->def;
+                        if (edmg < 1) edmg = 1;
+                        gs->hp -= edmg;
+                        if (gs->hp < 1) gs->hp = 1;
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "You miss! The %s bites you for %d damage!", wnames[wi], edmg);
+                    }
+                } else if (encounter_roll == 4) {
+                    /* Fishing bonus! */
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "You trail a line behind the boat and catch a fish!");
+                    if (gs->num_items < MAX_INVENTORY) {
+                        int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                        for (int ti = 0; ti < tcount; ti++) {
+                            if (strcmp(tmps[ti].name, "Fresh Fish") == 0 ||
+                                strcmp(tmps[ti].name, "Salted Fish") == 0) {
+                                gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                log_add(&gs->log, gs->turn, CP_GREEN, "Got: %s", tmps[ti].name);
+                                break;
+                            }
+                        }
+                    }
+                } else if (encounter_roll == 5) {
+                    /* Ghost ship! (very rare) */
+                    log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                             "A spectral ship emerges from the mist!");
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "Ghostly sailors reach for you... You fight them off!");
+
+                    /* Quick ghost ship combat */
+                    int ghost_dmg = rng_range(5, 12) - gs->def;
+                    if (ghost_dmg < 1) ghost_dmg = 1;
+                    gs->hp -= ghost_dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The drowned knights wound you for %d damage!", ghost_dmg);
+
+                    /* Loot from the ghost ship */
+                    int ghost_gold = rng_range(50, 200);
+                    gs->gold += ghost_gold;
+                    gs->xp += 50;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "The ghost ship fades. You plunder %d gold from its hold! +50 XP", ghost_gold);
+                } else if (encounter_roll <= 8) {
+                    /* Atmospheric flavour */
+                    const char *flavour[] = {
+                        "The water laps gently against your boat.",
+                        "You hear a distant splashing beneath the surface.",
+                        "A cold mist rolls across the lake.",
+                        "Fish dart away beneath your hull.",
+                        "An eerie silence falls over the water.",
+                        "You see something glinting deep below the surface...",
+                    };
+                    int nf = sizeof(flavour) / sizeof(flavour[0]);
+                    log_add(&gs->log, gs->turn, CP_CYAN, "%s", flavour[rng_range(0, nf - 1)]);
+                }
             } else if (passable) {
                 /* Stepping from water onto land -- leave the boat at the water behind us */
                 int ox = gs->player_pos.x, oy = gs->player_pos.y;
@@ -2173,6 +2271,67 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
         } else {
             log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing to enter here.");
+        }
+        return;
+    }
+
+    /* Fishing (f key) -- fish from shore tiles adjacent to water */
+    if (key == 'f' && !gs->in_boat) {
+        /* Check if adjacent to water */
+        bool near_water = false;
+        for (int d = 0; d < 4; d++) {
+            int fx = gs->player_pos.x + dir_dx[d * 2];
+            int fy = gs->player_pos.y + dir_dy[d * 2];
+            if (fx >= 0 && fx < OW_WIDTH && fy >= 0 && fy < OW_HEIGHT) {
+                TileType ft = gs->overworld->map[fy][fx].type;
+                if (ft == TILE_LAKE || ft == TILE_RIVER || ft == TILE_WATER) {
+                    near_water = true;
+                    break;
+                }
+            }
+        }
+        if (near_water) {
+            log_add(&gs->log, gs->turn, CP_CYAN, "You cast a line into the water...");
+            int old_hour = gs->hour;
+            advance_time(gs, 30); /* fishing takes 30 minutes */
+            check_lunar_events(gs, old_hour);
+
+            int catch_roll = rng_range(1, 100);
+            if (catch_roll <= 40) {
+                /* Caught a fish! */
+                if (gs->num_items < MAX_INVENTORY) {
+                    int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                    const char *fish_names[] = { "Fresh Fish", "Salted Fish", "Smoked Salmon" };
+                    for (int fi = 0; fi < 3; fi++) {
+                        for (int ti = 0; ti < tcount; ti++) {
+                            if (strcmp(tmps[ti].name, fish_names[fi]) == 0) {
+                                gs->inventory[gs->num_items] = item_create(ti, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                log_add(&gs->log, gs->turn, CP_GREEN,
+                                         "You catch a %s!", fish_names[fi]);
+                                goto fishing_done;
+                            }
+                        }
+                    }
+                    fishing_done: ;
+                } else {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You catch a fish but your inventory is full!");
+                }
+            } else if (catch_roll <= 55) {
+                /* Caught treasure */
+                int gold = rng_range(5, 25);
+                gs->gold += gold;
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "You reel in an old pouch! +%d gold!", gold);
+            } else {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "Nothing bites. Maybe try again later.");
+            }
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You need to be next to water to fish.");
         }
         return;
     }
