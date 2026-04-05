@@ -103,10 +103,18 @@ static SpawnGroup parse_group(const char *s) {
 
 static uint32_t parse_ai_flags(const char *s) {
     uint32_t flags = 0;
-    if (strstr(s, "flee")) flags |= AI_FLEES_LOW_HP;
-    if (strstr(s, "erratic")) flags |= AI_ERRATIC;
-    if (strstr(s, "ranged")) flags |= AI_RANGED_ATTACK;
-    if (strstr(s, "doors")) flags |= AI_OPENS_DOORS;
+    if (strstr(s, "flee"))      flags |= AI_FLEES_LOW_HP;
+    if (strstr(s, "erratic"))   flags |= AI_ERRATIC;
+    if (strstr(s, "ranged"))    flags |= AI_RANGED_ATTACK;
+    if (strstr(s, "doors"))     flags |= AI_OPENS_DOORS;
+    if (strstr(s, "ghost"))     flags |= AI_GHOST;
+    if (strstr(s, "breathe"))   flags |= AI_BREATHE_FIRE;
+    if (strstr(s, "summon"))    flags |= AI_SUMMON;
+    if (strstr(s, "heal"))      flags |= AI_HEAL_ALLIES;
+    if (strstr(s, "debuff"))    flags |= AI_DEBUFF;
+    if (strstr(s, "explode"))   flags |= AI_EXPLODE_DEATH;
+    if (strstr(s, "fear_aura")) flags |= AI_FEAR_AURA;
+    if (strstr(s, "chase"))     flags |= AI_ALWAYS_CHASE;
     return flags;
 }
 

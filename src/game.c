@@ -1,9 +1,13 @@
 #include "game.h"
 #include "ui.h"
 #include "rng.h"
+#include "pathfind.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+/* Forward declarations for AI abilities */
+static void ai_explode_on_death(GameState *gs, Entity *e);
 
 /* ------------------------------------------------------------------ */
 /* Dungeon helpers                                                     */
@@ -207,6 +211,8 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         gs->kills++;
         log_add(&gs->log, gs->turn, CP_YELLOW,
                  "The %s is slain! +%d XP (Kills: %d)", target->name, target->xp_reward, gs->kills);
+        /* On-death effects */
+        ai_explode_on_death(gs, target);
 
         /* Monster drops */
         DungeonLevel *dl = current_dungeon_level(gs);
@@ -286,7 +292,185 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     }
 }
 
-/* Process enemy turns -- simple chase AI */
+/* ------------------------------------------------------------------ */
+/* Monster AI helper: try to move to nx,ny (handles ghosts and doors)  */
+/* ------------------------------------------------------------------ */
+static bool ai_try_move(GameState *gs, Entity *e, int nx, int ny) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return false;
+    if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) return false;
+    if (nx == gs->player_pos.x && ny == gs->player_pos.y) return false;
+    if (monster_at(gs, nx, ny)) return false;
+
+    Tile *t = &dl->tiles[ny][nx];
+
+    /* Ghost mode: walk through walls */
+    if ((e->ai_flags & AI_GHOST) && t->type == TILE_WALL) {
+        e->pos.x = nx;
+        e->pos.y = ny;
+        return true;
+    }
+
+    /* Open doors if capable */
+    if (t->type == TILE_DOOR_CLOSED && (e->ai_flags & AI_OPENS_DOORS)) {
+        t->type = TILE_DOOR_OPEN;
+        t->glyph = '/';
+        t->blocks_sight = false;
+        t->passable = true;
+        return true; /* spend turn opening */
+    }
+
+    if (!t->passable) return false;
+
+    e->pos.x = nx;
+    e->pos.y = ny;
+    return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Monster special abilities                                           */
+/* ------------------------------------------------------------------ */
+
+/* Breath weapon: damage in a 3-tile line toward player */
+static bool ai_breathe_fire(GameState *gs, Entity *e, int dist_sq) {
+    if (!(e->ai_flags & AI_BREATHE_FIRE)) return false;
+    if (e->ability_cd > 0) return false;
+    if (dist_sq > 16 || dist_sq < 2) return false; /* range 2-4 */
+
+    int damage = e->str / 2 + rng_range(3, 8);
+    int def_reduce = gs->def / 3;
+    damage -= def_reduce;
+    if (damage < 2) damage = 2;
+    gs->hp -= damage;
+    e->ability_cd = 4; /* 4-turn cooldown */
+    log_add(&gs->log, gs->turn, CP_RED_BOLD,
+             "The %s breathes fire! -%d HP!", e->name, damage);
+    return true;
+}
+
+/* Summoning: spawn an ally nearby */
+static bool ai_summon(GameState *gs, Entity *e) {
+    if (!(e->ai_flags & AI_SUMMON)) return false;
+    if (e->summon_cd > 0) return false;
+
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl || dl->num_monsters >= MAX_MONSTERS_PER_LEVEL - 1) return false;
+
+    /* Find an open tile adjacent to the monster */
+    for (int tries = 0; tries < 8; tries++) {
+        int d = rng_range(0, 7);
+        int nx = e->pos.x + dir_dx[d];
+        int ny = e->pos.y + dir_dy[d];
+        if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) continue;
+        if (!dl->tiles[ny][nx].passable) continue;
+        if (monster_at(gs, nx, ny)) continue;
+        if (nx == gs->player_pos.x && ny == gs->player_pos.y) continue;
+
+        /* Create a weak summon based on summoner type */
+        Entity *s = &dl->monsters[dl->num_monsters++];
+        memset(s, 0, sizeof(*s));
+        s->alive = true;
+        s->pos = (Vec2){ nx, ny };
+        s->energy = 0;
+        s->ai_state = AI_STATE_CHASE;
+
+        if (e->category == MCAT_UNDEAD || strstr(e->name, "Necromancer")) {
+            snprintf(s->name, MAX_NAME, "Skeleton");
+            s->glyph = 'z'; s->color_pair = CP_WHITE;
+            s->hp = s->max_hp = 8; s->str = 4; s->def = 2; s->spd = 3;
+            s->xp_reward = 5; s->category = MCAT_UNDEAD;
+        } else if (strstr(e->name, "Witch")) {
+            snprintf(s->name, MAX_NAME, "Giant Spider");
+            s->glyph = 'S'; s->color_pair = CP_GREEN;
+            s->hp = s->max_hp = 8; s->str = 4; s->def = 1; s->spd = 4;
+            s->xp_reward = 5; s->category = MCAT_BEAST;
+        } else {
+            snprintf(s->name, MAX_NAME, "Imp");
+            s->glyph = 'i'; s->color_pair = CP_RED;
+            s->hp = s->max_hp = 6; s->str = 3; s->def = 1; s->spd = 5;
+            s->xp_reward = 4; s->category = MCAT_MAGICAL;
+            s->ai_flags = AI_ERRATIC;
+        }
+
+        e->summon_cd = 8; /* 8-turn cooldown */
+        log_add(&gs->log, gs->turn, CP_MAGENTA,
+                 "The %s summons a %s!", e->name, s->name);
+        return true;
+    }
+    return false;
+}
+
+/* Heal: restore HP to nearby wounded ally */
+static bool ai_heal_allies(GameState *gs, Entity *e) {
+    if (!(e->ai_flags & AI_HEAL_ALLIES)) return false;
+    if (e->ability_cd > 0) return false;
+
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return false;
+
+    for (int j = 0; j < dl->num_monsters; j++) {
+        Entity *ally = &dl->monsters[j];
+        if (!ally->alive || ally == e) continue;
+        if (ally->hp >= ally->max_hp) continue;
+
+        int adx = abs(ally->pos.x - e->pos.x);
+        int ady = abs(ally->pos.y - e->pos.y);
+        if (adx > 3 || ady > 3) continue;
+
+        int heal = rng_range(3, 8);
+        ally->hp += heal;
+        if (ally->hp > ally->max_hp) ally->hp = ally->max_hp;
+        e->ability_cd = 4;
+
+        if (dl->tiles[e->pos.y][e->pos.x].visible)
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "The %s heals the %s! (+%d HP)", e->name, ally->name, heal);
+        return true;
+    }
+    return false;
+}
+
+/* Debuff: curse the player (temporary stat reduction) */
+static bool ai_debuff_player(GameState *gs, Entity *e, int dist_sq) {
+    if (!(e->ai_flags & AI_DEBUFF)) return false;
+    if (e->ability_cd > 0) return false;
+    if (dist_sq > 25) return false; /* range 5 */
+    if (!rng_chance(30)) return false; /* 30% chance per turn */
+
+    /* Pick a random stat to reduce */
+    int stat = rng_range(0, 3);
+    const char *stat_name;
+    switch (stat) {
+    case 0: gs->str -= 1; stat_name = "STR"; break;
+    case 1: gs->def -= 1; stat_name = "DEF"; break;
+    case 2: gs->intel -= 1; stat_name = "INT"; break;
+    default: gs->spd -= 1; stat_name = "SPD"; break;
+    }
+    e->ability_cd = 6;
+    log_add(&gs->log, gs->turn, CP_MAGENTA,
+             "The %s curses you! -%s", e->name, stat_name);
+    return true;
+}
+
+/* Explode on death: damage adjacent entities */
+static void ai_explode_on_death(GameState *gs, Entity *e) {
+    if (!(e->ai_flags & AI_EXPLODE_DEATH)) return;
+
+    int ex = e->pos.x, ey = e->pos.y;
+    /* Damage player if adjacent */
+    int pdx = abs(gs->player_pos.x - ex);
+    int pdy = abs(gs->player_pos.y - ey);
+    if (pdx <= 1 && pdy <= 1) {
+        int damage = rng_range(2, 5);
+        gs->hp -= damage;
+        log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                 "The %s explodes! -%d HP!", e->name, damage);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Process enemy turns -- FSM AI with A* pathfinding                   */
+/* ------------------------------------------------------------------ */
 static void dungeon_enemy_turns(GameState *gs) {
     DungeonLevel *dl = current_dungeon_level(gs);
     if (!dl) return;
@@ -304,47 +488,99 @@ static void dungeon_enemy_turns(GameState *gs) {
         Entity *e = &dl->monsters[i];
         if (!e->alive) continue;
 
-        /* Only act if within awake range */
+        /* Tick cooldowns */
+        if (e->ability_cd > 0) e->ability_cd--;
+        if (e->summon_cd > 0) e->summon_cd--;
+
         int dx = e->pos.x - gs->player_pos.x;
         int dy = e->pos.y - gs->player_pos.y;
         int dist_sq = dx * dx + dy * dy;
-        if (dist_sq > (FOV_RADIUS + 5) * (FOV_RADIUS + 5)) continue;
+
+        /* ---- AI State Machine Update ---- */
+        bool player_visible = dl->tiles[e->pos.y][e->pos.x].visible;
+        int awake_range = (FOV_RADIUS + 5) * (FOV_RADIUS + 5);
+
+        /* IDLE → CHASE: player in sight or always-chase flag */
+        if (e->ai_state == AI_STATE_IDLE) {
+            if ((e->ai_flags & AI_ALWAYS_CHASE) && dist_sq <= awake_range) {
+                e->ai_state = AI_STATE_CHASE;
+            } else if (player_visible && dist_sq <= awake_range) {
+                e->ai_state = AI_STATE_CHASE;
+                e->last_seen_x = gs->player_pos.x;
+                e->last_seen_y = gs->player_pos.y;
+            }
+        }
+
+        /* CHASE → FLEE: low HP */
+        if (e->ai_state == AI_STATE_CHASE &&
+            (e->ai_flags & AI_FLEES_LOW_HP) && e->hp * 4 < e->max_hp) {
+            e->ai_state = AI_STATE_FLEE;
+        }
+
+        /* FLEE → CHASE: HP recovered above 50% */
+        if (e->ai_state == AI_STATE_FLEE && e->hp * 2 >= e->max_hp) {
+            e->ai_state = AI_STATE_CHASE;
+        }
+
+        /* Update last known player position if visible */
+        if (player_visible) {
+            e->last_seen_x = gs->player_pos.x;
+            e->last_seen_y = gs->player_pos.y;
+        }
+
+        /* Skip if still idle and out of range */
+        if (e->ai_state == AI_STATE_IDLE && dist_sq > awake_range) continue;
 
         /* Energy system: accumulate energy based on speed, act when >= 30 */
         e->energy += e->spd * 10;
         if (e->energy < 30) continue;
         e->energy -= 30;
 
-        /* AI: Erratic monsters sometimes move randomly */
-        if ((e->ai_flags & AI_ERRATIC) && rng_chance(25)) {
+        /* ---- Fear aura effect ---- */
+        if ((e->ai_flags & AI_FEAR_AURA) && dist_sq <= 9 && player_visible) {
+            /* Player feels fear -- small chance to lose a turn */
+            if (rng_chance(10)) {
+                log_add(&gs->log, gs->turn, CP_MAGENTA,
+                         "The %s's presence fills you with dread!", e->name);
+            }
+        }
+
+        /* ---- AI: Erratic (random movement 25%) ---- */
+        if ((e->ai_flags & AI_ERRATIC) && e->ai_state != AI_STATE_FLEE && rng_chance(25)) {
             int rd = rng_range(0, 7);
             int nx = e->pos.x + dir_dx[rd];
             int ny = e->pos.y + dir_dy[rd];
-            if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
-                dl->tiles[ny][nx].passable && !monster_at(gs, nx, ny) &&
-                !(nx == gs->player_pos.x && ny == gs->player_pos.y)) {
-                e->pos.x = nx;
-                e->pos.y = ny;
-            }
+            ai_try_move(gs, e, nx, ny);
             continue;
         }
 
-        /* AI: Flee when HP low */
-        if ((e->ai_flags & AI_FLEES_LOW_HP) && e->hp * 4 < e->max_hp) {
-            /* Run away from player */
+        /* ---- AI: FLEE state ---- */
+        if (e->ai_state == AI_STATE_FLEE) {
             int step_x = (dx > 0) ? 1 : (dx < 0) ? -1 : 0;
             int step_y = (dy > 0) ? 1 : (dy < 0) ? -1 : 0;
-            int nx = e->pos.x + step_x;
-            int ny = e->pos.y + step_y;
-            if (nx > 0 && nx < MAP_WIDTH - 1 && ny > 0 && ny < MAP_HEIGHT - 1 &&
-                dl->tiles[ny][nx].passable && !monster_at(gs, nx, ny)) {
-                e->pos.x = nx;
-                e->pos.y = ny;
+            if (!ai_try_move(gs, e, e->pos.x + step_x, e->pos.y + step_y)) {
+                /* Try perpendicular */
+                ai_try_move(gs, e, e->pos.x + step_x, e->pos.y) ||
+                ai_try_move(gs, e, e->pos.x, e->pos.y + step_y);
             }
             continue;
         }
 
-        /* AI: Ranged attack at distance 2-5 */
+        /* ---- Special abilities (before movement/melee) ---- */
+
+        /* Breath weapon (dragons, bone dragon) */
+        if (ai_breathe_fire(gs, e, dist_sq)) continue;
+
+        /* Summoning (necromancer, witch, sorcerer) */
+        if (dist_sq <= 36 && rng_chance(15) && ai_summon(gs, e)) continue;
+
+        /* Heal nearby wounded allies (shamans, dark monks) */
+        if (ai_heal_allies(gs, e)) continue;
+
+        /* Debuff player (witches, wraiths, enchantresses) */
+        if (ai_debuff_player(gs, e, dist_sq)) continue;
+
+        /* Ranged attack at distance 2-5 */
         if ((e->ai_flags & AI_RANGED_ATTACK) && dist_sq >= 4 && dist_sq <= 25) {
             if (rng_chance(50)) {
                 int damage = e->str / 2 + rng_range(-1, 2) - gs->def / 2;
@@ -357,44 +593,51 @@ static void dungeon_enemy_turns(GameState *gs) {
             }
         }
 
-        /* If adjacent to player, attack */
+        /* ---- Melee: if adjacent to player, attack ---- */
         if (abs(dx) <= 1 && abs(dy) <= 1) {
             combat_monster_attacks(gs, e);
             continue;
         }
 
-        /* Chase player */
-        int step_x = 0, step_y = 0;
-        if (dx > 0) step_x = -1;
-        else if (dx < 0) step_x = 1;
-        if (dy > 0) step_y = -1;
-        else if (dy < 0) step_y = 1;
+        /* ---- Movement: A* pathfinding toward player ---- */
+        if (e->ai_state == AI_STATE_CHASE || (e->ai_flags & AI_ALWAYS_CHASE)) {
+            int target_x = gs->player_pos.x, target_y = gs->player_pos.y;
 
-        int attempts[3][2] = {
-            { e->pos.x + step_x, e->pos.y + step_y },
-            { e->pos.x + step_x, e->pos.y },
-            { e->pos.x, e->pos.y + step_y },
-        };
-
-        for (int a = 0; a < 3; a++) {
-            int nx = attempts[a][0], ny = attempts[a][1];
-            if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) continue;
-            Tile *t = &dl->tiles[ny][nx];
-            /* Monsters with AI_OPENS_DOORS can open closed doors */
-            if (t->type == TILE_DOOR_CLOSED && (e->ai_flags & AI_OPENS_DOORS)) {
-                t->type = TILE_DOOR_OPEN;
-                t->glyph = '/';
-                t->blocks_sight = false;
-                t->passable = true;
-                break;
+            /* If we can't see the player, go to last known position */
+            if (!player_visible && e->last_seen_x > 0) {
+                target_x = e->last_seen_x;
+                target_y = e->last_seen_y;
+                /* If we reached last known position, go idle */
+                if (e->pos.x == target_x && e->pos.y == target_y) {
+                    if (!(e->ai_flags & AI_ALWAYS_CHASE))
+                        e->ai_state = AI_STATE_IDLE;
+                    continue;
+                }
             }
-            if (!t->passable) continue;
-            if (nx == gs->player_pos.x && ny == gs->player_pos.y) continue;
-            if (monster_at(gs, nx, ny)) continue;
 
-            e->pos.x = nx;
-            e->pos.y = ny;
-            break;
+            int next_x, next_y;
+            bool ghost = (e->ai_flags & AI_GHOST) != 0;
+            int path_len = pathfind_astar(dl->tiles, e->pos.x, e->pos.y,
+                                           target_x, target_y, &next_x, &next_y,
+                                           ghost);
+
+            if (path_len > 0 && (next_x != e->pos.x || next_y != e->pos.y)) {
+                if (!ai_try_move(gs, e, next_x, next_y)) {
+                    /* A* step blocked by another monster, try greedy fallback */
+                    int sx = (dx < 0) ? 1 : (dx > 0) ? -1 : 0;
+                    int sy = (dy < 0) ? 1 : (dy > 0) ? -1 : 0;
+                    ai_try_move(gs, e, e->pos.x + sx, e->pos.y + sy) ||
+                    ai_try_move(gs, e, e->pos.x + sx, e->pos.y) ||
+                    ai_try_move(gs, e, e->pos.x, e->pos.y + sy);
+                }
+            } else {
+                /* No path found -- greedy fallback */
+                int sx = (dx < 0) ? 1 : (dx > 0) ? -1 : 0;
+                int sy = (dy < 0) ? 1 : (dy > 0) ? -1 : 0;
+                ai_try_move(gs, e, e->pos.x + sx, e->pos.y + sy) ||
+                ai_try_move(gs, e, e->pos.x + sx, e->pos.y) ||
+                ai_try_move(gs, e, e->pos.x, e->pos.y + sy);
+            }
         }
     }
 }

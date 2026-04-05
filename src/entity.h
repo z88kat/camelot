@@ -15,6 +15,13 @@ typedef enum {
     MCAT_BOSS
 } MonsterCategory;
 
+/* AI state machine */
+typedef enum {
+    AI_STATE_IDLE,    /* hasn't noticed player */
+    AI_STATE_CHASE,   /* pursuing player */
+    AI_STATE_FLEE     /* running away */
+} AIState;
+
 /* A monster/entity on the map */
 typedef struct {
     char    name[MAX_NAME];
@@ -30,6 +37,10 @@ typedef struct {
     bool    alive;
     int     energy;       /* speed/energy system */
     uint32_t ai_flags;
+    AIState ai_state;     /* current FSM state */
+    int     ability_cd;   /* turns until special ability ready */
+    int     summon_cd;    /* turns until can summon again */
+    int     last_seen_x, last_seen_y;  /* last known player position */
 } Entity;
 
 #define MAX_MONSTERS_PER_LEVEL 60
@@ -39,6 +50,14 @@ typedef struct {
 #define AI_ERRATIC        (1 << 1)  /* 25% random movement */
 #define AI_RANGED_ATTACK  (1 << 2)  /* attack at range 2-5 */
 #define AI_OPENS_DOORS    (1 << 3)  /* can open doors */
+#define AI_GHOST          (1 << 4)  /* walks through walls */
+#define AI_BREATHE_FIRE   (1 << 5)  /* breath weapon (3-tile line) */
+#define AI_SUMMON         (1 << 6)  /* summons allies */
+#define AI_HEAL_ALLIES    (1 << 7)  /* heals nearby allies */
+#define AI_DEBUFF         (1 << 8)  /* curses/debuffs player */
+#define AI_EXPLODE_DEATH  (1 << 9)  /* explodes on death */
+#define AI_FEAR_AURA      (1 << 10) /* nearby monsters flee */
+#define AI_ALWAYS_CHASE   (1 << 11) /* never idles, always chases */
 
 /* Drop type */
 typedef enum {

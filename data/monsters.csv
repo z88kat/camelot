@@ -3,7 +3,7 @@
 # color: brown,gray,green,yellow,red,white,cyan,magenta
 # category: beast,bandit,undead,dark_knight,magical,dragon,troll,boss
 # group: single,small,large
-# ai_flags: pipe-separated list of: flee,erratic,ranged,doors (or none)
+# ai_flags: pipe-separated list of: flee,erratic,ranged,doors,ghost,breathe,summon,heal,debuff,explode,fear_aura,chase (or none)
 # drop: none,gold,gold_large
 #
 # ===== Beasts -- early game =====
@@ -32,35 +32,35 @@ Bandit Chief,P,yellow,22,8,5,4,25,4,8,bandit,1,single,doors,gold_large
 Skeleton,z,white,10,5,3,3,10,2,6,undead,4,small,none,gold
 Zombie,Z,green,14,6,2,2,12,2,6,undead,4,small,none,none
 Ghoul,g,cyan,16,7,3,4,16,3,7,undead,3,single,none,gold
-Ghost,G,white,12,6,1,5,14,3,8,undead,3,single,erratic,gold
+Ghost,G,white,12,6,1,5,14,3,8,undead,3,single,erratic|ghost|debuff,gold
 Wight,W,white,20,8,4,3,22,4,8,undead,2,single,none,gold
-Wraith,W,cyan,18,9,2,5,25,5,9,undead,2,single,erratic,gold
-Spectre,G,cyan,15,7,1,6,20,5,9,undead,2,single,erratic,gold
+Wraith,W,cyan,18,9,2,5,25,5,9,undead,2,single,erratic|ghost|debuff,gold
+Spectre,G,cyan,15,7,1,6,20,5,9,undead,2,single,erratic|ghost,gold
 Revenant,R,red,22,9,5,3,28,5,9,undead,2,single,doors,gold
 Barrow-Wight,W,gray,24,9,5,3,30,5,10,undead,1,single,none,gold_large
 Skeleton Knight,Z,white,25,10,6,3,30,6,10,undead,1,single,doors,gold_large
-Bone Dragon,D,white,45,14,7,3,60,9,15,undead,1,single,ranged,gold_large
-Death Knight,D,red,35,12,8,4,50,8,15,undead,1,single,doors,gold_large
+Bone Dragon,D,white,45,14,7,3,60,9,15,undead,1,single,ranged|breathe,gold_large
+Death Knight,D,red,35,12,8,4,50,8,15,undead,1,single,doors|fear_aura|chase,gold_large
 #
 # ===== Dark Knights & Warriors =====
 Dark Squire,q,red,15,6,5,3,14,3,7,dark_knight,3,single,doors,gold
 Mercenary,q,yellow,20,8,5,4,20,4,8,dark_knight,2,single,doors,gold
 Rogue Knight,K,red,25,9,7,3,28,5,9,dark_knight,2,single,doors,weapon
 Iron Golem,I,gray,35,12,10,1,40,7,12,dark_knight,1,single,doors,armor
-Black Knight,K,red,30,10,8,3,35,6,10,dark_knight,1,single,doors,weapon
+Black Knight,K,red,30,10,8,3,35,6,10,dark_knight,1,single,doors|chase,weapon
 Fallen Paladin,K,magenta,35,11,9,3,45,7,12,dark_knight,1,single,doors,weapon
 #
 # ===== Magical Creatures =====
-Imp,i,red,8,4,1,7,8,2,6,magical,3,small,erratic|ranged,none
-Dark Monk,m,magenta,18,7,5,3,20,4,8,magical,2,single,ranged,gold
-Hellhound,h,red,20,9,3,6,24,5,9,magical,2,single,ranged,none
-Witch,W,green,16,6,3,4,18,4,8,magical,2,single,ranged|flee,gold
-Evil Sorcerer,S,magenta,24,9,4,4,30,6,10,magical,1,single,ranged|flee,gold_large
-Necromancer,N,magenta,20,7,3,3,25,6,10,magical,1,single,ranged,potion
-Enchantress,E,magenta,18,6,3,5,22,5,9,magical,1,single,ranged|flee,gold
+Imp,i,red,8,4,1,7,8,2,6,magical,3,small,erratic|ranged|explode,none
+Dark Monk,m,magenta,18,7,5,3,20,4,8,magical,2,single,ranged|heal,gold
+Hellhound,h,red,20,9,3,6,24,5,9,magical,2,single,ranged|chase,none
+Witch,W,green,16,6,3,4,18,4,8,magical,2,single,ranged|flee|debuff|summon,gold
+Evil Sorcerer,S,magenta,24,9,4,4,30,6,10,magical,1,single,ranged|flee|summon,gold_large
+Necromancer,N,magenta,20,7,3,3,25,6,10,magical,1,single,ranged|summon,potion
+Enchantress,E,magenta,18,6,3,5,22,5,9,magical,1,single,ranged|flee|debuff,gold
 Warlock,W,magenta,22,8,4,4,28,6,10,magical,1,single,ranged|flee,potion
 Shadow Fiend,F,magenta,25,10,3,5,32,7,12,magical,1,single,erratic,gold_large
-Demon,&,red,38,13,6,4,55,9,15,magical,1,single,ranged|doors,gold_large
+Demon,&,red,38,13,6,4,55,9,15,magical,1,single,ranged|doors|fear_aura,gold_large
 #
 # ===== Dragons =====
 Dragon Whelp,d,red,15,7,4,4,18,4,8,dragon,2,single,ranged,gold_large
@@ -68,8 +68,8 @@ Young Drake,d,red,22,9,5,4,28,5,9,dragon,1,single,ranged,gold_large
 Fire Drake,D,red,30,12,6,3,40,7,12,dragon,1,single,ranged,gold_large
 Ice Drake,D,cyan,28,11,6,3,38,7,12,dragon,1,single,ranged,gold_large
 Wyvern,W,red,28,10,5,5,35,6,11,dragon,1,single,ranged|flee,gold_large
-Red Dragon,D,red,50,15,10,3,80,10,15,dragon,1,single,ranged,gold_large
-Black Dragon,D,magenta,55,16,9,3,90,11,15,dragon,1,single,ranged,gold_large
+Red Dragon,D,red,50,15,10,3,80,10,15,dragon,1,single,ranged|breathe,gold_large
+Black Dragon,D,magenta,55,16,9,3,90,11,15,dragon,1,single,ranged|breathe,gold_large
 #
 # ===== Faerie & Forest =====
 Will-o-Wisp,o,cyan,6,3,0,8,8,2,6,beast,2,single,erratic,none
@@ -92,6 +92,7 @@ Drowned Knight,K,cyan,22,8,5,3,24,5,9,undead,1,single,doors,gold
 Sea Serpent,S,cyan,30,11,5,4,35,6,11,beast,1,single,none,gold_large
 #
 # ===== Giants & Trolls =====
+Troll Shaman,T,green,20,7,4,3,28,4,8,troll,1,single,ranged|heal,gold
 Hill Troll,T,green,25,9,5,2,25,4,8,troll,2,single,doors,gold
 Cave Troll,T,brown,30,11,6,2,32,5,10,troll,2,single,doors,gold
 Ogre,O,brown,28,10,4,2,28,5,9,troll,2,single,none,gold
@@ -109,4 +110,4 @@ Manticore,M,red,30,11,5,5,35,6,10,boss,1,single,ranged,gold_large
 Griffin,G,yellow,32,10,6,6,38,6,10,boss,1,single,ranged,gold_large
 Basilisk,B,green,28,9,5,3,32,6,10,boss,1,single,none,gold_large
 Chimera,C,red,38,13,6,4,48,8,12,boss,1,single,ranged,gold_large
-Mordred,M,magenta,60,18,12,4,100,12,15,boss,1,single,ranged|doors,gold_large
+Mordred,M,magenta,60,18,12,4,100,12,15,boss,1,single,ranged|doors|chase|fear_aura|summon,gold_large
