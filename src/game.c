@@ -14,6 +14,28 @@ static void dungeon_update_fov(GameState *gs);
 static const char *chivalry_title(int chiv);
 static void game_render(GameState *gs);
 
+/* Unidentified potion colour descriptions */
+static const char *potion_colours[] = {
+    "Bubbling Red", "Murky Green", "Glowing Blue", "Swirling Purple",
+    "Fizzing Yellow", "Dark Brown", "Shimmering Gold", "Pale White",
+    "Inky Black", "Cloudy Grey", "Sparkling Cyan", "Thick Orange",
+    "Smoky Violet", "Oily Crimson", "Luminous Pink", "Frothy Amber",
+    "Crystalline Clear", "Milky Pearl", "Sickly Olive", "Bright Scarlet",
+    "Deep Indigo", "Rusty Bronze"
+};
+static const int num_potion_colours = 22;
+
+static const char *potion_display_name(GameState *gs, Item *it) {
+    static char buf[64];
+    if (it->type != ITYPE_POTION || it->identified ||
+        (it->template_id >= 0 && gs->potions_identified[it->template_id])) {
+        return it->name;
+    }
+    int ci = gs->potion_colour_map[it->template_id] % num_potion_colours;
+    snprintf(buf, sizeof(buf), "%s Potion", potion_colours[ci]);
+    return buf;
+}
+
 /* XP thresholds for leveling (20 levels) */
 static const int xp_table[MAX_LEVELS] = {
     0, 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600,
@@ -1327,7 +1349,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                     int wstr[] = { 6, 8, 5, 4 };
                     int wdef[] = { 2, 3, 2, 1 };
                     int wxp[]  = { 14, 20, 10, 8 };
-                    char wgl[] = { 'S', 'k', 'f', 'n' };
+                    (void)0; /* glyphs: S k f n */
                     int wi = rng_range(0, 3);
 
                     log_add(&gs->log, gs->turn, CP_RED_BOLD,
@@ -2595,6 +2617,59 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
         } else {
             log_add(&gs->log, gs->turn, CP_GRAY, "There is nothing to enter here.");
+        }
+        return;
+    }
+
+    /* Cook raw food (K = Shift+K) -- requires campable terrain and tinderbox/torch */
+    if (key == 'K') {
+        TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
+        if (here != TILE_GRASS && here != TILE_ROAD && here != TILE_FOREST) {
+            log_add(&gs->log, gs->turn, CP_GRAY, "You need open ground to make a fire.");
+        } else {
+            /* Check for tinderbox or torch */
+            bool has_fire = gs->has_torch;
+            if (!has_fire) {
+                for (int ii = 0; ii < gs->num_items; ii++) {
+                    if (strcmp(gs->inventory[ii].name, "Tinderbox") == 0) {
+                        has_fire = true; break;
+                    }
+                }
+            }
+            if (!has_fire) {
+                log_add(&gs->log, gs->turn, CP_GRAY, "You need a Torch or Tinderbox to cook.");
+            } else {
+                /* Find raw food in inventory */
+                int raw_idx = -1;
+                for (int ii = 0; ii < gs->num_items; ii++) {
+                    if (strstr(gs->inventory[ii].name, "Raw ") != NULL) {
+                        raw_idx = ii; break;
+                    }
+                }
+                if (raw_idx < 0) {
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "You have no raw food to cook. Look for Raw Meat from beasts.");
+                } else {
+                    Item *raw = &gs->inventory[raw_idx];
+                    log_add(&gs->log, gs->turn, CP_BROWN,
+                             "You build a small fire and cook the %s...", raw->name);
+
+                    /* Transform raw food into cooked version with higher power */
+                    int cooked_power = raw->power * 3;
+                    snprintf(raw->name, sizeof(raw->name), "Cooked Meat");
+                    raw->power = cooked_power;
+                    raw->value = raw->value * 2;
+                    raw->color_pair = CP_BROWN;
+                    raw->created_day = gs->day; /* reset freshness */
+
+                    int old_hour = gs->hour;
+                    advance_time(gs, 20); /* cooking takes 20 minutes */
+                    check_lunar_events(gs, old_hour);
+
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "The meat sizzles. Cooked Meat (power: %d) is ready!", cooked_power);
+                }
+            }
         }
         return;
     }
@@ -5486,9 +5561,10 @@ void game_handle_input(GameState *gs, int key) {
                          'a' + ii, it->name, item_type_name(it->type));
                 attroff(COLOR_PAIR(CP_RED));
             } else {
+                const char *disp_name = potion_display_name(gs, it);
                 attron(COLOR_PAIR(it->color_pair));
                 mvprintw(row++, 4, "%c) %s [%s] pow:%d val:%dg",
-                         'a' + ii, it->name, item_type_name(it->type),
+                         'a' + ii, disp_name, item_type_name(it->type),
                          it->power, it->value);
                 attroff(COLOR_PAIR(it->color_pair));
             }
@@ -5531,9 +5607,45 @@ void game_handle_input(GameState *gs, int key) {
                     gs->inventory[--gs->num_items].template_id = -1;
                 } else if (akey == 'u') {
                     if (sel->type == ITYPE_POTION) {
-                        gs->hp += sel->power;
-                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
-                        log_add(&gs->log, gs->turn, CP_GREEN, "You drink the %s. +%d HP!", sel->name, sel->power);
+                        /* Identify this potion type */
+                        bool was_unknown = (sel->template_id >= 0 && !gs->potions_identified[sel->template_id]);
+                        if (sel->template_id >= 0)
+                            gs->potions_identified[sel->template_id] = true;
+
+                        /* Apply effect based on potion name */
+                        bool is_mana = (strstr(sel->name, "Mana") != NULL);
+                        bool is_str  = (strcmp(sel->name, "Strength Potion") == 0);
+                        bool is_spd  = (strcmp(sel->name, "Speed Potion") == 0);
+                        bool is_def  = (strcmp(sel->name, "Defence Potion") == 0);
+                        bool is_int  = (strcmp(sel->name, "Intelligence Potion") == 0);
+
+                        if (is_mana) {
+                            gs->mp += sel->power;
+                            if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                            log_add(&gs->log, gs->turn, CP_BLUE, "You drink the %s. +%d MP!", sel->name, sel->power);
+                        } else if (is_str) {
+                            gs->str += sel->power;
+                            gs->buff_str_turns = 50;
+                            log_add(&gs->log, gs->turn, CP_YELLOW, "You drink the %s. +%d STR!", sel->name, sel->power);
+                        } else if (is_spd) {
+                            gs->spd += sel->power;
+                            gs->buff_spd_turns = 50;
+                            log_add(&gs->log, gs->turn, CP_CYAN, "You drink the %s. +%d SPD!", sel->name, sel->power);
+                        } else if (is_def) {
+                            gs->def += sel->power;
+                            gs->buff_def_turns = 50;
+                            log_add(&gs->log, gs->turn, CP_GRAY, "You drink the %s. +%d DEF!", sel->name, sel->power);
+                        } else if (is_int) {
+                            gs->intel += sel->power;
+                            log_add(&gs->log, gs->turn, CP_MAGENTA, "You drink the %s. +%d INT!", sel->name, sel->power);
+                        } else {
+                            /* Default: healing */
+                            gs->hp += sel->power;
+                            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                            log_add(&gs->log, gs->turn, CP_GREEN, "You drink the %s. +%d HP!", sel->name, sel->power);
+                        }
+                        if (was_unknown)
+                            log_add(&gs->log, gs->turn, CP_WHITE, "You identify it as: %s", sel->name);
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
                     } else if (sel->type == ITYPE_FOOD) {
@@ -6338,6 +6450,28 @@ void game_init(GameState *gs) {
     /* Initialize spell slots as empty */
     for (int i = 0; i < MAX_SPELLS; i++) gs->spells_known[i] = -1;
     gs->num_spells = 0;
+
+    /* Randomise potion colour descriptions */
+    {
+        int tcount;
+        const ItemTemplate *tmps = item_get_templates(&tcount);
+        /* Collect potion template IDs */
+        int potion_ids[64];
+        int num_potions = 0;
+        for (int i = 0; i < tcount && num_potions < 64; i++) {
+            if (tmps[i].type == ITYPE_POTION)
+                potion_ids[num_potions++] = i;
+        }
+        /* Create a shuffled colour assignment */
+        int colours[64];
+        for (int i = 0; i < num_potions; i++) colours[i] = i;
+        for (int i = num_potions - 1; i > 0; i--) {
+            int j = rng_range(0, i);
+            int tmp = colours[i]; colours[i] = colours[j]; colours[j] = tmp;
+        }
+        for (int i = 0; i < num_potions; i++)
+            gs->potion_colour_map[potion_ids[i]] = colours[i];
+    }
 
     /* Start in character creation */
     gs->mode = MODE_CHARACTER_CREATE;

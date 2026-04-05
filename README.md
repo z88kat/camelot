@@ -174,6 +174,14 @@ There are 9 named dungeons spread across England, each with a randomised depth:
 | Avalon Shrine | Avalon island | 3-5 levels |
 | Orkney Barrows | Orkney island | 2-4 levels |
 
+**Abandoned Castles** can also be explored as mini-dungeons (press `>` while standing on one):
+
+| Castle | Location | Floors | Theme |
+|--------|----------|--------|-------|
+| Castle Dolorous Garde | Central England | 2-3 | Haunted -- ghosts and skeletons |
+| Castle Perilous | Near Camelot | 2-3 | Dark sorcery -- magical traps |
+| Bamburgh Castle | Northern coast | 2-3 | Bandit stronghold |
+
 Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors. Levels are persistent -- items you drop stay where you left them.
 
 ## Keyboard Commands
@@ -201,9 +209,10 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | Key | Action |
 |-----|--------|
 | `Enter` | Enter a town, castle, or interact with landmark |
-| `>` | Descend into a dungeon entrance |
-| `c` | Camp (rest 8 hours, restore 50% HP/MP) |
+| `>` | Descend into a dungeon entrance or abandoned castle |
+| `c` | Camp (rest 8 hours, restore 50% HP/MP, risk of ambush) |
 | `f` | Fish from a shore tile (must be adjacent to water) |
+| `K` | Cook raw food (needs Torch or Tinderbox, campable terrain) |
 | `H` | Mount/dismount horse (if owned) |
 | `z` | Cast a spell |
 | `i` | Inventory |
@@ -483,6 +492,16 @@ Monsters use A* pathfinding to chase you through corridors and around obstacles.
   - **Death Knights/Demons/Mordred**: fear aura (dread message when nearby)
   - **Imps**: explode on death (2-5 fire damage to adjacent tiles)
   - **Black Knights/Hellhounds**: always chase, never idle
+  - **Werewolves**: bite has 10% chance (Alpha: 20%) to inflict **Lycanthropy** (see below)
+
+#### Lycanthropy (Werewolf Curse)
+If bitten by a werewolf, you gain **Lycanthropy**: a permanent +3 STR and +2 SPD, but every **Full Moon (Day 15)** you involuntarily transform:
+- You black out and wake at a random overworld location
+- You lose 1-2 random items from your inventory
+- 20% chance you killed an NPC during the night (-5 chivalry)
+- Full HP restored ("you... ate something")
+
+**Cure lycanthropy**: church cure (`u` for 30 gold), Purify spell, or Holy Water potion. Curing removes the +3 STR/+2 SPD bonus.
 
 ### Items & Inventory
 Press **`i`** to open your inventory.
@@ -500,8 +519,30 @@ Press **`i`** to open your inventory.
 | Ring 2 | Magical rings |
 | Amulet | Magical amulets |
 
-Select an item with `a`-`z`, then: **`e`** equip, **`d`** drop, **`u`** use (potions/food).
+Select an item with `a`-`z`, then: **`e`** equip, **`d`** drop, **`u`** use (potions/food/spell scrolls).
 Press **`g`** in dungeons to pick up items on the ground. Gold goes straight to your wallet.
+
+#### Potions (Unidentified)
+Potions are **unidentified** when first found. They appear as coloured liquids ("Bubbling Red Potion", "Murky Green Potion", etc.) instead of their true names. The colour-to-effect mapping is **randomised each game**, so a red potion might be healing in one game and poison in another.
+
+**How to identify potions:**
+- **Drink it** (`u` in inventory) -- risky but free. The potion is identified after drinking: "You identify it as: Healing Potion"
+- **Church cure** (`u` at church for 30 gold) -- if you drank something bad, the priest can help
+
+Once identified, **all potions of that type** show their true name for the rest of the game.
+
+**Potion types** (22 total): Healing, Greater Healing, Superior Healing, Mana, Greater Mana, Superior Mana, Strength (+STR), Speed (+SPD), Defence (+DEF), Intelligence (+INT), Poison Antidote, Fire Resist, Frost Resist, Invisibility, Berserk, Clarity, Fortitude, Luck, Night Vision, Regeneration, Elixir of Life, Holy Water.
+
+#### Cooking
+Press **`K`** (Shift+K) on the overworld to cook raw food at a campfire. Requirements:
+- **Campable terrain** (grassland, road, or forest)
+- **Torch** or **Tinderbox** in your inventory
+- **Raw food** (Raw Meat, Raw Boar Meat, Raw Venison -- dropped by beasts)
+
+Cooking takes 20 minutes and transforms raw food into **Cooked Meat** with **3x the healing power** (e.g. Raw Meat power 5 becomes Cooked Meat power 15). Always cook your meat before eating!
+
+#### Fish Spoilage
+Fish (Fresh Fish, Salted Fish, Smoked Salmon) goes **rotten after 2 days**. Rotten fish shows in red as "(ROTTEN!)" in your inventory. Eating rotten fish causes **5-12 HP damage** and **-1 STR** (poison). Eat or sell your fish quickly, or visit a church to cure the poison (30 gold).
 
 #### Gems & Treasures
 Gems and treasures are found in dungeons and cannot be equipped -- they exist purely as valuable loot. Sell them at the **Pawnbroker** for gold.
@@ -564,7 +605,8 @@ Eight historical abbeys (`A` white) across England:
 ### Landmarks
 Press Enter on a landmark to interact:
 - **Stonehenge**: +1 to a random stat (once per game)
-- **Faerie Ring**: random effect -- stat boost, gold, teleport
+- **Faerie Ring**: random effect -- stat boost, gold, MP restore, stat swap, teleport. Rare chance of the **Faerie Queen** (once per game): offers a pact granting +10 Nature affinity, a Faerie Blade (power 10), and a Nature spell
+- **Loch Ness**: encounter with **Nessie**, the legendary sea monster. Fight her (6 rounds, very tough) for Nessie Scale Mail (DEF +7) and 200 XP, or offer her a fish for 100-250 gold and safe passage. One-time encounter
 - **Avalon**: full HP/MP restore
 - **Holy Island**: +2 chivalry, full HP restore
 - **Lady of the Lake**: offers Excalibur (see Famous Characters below)

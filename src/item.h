@@ -66,6 +66,7 @@ typedef struct {
     Vec2     pos;          /* position on map (-1,-1 if in inventory) */
     bool     on_ground;
     int      created_day;  /* game day when item was created (for spoilage) */
+    bool     identified;   /* for potions: true if player knows what it is */
 } Item;
 
 #define MAX_ITEM_TEMPLATES 256

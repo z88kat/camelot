@@ -104,6 +104,10 @@ typedef struct {
     int        buff_def_turns;
     int        buff_spd_turns;
 
+    /* Potion identification system */
+    bool       potions_identified[256];   /* potions_identified[template_id] = true */
+    int        potion_colour_map[256];    /* maps template_id -> colour description index */
+
     /* Curses and special states */
     bool       has_lycanthropy;      /* werewolf curse */
     bool       nessie_defeated;      /* Loch Ness encounter done */

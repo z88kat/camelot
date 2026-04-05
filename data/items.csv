@@ -122,6 +122,9 @@ Fruit Tart,%,magenta,food,10,8,8,0,0,3
 Waybread,%,yellow,food,25,5,15,2,0,2
 Dragon Pepper,%,red,food,5,3,20,4,0,1
 Fairy Cake,%,magenta,food,12,5,10,3,0,2
+Raw Meat,%,red,food,5,15,4,0,0,4
+Raw Boar Meat,%,red,food,8,18,6,0,0,3
+Raw Venison,%,red,food,8,16,6,0,0,3
 #
 # ===== Scrolls (one-time use combat/utility scrolls) =====
 Scroll of Mapping,?,yellow,scroll,1,5,30,2,0,2
