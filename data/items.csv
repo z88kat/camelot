@@ -41,6 +41,9 @@ Scale Mail,[,gray,armor,6,120,100,4,9,2
 Banded Mail,[,gray,armor,7,130,150,5,10,2
 Plate Armor,[,white,armor,8,150,200,6,12,1
 #
+Enchanted Robes,[,magenta,armor,5,25,150,4,10,1
+Dragonscale Mail,[,red,armor,9,100,300,8,15,1
+#
 # ===== Armor -- Shields =====
 Buckler,),brown,shield,1,30,15,0,4,4
 Round Shield,),brown,shield,2,50,35,1,6,3
@@ -51,23 +54,44 @@ Tower Shield,),white,shield,4,80,100,5,10,1
 Leather Cap,^,brown,helmet,1,15,10,0,4,4
 Iron Helm,^,gray,helmet,2,30,30,2,7,3
 Great Helm,^,white,helmet,3,40,60,4,10,2
+Winged Helm,^,yellow,helmet,4,35,100,6,12,1
+Crown of Wisdom,^,cyan,helmet,2,10,150,5,10,1
 #
 # ===== Armor -- Boots =====
 Leather Boots,],brown,boots,1,15,10,0,4,4
 Iron Boots,],gray,boots,2,40,30,2,7,3
+Elven Boots,],green,boots,3,10,80,4,10,1
+Boots of Speed,],cyan,boots,2,10,120,5,12,1
 #
 # ===== Armor -- Gloves =====
 Leather Gloves,],brown,gloves,1,10,8,0,4,4
 Gauntlets,],gray,gloves,2,25,25,2,7,3
+Mailed Fists,],gray,gloves,3,30,50,4,9,2
+Enchanted Gloves,],magenta,gloves,3,10,90,5,12,1
 #
 # ===== Potions =====
 Healing Potion,!,red,potion,15,10,20,0,0,4
 Greater Healing,!,red,potion,40,10,50,3,0,2
+Superior Healing,!,red,potion,80,10,100,6,0,1
 Mana Potion,!,blue,potion,10,10,20,0,0,4
 Greater Mana,!,blue,potion,30,10,50,3,0,2
+Superior Mana,!,blue,potion,60,10,100,6,0,1
 Strength Potion,!,yellow,potion,3,10,40,2,0,2
 Speed Potion,!,cyan,potion,3,10,40,2,0,2
+Defence Potion,!,gray,potion,3,10,40,2,0,2
+Intelligence Potion,!,magenta,potion,3,10,40,2,0,2
 Poison Antidote,!,green,potion,0,10,15,0,0,3
+Potion of Fire Resist,!,red,potion,5,10,35,3,0,2
+Potion of Frost Resist,!,cyan,potion,5,10,35,3,0,2
+Potion of Invisibility,!,white,potion,10,10,60,4,0,1
+Potion of Berserk,!,red,potion,5,10,45,3,0,2
+Potion of Clarity,!,blue,potion,20,10,40,2,0,2
+Potion of Fortitude,!,brown,potion,10,10,30,2,0,3
+Potion of Luck,!,yellow,potion,5,10,50,3,0,1
+Potion of Night Vision,!,green,potion,5,10,25,1,0,3
+Potion of Regeneration,!,green,potion,3,10,55,4,0,1
+Elixir of Life,!,yellow,potion,100,10,200,8,0,1
+Holy Water,!,white,potion,10,10,15,0,0,3
 #
 # ===== Food =====
 Bread,%,brown,food,15,10,3,0,0,5
@@ -78,12 +102,36 @@ Apple,%,green,food,8,5,2,0,0,5
 Hardtack,%,brown,food,10,10,2,0,0,5
 Stew,%,brown,food,20,15,10,0,0,3
 Berries,%,magenta,food,5,5,1,0,0,5
+Oatcake,%,brown,food,8,8,2,0,0,5
+Porridge,%,brown,food,14,10,4,0,0,4
+Salted Fish,%,cyan,food,15,12,6,0,0,4
+Trail Mix,%,brown,food,12,8,5,0,0,4
+Roast Boar,%,brown,food,30,20,15,0,0,2
+Venison,%,brown,food,28,18,14,0,0,2
+Fresh Fish,%,cyan,food,18,12,8,0,0,3
+Mutton,%,brown,food,22,15,10,0,0,3
+Pork Pie,%,yellow,food,16,10,7,0,0,4
+Meat Pasty,%,brown,food,18,12,8,0,0,3
+Turnip,%,green,food,6,8,1,0,0,5
+Mushroom,%,brown,food,5,5,2,0,0,5
+Honey Cake,%,yellow,food,14,8,6,0,0,3
+Smoked Salmon,%,red,food,20,10,12,0,0,2
+Gruel,%,gray,food,6,10,1,0,0,5
+Roast Pheasant,%,yellow,food,22,12,10,0,0,3
+Fruit Tart,%,magenta,food,10,8,8,0,0,3
+Waybread,%,yellow,food,25,5,15,2,0,2
+Dragon Pepper,%,red,food,5,3,20,4,0,1
+Fairy Cake,%,magenta,food,12,5,10,3,0,2
 #
-# ===== Scrolls =====
+# ===== Scrolls (one-time use combat/utility scrolls) =====
 Scroll of Mapping,?,yellow,scroll,1,5,30,2,0,2
 Scroll of Teleport,?,cyan,scroll,1,5,40,3,0,2
 Scroll of Identify,?,white,scroll,1,5,25,1,0,3
 Scroll of Protection,?,white,scroll,1,5,35,3,0,2
+Scroll of Recall,?,yellow,scroll,1,5,50,3,0,1
+Scroll of Enchantment,?,magenta,scroll,1,5,80,5,0,1
+Scroll of Monster Detection,?,red,scroll,1,5,30,2,0,2
+Scroll of Holy Word,?,yellow,scroll,1,5,60,4,0,1
 #
 # ===== Tools =====
 Torch,(,yellow,tool,1,15,5,0,0,5
@@ -162,6 +210,11 @@ Platinum Ring,&,white,treasure,0,1,110,4,11,1
 Enchanted Hourglass,&,cyan,treasure,0,5,140,5,12,1
 Unicorn Horn,&,white,treasure,0,5,350,9,15,1
 Mermaid's Tear,&,blue,treasure,0,1,200,6,13,1
+Holy Hand Grenade,&,yellow,treasure,0,5,500,10,15,1
+Rubber Duck,&,yellow,treasure,0,2,5,0,3,3
+Coconut Halves,&,brown,treasure,0,3,10,0,5,3
+Shrubbery,&,green,treasure,0,15,25,0,5,2
+Comfy Chair,&,brown,treasure,0,30,30,0,5,2
 #
 # ===== Rings (equippable, power = stat bonus) =====
 # power: stat bonus applied when equipped. min_depth doubles as min_level requirement
