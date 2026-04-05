@@ -1248,6 +1248,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                                 strcmp(tmps[ti].name, "Salted Fish") == 0) {
                                 gs->inventory[gs->num_items] = item_create(ti, -1, -1);
                                 gs->inventory[gs->num_items].on_ground = false;
+                                gs->inventory[gs->num_items].created_day = gs->day;
                                 gs->num_items++;
                                 log_add(&gs->log, gs->turn, CP_GREEN, "Got: %s", tmps[ti].name);
                                 break;
@@ -2307,6 +2308,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                             if (strcmp(tmps[ti].name, fish_names[fi]) == 0) {
                                 gs->inventory[gs->num_items] = item_create(ti, -1, -1);
                                 gs->inventory[gs->num_items].on_ground = false;
+                                gs->inventory[gs->num_items].created_day = gs->day;
                                 gs->num_items++;
                                 log_add(&gs->log, gs->turn, CP_GREEN,
                                          "You catch a %s!", fish_names[fi]);
@@ -4984,11 +4986,25 @@ void game_handle_input(GameState *gs, int key) {
         for (int ii = 0; ii < gs->num_items && row < term_rows - 4; ii++) {
             Item *it = &gs->inventory[ii];
             if (it->template_id < 0) continue;
-            attron(COLOR_PAIR(it->color_pair));
-            mvprintw(row++, 4, "%c) %s [%s] pow:%d val:%dg",
-                     'a' + ii, it->name, item_type_name(it->type),
-                     it->power, it->value);
-            attroff(COLOR_PAIR(it->color_pair));
+
+            /* Check for rotten fish */
+            bool is_fish_item = (strstr(it->name, "Fish") != NULL ||
+                                 strstr(it->name, "Salmon") != NULL);
+            bool rotten = (is_fish_item && it->created_day > 0 &&
+                           (gs->day - it->created_day) >= 2);
+
+            if (rotten) {
+                attron(COLOR_PAIR(CP_RED));
+                mvprintw(row++, 4, "%c) %s (ROTTEN!) [%s]",
+                         'a' + ii, it->name, item_type_name(it->type));
+                attroff(COLOR_PAIR(CP_RED));
+            } else {
+                attron(COLOR_PAIR(it->color_pair));
+                mvprintw(row++, 4, "%c) %s [%s] pow:%d val:%dg",
+                         'a' + ii, it->name, item_type_name(it->type),
+                         it->power, it->value);
+                attroff(COLOR_PAIR(it->color_pair));
+            }
         }
         row++;
         attron(COLOR_PAIR(CP_WHITE));
@@ -5034,9 +5050,28 @@ void game_handle_input(GameState *gs, int key) {
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
                     } else if (sel->type == ITYPE_FOOD) {
-                        gs->hp += sel->power / 2;
-                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
-                        log_add(&gs->log, gs->turn, CP_GREEN, "You eat the %s. Delicious!", sel->name);
+                        /* Check for rotten fish */
+                        bool is_fish = (strstr(sel->name, "Fish") != NULL ||
+                                        strstr(sel->name, "Salmon") != NULL);
+                        bool is_rotten = (is_fish && sel->created_day > 0 &&
+                                          (gs->day - sel->created_day) >= 2);
+
+                        if (is_rotten) {
+                            /* Eating rotten fish poisons you */
+                            int poison_dmg = rng_range(5, 12);
+                            gs->hp -= poison_dmg;
+                            if (gs->hp < 1) gs->hp = 1;
+                            gs->str -= 1; if (gs->str < 1) gs->str = 1;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "The %s has gone rotten! You retch violently! -%d HP, -1 STR!",
+                                     sel->name, poison_dmg);
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "You are poisoned! You should have thrown that away...");
+                        } else {
+                            gs->hp += sel->power / 2;
+                            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                            log_add(&gs->log, gs->turn, CP_GREEN, "You eat the %s. Delicious!", sel->name);
+                        }
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
                     } else if (sel->type == ITYPE_SPELL_SCROLL) {
