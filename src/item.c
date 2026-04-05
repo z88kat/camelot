@@ -107,6 +107,9 @@ static ItemType parse_item_type(const char *s) {
     if (strcmp(s, "boots") == 0) return ITYPE_BOOTS;
     if (strcmp(s, "gloves") == 0) return ITYPE_GLOVES;
     if (strcmp(s, "ring") == 0) return ITYPE_RING;
+    if (strcmp(s, "amulet") == 0) return ITYPE_AMULET;
+    if (strcmp(s, "gem") == 0) return ITYPE_GEM;
+    if (strcmp(s, "treasure") == 0) return ITYPE_TREASURE;
     if (strcmp(s, "potion") == 0) return ITYPE_POTION;
     if (strcmp(s, "scroll") == 0) return ITYPE_SCROLL;
     if (strcmp(s, "food") == 0) return ITYPE_FOOD;
@@ -190,6 +193,7 @@ EquipSlot item_get_slot(ItemType type) {
     case ITYPE_BOOTS:   return SLOT_BOOTS;
     case ITYPE_GLOVES:  return SLOT_GLOVES;
     case ITYPE_RING:    return SLOT_RING1;
+    case ITYPE_AMULET:  return SLOT_AMULET;
     default:            return SLOT_NONE;
     }
 }
@@ -206,6 +210,9 @@ const char *item_type_name(ItemType type) {
     case ITYPE_POTION:  return "Potion";
     case ITYPE_SCROLL:  return "Scroll";
     case ITYPE_FOOD:    return "Food";
+    case ITYPE_AMULET:  return "Amulet";
+    case ITYPE_GEM:     return "Gem";
+    case ITYPE_TREASURE:return "Treasure";
     case ITYPE_QUEST:   return "Quest";
     case ITYPE_TOOL:    return "Tool";
     case ITYPE_GOLD:    return "Gold";

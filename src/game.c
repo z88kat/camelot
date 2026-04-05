@@ -6,8 +6,17 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Forward declarations for AI abilities */
+/* Forward declarations */
 static void ai_explode_on_death(GameState *gs, Entity *e);
+static void handle_character_create(GameState *gs, int key);
+static void render_character_create(GameState *gs);
+static void dungeon_update_fov(GameState *gs);
+
+/* XP thresholds for leveling (20 levels) */
+static const int xp_table[MAX_LEVELS] = {
+    0, 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600,
+    5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000
+};
 
 /* ------------------------------------------------------------------ */
 /* Dungeon helpers                                                     */
@@ -278,6 +287,21 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
         if (gs->equipment[s].template_id >= 0) armor_pow += gs->equipment[s].power;
     int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow;
     if (damage < 1) damage = 1;
+
+    /* Shield spell absorb */
+    if (gs->shield_absorb > 0) {
+        int absorbed = damage;
+        if (absorbed > gs->shield_absorb) absorbed = gs->shield_absorb;
+        gs->shield_absorb -= absorbed;
+        damage -= absorbed;
+        if (absorbed > 0)
+            log_add(&gs->log, gs->turn, CP_CYAN, "Shield absorbs %d damage!", absorbed);
+        if (damage <= 0) {
+            if (gs->shield_absorb <= 0)
+                log_add(&gs->log, gs->turn, CP_GRAY, "Your magic shield fades.");
+            return;
+        }
+    }
 
     gs->hp -= damage;
 
@@ -764,6 +788,44 @@ static void advance_time(GameState *gs, int minutes) {
         if (gs->hour >= 24) {
             gs->hour = 0;
             gs->day++;
+        }
+    }
+
+    /* Tick spell buff durations */
+    if (gs->buff_str_turns > 0) {
+        gs->buff_str_turns--;
+        if (gs->buff_str_turns == 0) { gs->str -= 3; }
+    }
+    if (gs->buff_def_turns > 0) {
+        gs->buff_def_turns--;
+        if (gs->buff_def_turns == 0) { gs->def -= 3; }
+    }
+    if (gs->buff_spd_turns > 0) {
+        gs->buff_spd_turns--;
+        if (gs->buff_spd_turns == 0) { gs->spd -= 3; }
+    }
+
+    /* Slow MP regeneration: 1 MP per 20 turns */
+    if (gs->turn % 20 == 0 && gs->mp < gs->max_mp) {
+        gs->mp++;
+    }
+
+    /* XP level-up check */
+    if (gs->player_level < MAX_LEVELS) {
+        int next_xp = xp_table[gs->player_level];
+        if (gs->xp >= next_xp) {
+            gs->player_level++;
+            /* HP/MP gains by class */
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: gs->max_hp += 3; gs->max_mp += 1; break;
+            case CLASS_WIZARD: gs->max_hp += 1; gs->max_mp += 4; break;
+            case CLASS_RANGER: gs->max_hp += 2; gs->max_mp += 2; break;
+            }
+            gs->hp = gs->max_hp;
+            gs->mp = gs->max_mp;
+            gs->max_weight += 2;
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "*** Level up! You are now level %d! ***", gs->player_level);
         }
     }
 }
@@ -2122,6 +2184,7 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
     case NPC_POTION_SHOP:
     case NPC_PAWN_SHOP:
     case NPC_FOOD_SHOP:
+    case NPC_JEWELLER:
         if (is_night(gs->hour)) {
             log_add(&gs->log, gs->turn, CP_GRAY,
                      "The %s's shop is closed for the night.", npc->label);
@@ -2150,6 +2213,11 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                     tmps[ti].type == ITYPE_FOOD) {
                     match = true;
                 }
+                if (npc->type == NPC_JEWELLER &&
+                    (tmps[ti].type == ITYPE_RING || tmps[ti].type == ITYPE_AMULET ||
+                     tmps[ti].type == ITYPE_GEM)) {
+                    match = true;
+                }
                 if (npc->type == NPC_PAWN_SHOP) {
                     match = true;
                 }
@@ -2171,6 +2239,7 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             if (npc->type == NPC_FOOD_SHOP)       max_stock = rng_range(3, 6);
             else if (npc->type == NPC_POTION_SHOP) max_stock = rng_range(6, 12);
             else if (npc->type == NPC_EQUIP_SHOP)  max_stock = rng_range(6, 12);
+            else if (npc->type == NPC_JEWELLER)    max_stock = rng_range(4, 10);
             else                                   max_stock = rng_range(8, 16); /* pawn */
             if (max_stock > num_candidates) max_stock = num_candidates;
 
@@ -3746,9 +3815,242 @@ static void handle_dungeon_input(GameState *gs, int key) {
 /* ------------------------------------------------------------------ */
 
 void game_handle_input(GameState *gs, int key) {
+    /* Character creation mode */
+    if (gs->mode == MODE_CHARACTER_CREATE) {
+        handle_character_create(gs, key);
+        return;
+    }
+
     /* Quit -- but not in town mode (q leaves town instead) */
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         gs->running = false;
+        return;
+    }
+
+    /* Spell casting (z key) */
+    if (key == 'z' && (gs->mode == MODE_DUNGEON || gs->mode == MODE_OVERWORLD)) {
+        if (gs->num_spells == 0) {
+            log_add(&gs->log, gs->turn, CP_GRAY, "You don't know any spells.");
+        } else {
+            /* Show spell list */
+            ui_clear();
+            int row = 1;
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(row++, 2, "=== Cast Spell ===");
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            row++;
+
+            for (int i = 0; i < gs->num_spells; i++) {
+                const SpellDef *sp = spell_get(gs->spells_known[i]);
+                if (!sp) continue;
+                const char *aff_name = "Universal";
+                short aff_color = CP_WHITE;
+                if (sp->affiliation == AFF_LIGHT)  { aff_name = "Light";  aff_color = CP_YELLOW; }
+                if (sp->affiliation == AFF_DARK)   { aff_name = "Dark";   aff_color = CP_MAGENTA; }
+                if (sp->affiliation == AFF_NATURE) { aff_name = "Nature"; aff_color = CP_GREEN; }
+
+                bool can_cast = (gs->mp >= sp->mp_cost);
+                attron(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
+                mvprintw(row++, 4, "[%c] %-20s  MP:%-3d  %s",
+                         'a' + i, sp->name, sp->mp_cost, aff_name);
+                attroff(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
+            }
+            row++;
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row, 4, "Press a letter to cast, or Esc to cancel.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            /* Wait for selection */
+            int skey = getch();
+            if (skey >= 'a' && skey < 'a' + gs->num_spells) {
+                int si = skey - 'a';
+                const SpellDef *sp = spell_get(gs->spells_known[si]);
+                if (!sp) {
+                    log_add(&gs->log, gs->turn, CP_RED, "Invalid spell.");
+                } else if (gs->mp < sp->mp_cost) {
+                    log_add(&gs->log, gs->turn, CP_RED, "Not enough mana! (need %d MP)", sp->mp_cost);
+                } else {
+                    /* Cast the spell */
+                    gs->mp -= sp->mp_cost;
+                    switch (sp->effect) {
+                    case SEFF_DAMAGE:
+                        if (gs->mode == MODE_DUNGEON) {
+                            /* Damage nearest visible monster */
+                            DungeonLevel *dl_sp = current_dungeon_level(gs);
+                            if (dl_sp) {
+                                Entity *nearest = NULL;
+                                int best_dist = 9999;
+                                for (int m = 0; m < dl_sp->num_monsters; m++) {
+                                    Entity *em = &dl_sp->monsters[m];
+                                    if (!em->alive) continue;
+                                    if (!dl_sp->tiles[em->pos.y][em->pos.x].visible) continue;
+                                    int d = abs(em->pos.x - gs->player_pos.x) + abs(em->pos.y - gs->player_pos.y);
+                                    if (d <= sp->range && d < best_dist) {
+                                        best_dist = d;
+                                        nearest = em;
+                                    }
+                                }
+                                if (nearest) {
+                                    int dmg = sp->damage + gs->intel / 2 + rng_range(-2, 2);
+                                    if (dmg < 1) dmg = 1;
+                                    nearest->hp -= dmg;
+                                    log_add(&gs->log, gs->turn, CP_CYAN,
+                                             "You cast %s! The %s takes %d damage!", sp->name, nearest->name, dmg);
+                                    if (nearest->hp <= 0) {
+                                        nearest->alive = false;
+                                        gs->xp += nearest->xp_reward;
+                                        gs->kills++;
+                                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                                 "The %s is slain! +%d XP", nearest->name, nearest->xp_reward);
+                                        ai_explode_on_death(gs, nearest);
+                                    }
+                                } else {
+                                    log_add(&gs->log, gs->turn, CP_GRAY, "You cast %s but find no target.", sp->name);
+                                    gs->mp += sp->mp_cost; /* refund */
+                                }
+                            }
+                        }
+                        break;
+                    case SEFF_HEAL: {
+                        int heal = sp->damage > 0 ? sp->damage : (sp->mp_cost * 3);
+                        heal += gs->intel / 2;
+                        gs->hp += heal;
+                        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                        log_add(&gs->log, gs->turn, CP_GREEN,
+                                 "You cast %s. Restored %d HP.", sp->name, heal);
+                        break;
+                    }
+                    case SEFF_SHIELD:
+                        gs->shield_absorb += 15 + gs->intel;
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You cast %s. A magical shield surrounds you. (%d absorb)",
+                                 sp->name, gs->shield_absorb);
+                        break;
+                    case SEFF_BUFF_DEF:
+                        gs->def += 3;
+                        gs->buff_def_turns = sp->duration > 0 ? sp->duration : 15;
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You cast %s. DEF +3 for %d turns.", sp->name, gs->buff_def_turns);
+                        break;
+                    case SEFF_BUFF_STR:
+                        gs->str += 3;
+                        gs->buff_str_turns = sp->duration > 0 ? sp->duration : 15;
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You cast %s. STR +3 for %d turns.", sp->name, gs->buff_str_turns);
+                        break;
+                    case SEFF_BUFF_SPD:
+                        gs->spd += 3;
+                        gs->buff_spd_turns = sp->duration > 0 ? sp->duration : 10;
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You cast %s. SPD +3 for %d turns.", sp->name, gs->buff_spd_turns);
+                        break;
+                    case SEFF_TELEPORT:
+                        if (gs->mode == MODE_DUNGEON) {
+                            DungeonLevel *dl_tp = current_dungeon_level(gs);
+                            if (dl_tp) {
+                                for (int tries = 0; tries < 200; tries++) {
+                                    int tx = rng_range(3, MAP_WIDTH - 4);
+                                    int ty = rng_range(3, MAP_HEIGHT - 4);
+                                    if (dl_tp->tiles[ty][tx].passable && !monster_at(gs, tx, ty)) {
+                                        gs->player_pos = (Vec2){ tx, ty };
+                                        dungeon_update_fov(gs);
+                                        log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s! You teleport!", sp->name);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    case SEFF_REVEAL:
+                        if (gs->mode == MODE_DUNGEON) {
+                            DungeonLevel *dl_rv = current_dungeon_level(gs);
+                            if (dl_rv) {
+                                for (int ry = 0; ry < MAP_HEIGHT; ry++)
+                                    for (int rx = 0; rx < MAP_WIDTH; rx++)
+                                        dl_rv->tiles[ry][rx].revealed = true;
+                                log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s. The entire floor is revealed!", sp->name);
+                            }
+                        }
+                        break;
+                    case SEFF_DETECT:
+                        if (gs->mode == MODE_DUNGEON) {
+                            DungeonLevel *dl_dt = current_dungeon_level(gs);
+                            if (dl_dt) {
+                                int found = 0;
+                                for (int t = 0; t < dl_dt->num_traps; t++) {
+                                    dl_dt->traps[t].revealed = true;
+                                    found++;
+                                }
+                                log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s. %d traps revealed!", sp->name, found);
+                            }
+                        }
+                        break;
+                    case SEFF_FEAR:
+                        if (gs->mode == MODE_DUNGEON) {
+                            DungeonLevel *dl_fr = current_dungeon_level(gs);
+                            if (dl_fr) {
+                                int feared = 0;
+                                for (int m = 0; m < dl_fr->num_monsters; m++) {
+                                    Entity *em = &dl_fr->monsters[m];
+                                    if (!em->alive) continue;
+                                    int d = abs(em->pos.x - gs->player_pos.x) + abs(em->pos.y - gs->player_pos.y);
+                                    if (d <= (sp->aoe > 0 ? sp->aoe + 2 : 5)) {
+                                        em->ai_state = AI_STATE_FLEE;
+                                        feared++;
+                                    }
+                                }
+                                log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s! %d enemies flee in terror!", sp->name, feared);
+                            }
+                        }
+                        break;
+                    case SEFF_DRAIN: {
+                        if (gs->mode == MODE_DUNGEON) {
+                            DungeonLevel *dl_dr = current_dungeon_level(gs);
+                            if (dl_dr) {
+                                Entity *nearest = NULL;
+                                int best_dist = 9999;
+                                for (int m = 0; m < dl_dr->num_monsters; m++) {
+                                    Entity *em = &dl_dr->monsters[m];
+                                    if (!em->alive) continue;
+                                    if (!dl_dr->tiles[em->pos.y][em->pos.x].visible) continue;
+                                    int d = abs(em->pos.x - gs->player_pos.x) + abs(em->pos.y - gs->player_pos.y);
+                                    if (d <= sp->range && d < best_dist) {
+                                        best_dist = d;
+                                        nearest = em;
+                                    }
+                                }
+                                if (nearest) {
+                                    int dmg = sp->damage + gs->intel / 3;
+                                    if (dmg < 1) dmg = 1;
+                                    nearest->hp -= dmg;
+                                    gs->hp += dmg / 2;
+                                    if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                                    log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                             "You cast %s! Drain %d from %s, heal %d.",
+                                             sp->name, dmg, nearest->name, dmg / 2);
+                                    if (nearest->hp <= 0) {
+                                        nearest->alive = false;
+                                        gs->xp += nearest->xp_reward;
+                                        gs->kills++;
+                                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                                 "The %s is slain! +%d XP", nearest->name, nearest->xp_reward);
+                                    }
+                                } else {
+                                    log_add(&gs->log, gs->turn, CP_GRAY, "No target for %s.", sp->name);
+                                    gs->mp += sp->mp_cost;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    default:
+                        log_add(&gs->log, gs->turn, CP_CYAN, "You cast %s!", sp->name);
+                        break;
+                    }
+                }
+            }
+        }
         return;
     }
 
@@ -3895,7 +4197,7 @@ void game_handle_input(GameState *gs, int key) {
         attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         mvprintw(row++, 2, "Equipped:");
         attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        const char *slot_names[] = { "Weapon", "Armor", "Shield", "Helmet", "Boots", "Gloves", "Ring 1", "Ring 2" };
+        const char *slot_names[] = { "Weapon", "Armor", "Shield", "Helmet", "Boots", "Gloves", "Ring 1", "Ring 2", "Amulet" };
         for (int s = 0; s < NUM_SLOTS; s++) {
             if (gs->equipment[s].template_id >= 0) {
                 attron(COLOR_PAIR(gs->equipment[s].color_pair));
@@ -4134,17 +4436,361 @@ void game_handle_input(GameState *gs, int key) {
 /* Game init                                                           */
 /* ------------------------------------------------------------------ */
 
+/* Chivalry title based on current score */
+static const char *chivalry_title(int chiv) {
+    if (chiv >= 86) return "Paragon of Virtue";
+    if (chiv >= 71) return "Champion";
+    if (chiv >= 51) return "Noble Knight";
+    if (chiv >= 31) return "Knight";
+    if (chiv >= 16) return "Squire";
+    return "Knave";
+}
+
+/* ------------------------------------------------------------------ */
+/* Give starting gear based on class                                   */
+/* ------------------------------------------------------------------ */
+static void give_starting_gear(GameState *gs) {
+    int tcount;
+    const ItemTemplate *tmps = item_get_templates(&tcount);
+    const char *weapon_name, *armor_name;
+
+    switch (gs->player_class) {
+    case CLASS_KNIGHT:
+        weapon_name = "Longsword";
+        armor_name = "Chainmail";
+        break;
+    case CLASS_WIZARD:
+        weapon_name = "Wooden Staff";
+        armor_name = "Tattered Robes";
+        break;
+    case CLASS_RANGER:
+        weapon_name = "Short Sword";
+        armor_name = "Leather Armor";
+        break;
+    }
+
+    for (int i = 0; i < tcount; i++) {
+        if (strcmp(tmps[i].name, weapon_name) == 0 && gs->equipment[SLOT_WEAPON].template_id < 0) {
+            gs->equipment[SLOT_WEAPON] = item_create(i, -1, -1);
+            gs->equipment[SLOT_WEAPON].on_ground = false;
+        }
+        if (strcmp(tmps[i].name, armor_name) == 0 && gs->equipment[SLOT_ARMOR].template_id < 0) {
+            gs->equipment[SLOT_ARMOR] = item_create(i, -1, -1);
+            gs->equipment[SLOT_ARMOR].on_ground = false;
+        }
+        if (strcmp(tmps[i].name, "Bread") == 0 && gs->num_items < 3) {
+            gs->inventory[gs->num_items] = item_create(i, -1, -1);
+            gs->inventory[gs->num_items].on_ground = false;
+            gs->num_items++;
+        }
+        if (strcmp(tmps[i].name, "Torch") == 0 && gs->num_items < 4) {
+            gs->inventory[gs->num_items] = item_create(i, -1, -1);
+            gs->inventory[gs->num_items].on_ground = false;
+            gs->num_items++;
+        }
+    }
+
+    /* Give starting spell */
+    int scount;
+    const SpellDef *spells = spell_get_defs(&scount);
+    const char *start_spell;
+    switch (gs->player_class) {
+    case CLASS_KNIGHT: start_spell = "Shield"; break;
+    case CLASS_WIZARD: start_spell = "Magic Missile"; break;
+    case CLASS_RANGER: start_spell = "Detect Traps"; break;
+    }
+    for (int i = 0; i < scount; i++) {
+        if (strcmp(spells[i].name, start_spell) == 0) {
+            gs->spells_known[gs->num_spells++] = i;
+            break;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Finalize character creation and start the game                      */
+/* ------------------------------------------------------------------ */
+static void finalize_character(GameState *gs) {
+    /* Set class-based stats */
+    switch (gs->player_class) {
+    case CLASS_KNIGHT:
+        gs->max_hp = 30; gs->max_mp = 8;
+        gs->str += 2; gs->def += 2;
+        gs->max_spells_capacity = 4;
+        break;
+    case CLASS_WIZARD:
+        gs->max_hp = 18; gs->max_mp = 30;
+        gs->intel += 3; gs->spd += 1;
+        gs->max_spells_capacity = 15;
+        break;
+    case CLASS_RANGER:
+        gs->max_hp = 24; gs->max_mp = 15;
+        gs->str += 1; gs->spd += 2;
+        gs->max_spells_capacity = 6;
+        break;
+    }
+
+    /* Gender bonuses */
+    if (gs->player_gender == GENDER_MALE) {
+        gs->str += 1; gs->def += 1;
+    } else {
+        gs->intel += 1; gs->spd += 1;
+    }
+
+    gs->hp = gs->max_hp;
+    gs->mp = gs->max_mp;
+    gs->max_weight = 30 + gs->str * 3 + gs->player_level * 2;
+
+    /* Initialize inventory */
+    gs->num_items = 0;
+    for (int i = 0; i < MAX_INVENTORY; i++) gs->inventory[i].template_id = -1;
+    for (int i = 0; i < NUM_SLOTS; i++) gs->equipment[i].template_id = -1;
+
+    give_starting_gear(gs);
+
+    /* Initialize overworld */
+    gs->overworld = calloc(1, sizeof(Overworld));
+    overworld_init(gs->overworld);
+    overworld_spawn_creatures(gs->overworld);
+    town_init();
+    quest_init(&gs->quests);
+
+    /* Place player at Camelot */
+    gs->player_pos = (Vec2){ 212, 162 };
+    gs->ow_player_pos = gs->player_pos;
+
+    gs->mode = MODE_OVERWORLD;
+
+    log_init(&gs->log);
+    log_add(&gs->log, gs->turn, CP_WHITE,
+            "Welcome to Knights of Camelot, %s! Press ? for help.",
+            gs->player_name);
+    log_add(&gs->log, gs->turn, CP_YELLOW,
+            "You stand at the gates of Camelot. Seek King Arthur.");
+}
+
+/* ------------------------------------------------------------------ */
+/* Random name loading                                                 */
+/* ------------------------------------------------------------------ */
+static char male_names[60][MAX_NAME];
+static char female_names[60][MAX_NAME];
+static int num_male_names = 0, num_female_names = 0;
+
+static void load_names(void) {
+    if (num_male_names > 0) return; /* already loaded */
+
+    FILE *f = fopen("data/names.csv", "r");
+    if (!f) {
+        /* Fallback */
+        snprintf(male_names[0], MAX_NAME, "Galahad"); num_male_names = 1;
+        snprintf(female_names[0], MAX_NAME, "Elaine"); num_female_names = 1;
+        return;
+    }
+    char line[128];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#' || line[0] == '\n') continue;
+        line[strcspn(line, "\n\r")] = 0;
+        char name[48], gender[16];
+        if (sscanf(line, "%47[^,],%15s", name, gender) < 2) continue;
+        if (strcmp(gender, "male") == 0 && num_male_names < 60)
+            snprintf(male_names[num_male_names++], MAX_NAME, "%s", name);
+        else if (strcmp(gender, "female") == 0 && num_female_names < 60)
+            snprintf(female_names[num_female_names++], MAX_NAME, "%s", name);
+    }
+    fclose(f);
+}
+
+static const char *random_name(PlayerGender g) {
+    load_names();
+    if (g == GENDER_MALE && num_male_names > 0)
+        return male_names[rng_range(0, num_male_names - 1)];
+    if (g == GENDER_FEMALE && num_female_names > 0)
+        return female_names[rng_range(0, num_female_names - 1)];
+    return "Adventurer";
+}
+
+/* ------------------------------------------------------------------ */
+/* Character creation screen rendering and input                       */
+/* ------------------------------------------------------------------ */
+static void render_character_create(GameState *gs) {
+    ui_clear();
+    int row = 2;
+
+    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    mvprintw(0, 2, "=== Knights of Camelot - Character Creation ===");
+    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+
+    if (gs->create_step == 0) {
+        /* Class selection */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "Choose your class:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row += 2;
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "[1] Knight  - Warrior of the realm. Strong and tough.");
+        mvprintw(row++, 6, "              +2 STR, +2 DEF. HP:30  MP:8   Max spells: 4");
+        row++;
+        mvprintw(row++, 6, "[2] Wizard  - Master of the arcane arts. Powerful magic.");
+        mvprintw(row++, 6, "              +3 INT, +1 SPD. HP:18  MP:30  Max spells: 15");
+        row++;
+        mvprintw(row++, 6, "[3] Ranger  - Swift and versatile. Balanced fighter.");
+        mvprintw(row++, 6, "              +1 STR, +2 SPD. HP:24  MP:15  Max spells: 6");
+        attroff(COLOR_PAIR(CP_CYAN));
+    } else if (gs->create_step == 1) {
+        /* Gender selection */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "Choose your gender:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row += 2;
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "[1] Male   - +1 STR, +1 DEF");
+        row++;
+        mvprintw(row++, 6, "[2] Female - +1 INT, +1 SPD");
+        attroff(COLOR_PAIR(CP_CYAN));
+    } else if (gs->create_step == 2) {
+        /* Name entry */
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "Enter your name:");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row += 2;
+        attron(COLOR_PAIR(CP_WHITE));
+        mvprintw(row, 6, "> %s_", gs->player_name);
+        attroff(COLOR_PAIR(CP_WHITE));
+        row += 2;
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 6, "Type a name and press Enter.");
+        mvprintw(row++, 6, "Press [r] for a random name.  Press Backspace to delete.");
+        attroff(COLOR_PAIR(CP_GRAY));
+    } else if (gs->create_step == 3) {
+        /* Stats roll */
+        const char *class_name[] = { "Knight", "Wizard", "Ranger" };
+        const char *gender_name[] = { "Male", "Female" };
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "%s - %s %s", gs->player_name,
+                 gender_name[gs->player_gender], class_name[gs->player_class]);
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row += 2;
+        attron(COLOR_PAIR(CP_CYAN));
+        mvprintw(row++, 6, "STR: %-3d  DEF: %-3d", gs->str, gs->def);
+        mvprintw(row++, 6, "INT: %-3d  SPD: %-3d", gs->intel, gs->spd);
+        row++;
+        mvprintw(row++, 6, "HP:  %-3d  MP:  %-3d", gs->max_hp, gs->max_mp);
+        mvprintw(row++, 6, "Gold: %d", gs->gold);
+        attroff(COLOR_PAIR(CP_CYAN));
+        row++;
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 6, "Press [r] to re-roll stats.");
+        mvprintw(row++, 6, "Press [Enter] to accept and begin.");
+        attroff(COLOR_PAIR(CP_GRAY));
+    } else if (gs->create_step == 4) {
+        /* Story screen */
+        row = 4;
+        attron(COLOR_PAIR(CP_YELLOW));
+        mvprintw(row++, 4, "The kingdom of Camelot is in peril...");
+        row++;
+        mvprintw(row++, 4, "Dark forces gather in the shadows. Ancient evils stir");
+        mvprintw(row++, 4, "beneath the hills of England. The Holy Grail, source of");
+        mvprintw(row++, 4, "the land's power, has been lost.");
+        row++;
+        mvprintw(row++, 4, "King Arthur has summoned you to his court.");
+        mvprintw(row++, 4, "Seek an audience with the King in the throne room");
+        mvprintw(row++, 4, "of Camelot Castle to learn of your destiny.");
+        row++;
+        mvprintw(row++, 4, "Your journey begins at the gates of Camelot...");
+        attroff(COLOR_PAIR(CP_YELLOW));
+        row += 2;
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, 4, "Press any key to begin your adventure.");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    }
+
+    ui_refresh();
+}
+
+static void roll_stats(GameState *gs) {
+    gs->str = rng_range(3, 8);
+    gs->def = rng_range(3, 8);
+    gs->intel = rng_range(3, 8);
+    gs->spd = rng_range(3, 8);
+
+    /* Apply class bonuses */
+    switch (gs->player_class) {
+    case CLASS_KNIGHT:
+        gs->str += 2; gs->def += 2;
+        gs->max_hp = 30; gs->max_mp = 8;
+        break;
+    case CLASS_WIZARD:
+        gs->intel += 3; gs->spd += 1;
+        gs->max_hp = 18; gs->max_mp = 30;
+        break;
+    case CLASS_RANGER:
+        gs->str += 1; gs->spd += 2;
+        gs->max_hp = 24; gs->max_mp = 15;
+        break;
+    }
+
+    /* Gender bonuses */
+    if (gs->player_gender == GENDER_MALE) {
+        gs->str += 1; gs->def += 1;
+    } else {
+        gs->intel += 1; gs->spd += 1;
+    }
+
+    gs->hp = gs->max_hp;
+    gs->mp = gs->max_mp;
+    gs->gold = rng_range(30, 200);
+}
+
+static void handle_character_create(GameState *gs, int key) {
+    if (gs->create_step == 0) {
+        /* Class */
+        if (key == '1') { gs->player_class = CLASS_KNIGHT; gs->create_step = 1; }
+        else if (key == '2') { gs->player_class = CLASS_WIZARD; gs->create_step = 1; }
+        else if (key == '3') { gs->player_class = CLASS_RANGER; gs->create_step = 1; }
+    } else if (gs->create_step == 1) {
+        /* Gender */
+        if (key == '1') { gs->player_gender = GENDER_MALE; gs->create_step = 2; gs->player_name[0] = '\0'; }
+        else if (key == '2') { gs->player_gender = GENDER_FEMALE; gs->create_step = 2; gs->player_name[0] = '\0'; }
+    } else if (gs->create_step == 2) {
+        /* Name */
+        int len = (int)strlen(gs->player_name);
+        if (key == '\n' || key == '\r' || key == KEY_ENTER) {
+            if (len > 0) {
+                gs->create_step = 3;
+                roll_stats(gs);
+            }
+        } else if (key == 'r' && len == 0) {
+            snprintf(gs->player_name, MAX_NAME, "%s", random_name(gs->player_gender));
+        } else if (key == KEY_BACKSPACE || key == 127 || key == 8) {
+            if (len > 0) gs->player_name[len - 1] = '\0';
+        } else if (key >= 32 && key < 127 && len < MAX_NAME - 1) {
+            gs->player_name[len] = (char)key;
+            gs->player_name[len + 1] = '\0';
+        }
+    } else if (gs->create_step == 3) {
+        /* Stats */
+        if (key == 'r') {
+            roll_stats(gs);
+        } else if (key == '\n' || key == '\r' || key == KEY_ENTER) {
+            gs->create_step = 4;
+        }
+    } else if (gs->create_step == 4) {
+        /* Story -- any key starts game */
+        finalize_character(gs);
+    }
+}
+
 void game_init(GameState *gs) {
     memset(gs, 0, sizeof(*gs));
 
-    /* Player defaults */
-    snprintf(gs->player_name, MAX_NAME, "Sir Nobody");
+    /* Initialize data */
+    entity_init();
+    item_init();
+    spell_init();
+
+    /* Default state */
     gs->player_level = 1;
-    gs->hp = 25;  gs->max_hp = 25;
-    gs->mp = 10;  gs->max_mp = 10;
-    gs->str = 6;  gs->def = 5;  gs->intel = 4;  gs->spd = 5;
     gs->gold = 50;
-    gs->weight = 12; gs->max_weight = 48;
     gs->chivalry = 25;
     gs->turn = 0;
     gs->day = 1;
@@ -4152,59 +4798,17 @@ void game_init(GameState *gs) {
     gs->minute = 0;
     gs->weather = WEATHER_CLEAR;
     gs->weather_turns_left = rng_range(100, 200);
-
-    /* Start on overworld at Camelot */
-    gs->mode = MODE_OVERWORLD;
+    gs->has_torch = true;
+    gs->dungeon = NULL;
     gs->running = true;
 
-    /* Initialize overworld (heap allocated due to size) */
-    gs->overworld = calloc(1, sizeof(Overworld));
-    entity_init();
-    item_init();
-    overworld_init(gs->overworld);
-    overworld_spawn_creatures(gs->overworld);
-    town_init();
-    quest_init(&gs->quests);
+    /* Initialize spell slots as empty */
+    for (int i = 0; i < MAX_SPELLS; i++) gs->spells_known[i] = -1;
+    gs->num_spells = 0;
 
-    /* Place player at Camelot (scaled coordinates) */
-    gs->player_pos = (Vec2){ 212, 162 };
-    gs->ow_player_pos = gs->player_pos;
-    gs->dungeon = NULL;
-    gs->has_torch = true;  /* start with a torch for testing */
-
-    /* Initialize inventory -- empty */
-    gs->num_items = 0;
-    for (int i = 0; i < MAX_INVENTORY; i++) gs->inventory[i].template_id = -1;
-    for (int i = 0; i < NUM_SLOTS; i++) gs->equipment[i].template_id = -1;
-
-    /* Give player starting gear */
-    {
-        int tcount;
-        const ItemTemplate *tmps = item_get_templates(&tcount);
-        /* Find and equip a Rusty Sword and Leather Armor */
-        for (int i = 0; i < tcount; i++) {
-            if (strcmp(tmps[i].name, "Rusty Sword") == 0 && gs->equipment[SLOT_WEAPON].template_id < 0) {
-                gs->equipment[SLOT_WEAPON] = item_create(i, -1, -1);
-                gs->equipment[SLOT_WEAPON].on_ground = false;
-            }
-            if (strcmp(tmps[i].name, "Leather Armor") == 0 && gs->equipment[SLOT_ARMOR].template_id < 0) {
-                gs->equipment[SLOT_ARMOR] = item_create(i, -1, -1);
-                gs->equipment[SLOT_ARMOR].on_ground = false;
-            }
-            if (strcmp(tmps[i].name, "Bread") == 0 && gs->num_items < 3) {
-                gs->inventory[gs->num_items] = item_create(i, -1, -1);
-                gs->inventory[gs->num_items].on_ground = false;
-                gs->num_items++;
-            }
-        }
-    }
-
-    /* Log */
-    log_init(&gs->log);
-    log_add(&gs->log, gs->turn, CP_WHITE,
-            "Welcome to Knights of Camelot! Press ? for help.");
-    log_add(&gs->log, gs->turn, CP_YELLOW,
-            "You stand at the gates of Camelot. Seek King Arthur.");
+    /* Start in character creation */
+    gs->mode = MODE_CHARACTER_CREATE;
+    gs->create_step = 0;
 }
 
 void game_update(GameState *gs) {
@@ -4222,6 +4826,12 @@ void game_update(GameState *gs) {
 /* ------------------------------------------------------------------ */
 
 static void game_render(GameState *gs) {
+    /* Character creation has its own rendering */
+    if (gs->mode == MODE_CHARACTER_CREATE) {
+        render_character_create(gs);
+        return;
+    }
+
     ui_clear();
 
     int term_rows, term_cols;
@@ -4249,7 +4859,7 @@ static void game_render(GameState *gs) {
             mvprintw(2, TOWN_MAP_W + 2, "HP: %d/%d", gs->hp, gs->max_hp);
             mvprintw(3, TOWN_MAP_W + 2, "MP: %d/%d", gs->mp, gs->max_mp);
             mvprintw(4, TOWN_MAP_W + 2, "Gold: %d", gs->gold);
-            mvprintw(5, TOWN_MAP_W + 2, "Chiv: %d", gs->chivalry);
+            mvprintw(5, TOWN_MAP_W + 2, "Chiv: %d (%s)", gs->chivalry, chivalry_title(gs->chivalry));
             mvprintw(7, TOWN_MAP_W + 2, "Day %d %02d:%02d",
                      gs->day, gs->hour, gs->minute);
             mvprintw(8, TOWN_MAP_W + 2, "%s", time_of_day_name(gs->hour));

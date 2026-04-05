@@ -89,3 +89,105 @@ Scroll of Protection,?,white,scroll,1,5,35,3,0,2
 Torch,(,yellow,tool,1,15,5,0,0,5
 Lockpick,(,gray,tool,1,5,20,1,0,3
 Tinderbox,(,brown,tool,1,10,10,0,0,3
+Pickaxe,(,gray,tool,1,30,15,0,0,3
+Rope,(,brown,tool,1,20,10,0,0,3
+#
+# ===== Gems =====
+Rough Quartz,*,white,gem,0,2,15,0,5,4
+Amethyst,*,magenta,gem,0,2,30,1,7,3
+Garnet,*,red,gem,0,2,40,2,8,3
+Topaz,*,yellow,gem,0,2,50,2,9,3
+Aquamarine,*,cyan,gem,0,2,60,3,10,2
+Emerald,*,green,gem,0,2,80,4,11,2
+Sapphire,*,blue,gem,0,2,100,5,12,2
+Ruby,*,red,gem,0,2,120,5,13,1
+Diamond,*,white,gem,0,2,200,7,15,1
+Black Opal,*,magenta,gem,0,2,250,8,15,1
+Star Sapphire,*,cyan,gem,0,2,300,9,15,1
+Fire Opal,*,red,gem,0,2,180,6,14,1
+Moonstone,*,white,gem,0,2,70,3,10,2
+Jade,*,green,gem,0,2,55,3,9,3
+Turquoise,*,cyan,gem,0,2,35,1,8,3
+Onyx,*,gray,gem,0,2,45,2,9,3
+Pearl,*,white,gem,0,2,65,3,10,2
+Lapis Lazuli,*,blue,gem,0,2,40,2,8,3
+Amber,*,yellow,gem,0,2,25,1,6,4
+Bloodstone,*,red,gem,0,2,50,3,9,2
+#
+# ===== Treasures =====
+Golden Teddy Bear,&,yellow,treasure,0,15,150,3,10,1
+Silver Goblet,&,white,treasure,0,10,60,2,8,2
+Golden Chalice,&,yellow,treasure,0,12,120,4,12,1
+Jewelled Crown,&,yellow,treasure,0,8,200,6,15,1
+Silver Candlestick,&,white,treasure,0,15,40,1,7,3
+Golden Idol,&,yellow,treasure,0,20,180,5,12,1
+Ivory Chess Set,&,white,treasure,0,25,90,3,10,2
+Bronze Statuette,&,brown,treasure,0,12,35,1,6,3
+Ornate Music Box,&,cyan,treasure,0,8,70,2,8,2
+Golden Harp,&,yellow,treasure,0,18,160,5,12,1
+Crystal Skull,&,cyan,treasure,0,10,250,7,15,1
+Faerie Dust,&,magenta,treasure,0,1,100,4,10,1
+Dragon Scale,&,red,treasure,0,5,300,8,15,1
+Ancient Coin,&,yellow,treasure,0,1,20,0,5,4
+Silver Locket,&,white,treasure,0,2,45,1,7,3
+Gilded Mirror,&,yellow,treasure,0,10,80,3,9,2
+Platinum Ring,&,white,treasure,0,1,110,4,11,1
+Enchanted Hourglass,&,cyan,treasure,0,5,140,5,12,1
+Unicorn Horn,&,white,treasure,0,5,350,9,15,1
+Mermaid's Tear,&,blue,treasure,0,1,200,6,13,1
+#
+# ===== Rings (equippable, power = stat bonus) =====
+# power: stat bonus applied when equipped. min_depth doubles as min_level requirement
+Ring of Protection,o,cyan,ring,1,1,50,1,0,3
+Ring of Strength,o,red,ring,1,1,60,2,0,3
+Ring of Defence,o,gray,ring,1,1,60,2,0,3
+Ring of Speed,o,green,ring,1,1,60,2,0,3
+Ring of Intelligence,o,blue,ring,1,1,60,2,0,3
+Ring of Fortitude,o,red,ring,2,1,120,4,0,2
+Ring of Might,o,red,ring,2,1,130,5,0,2
+Ring of Agility,o,green,ring,2,1,130,5,0,2
+Ring of Wisdom,o,blue,ring,2,1,130,5,0,2
+Ring of Resilience,o,gray,ring,2,1,120,4,0,2
+Ring of the Bear,o,brown,ring,3,1,200,7,0,1
+Ring of the Eagle,o,white,ring,3,1,200,7,0,1
+Ring of the Serpent,o,green,ring,3,1,200,7,0,1
+Ring of the Wolf,o,gray,ring,3,1,200,7,0,1
+Ring of Fire Resist,o,red,ring,2,1,100,3,0,2
+Ring of Frost Resist,o,cyan,ring,2,1,100,3,0,2
+Ring of Poison Resist,o,green,ring,2,1,100,3,0,2
+Ring of Regeneration,o,green,ring,1,1,150,5,0,1
+Ring of Mana,o,blue,ring,3,1,180,6,0,1
+Ring of the Knight,o,yellow,ring,2,1,160,5,0,1
+Ring of Shadows,o,magenta,ring,2,1,140,4,0,2
+Ring of the Grail,o,yellow,ring,4,1,400,10,0,1
+Ring of Thorns,o,brown,ring,1,1,80,3,0,2
+Ring of Swiftness,o,cyan,ring,2,1,110,4,0,2
+Ring of the Oak,o,brown,ring,2,1,120,5,0,2
+#
+# ===== Amulets (equippable, power = stat bonus) =====
+# power: stat bonus applied when equipped. min_depth doubles as min_level requirement
+Amulet of Warding,",white,amulet,1,2,55,1,0,3
+Amulet of Vigour,",red,amulet,1,2,65,2,0,3
+Amulet of Grace,",green,amulet,1,2,65,2,0,3
+Amulet of Insight,",blue,amulet,1,2,65,2,0,3
+Amulet of Valour,",yellow,amulet,2,2,130,4,0,2
+Amulet of Endurance,",brown,amulet,2,2,130,4,0,2
+Amulet of the Arcane,",magenta,amulet,2,2,140,5,0,2
+Amulet of the Hunter,",green,amulet,2,2,140,5,0,2
+Amulet of the Crusader,",white,amulet,3,2,220,7,0,1
+Amulet of the Mage,",blue,amulet,3,2,220,7,0,1
+Amulet of the Dragon,",red,amulet,3,2,250,8,0,1
+Amulet of Life,",green,amulet,2,2,160,5,0,1
+Amulet of Mana,",blue,amulet,2,2,160,5,0,1
+Amulet of the Moon,",cyan,amulet,2,2,150,4,0,2
+Amulet of the Sun,",yellow,amulet,3,2,200,6,0,1
+Amulet of Luck,",yellow,amulet,1,2,90,3,0,2
+Amulet of Wrath,",red,amulet,2,2,120,4,0,2
+Amulet of the Stag,",brown,amulet,2,2,130,5,0,2
+Amulet of the Raven,",gray,amulet,2,2,130,5,0,2
+Amulet of Starlight,",cyan,amulet,3,2,260,8,0,1
+Amulet of the Forest,",green,amulet,2,2,110,4,0,2
+Amulet of Sacred Light,",white,amulet,3,2,280,9,0,1
+Amulet of Dark Power,",magenta,amulet,3,2,280,9,0,1
+Amulet of the Lake,",blue,amulet,4,2,400,10,0,1
+Amulet of Eternity,",cyan,amulet,4,2,450,12,0,1

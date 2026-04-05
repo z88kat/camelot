@@ -12,7 +12,7 @@
 - [x] **Phase 8** -- Enemies, Combat, Message Log (80+ monsters, werewolves, vampires, mad knights)
 - [x] **Phase 9** -- Items & Inventory (100+ items, weight system, 50 potions, 22 rings, 12 artifacts, 20 gems, 40 food)
 - [x] **Phase 10** -- Enemy AI & Pathfinding (A*, FSM, type-specific behaviours)
-- [ ] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
+- [x] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
 - [ ] **Phase 12** -- Dungeon Bosses & The Holy Grail (Round Table membership)
 - [ ] **Phase 13** -- Save/Load, Permadeath, Death Screen & High Scores (bank, graveyard, fallen heroes)
 - [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
@@ -26,10 +26,10 @@
 - [x] `data/creatures.csv` (overworld wandering creatures)
 - [ ] `data/potions.csv`
 - [ ] `data/food.csv`
-- [ ] `data/spells.csv`
+- [x] `data/spells.csv`
+- [x] `data/names.csv`
 - [ ] `data/npcs.csv`
 - [ ] `data/shops.csv`
-- [ ] `data/classes.csv`
 - [ ] `data/dialogue.csv`
 - [ ] `data/loot_tables.csv`
 - [ ] `data/terrain.csv`

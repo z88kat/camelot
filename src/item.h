@@ -15,6 +15,9 @@ typedef enum {
     ITYPE_POTION,
     ITYPE_SCROLL,
     ITYPE_FOOD,
+    ITYPE_AMULET,
+    ITYPE_GEM,
+    ITYPE_TREASURE,
     ITYPE_QUEST,
     ITYPE_TOOL,
     ITYPE_GOLD
@@ -31,6 +34,7 @@ typedef enum {
     SLOT_GLOVES,
     SLOT_RING1,
     SLOT_RING2,
+    SLOT_AMULET,
     NUM_SLOTS
 } EquipSlot;
 

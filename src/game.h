@@ -9,6 +9,20 @@
 #include "map.h"
 #include "fov.h"
 #include "item.h"
+#include "spell.h"
+
+/* Player class */
+typedef enum {
+    CLASS_KNIGHT,
+    CLASS_WIZARD,
+    CLASS_RANGER
+} PlayerClass;
+
+/* Player gender */
+typedef enum {
+    GENDER_MALE,
+    GENDER_FEMALE
+} PlayerGender;
 
 /* Weather types */
 typedef enum {
@@ -42,7 +56,10 @@ typedef struct {
     Vec2       player_pos;
     Vec2       ow_player_pos;
     char       player_name[MAX_NAME];
+    PlayerClass player_class;
+    PlayerGender player_gender;
     int        player_level;
+    int        max_spells_capacity;  /* max spells this class can learn */
     int        hp, max_hp;
     int        mp, max_mp;
     int        str, def, intel, spd;
@@ -70,6 +87,20 @@ typedef struct {
     Item       inventory[MAX_INVENTORY]; /* 26 slots a-z */
     int        num_items;               /* items in inventory */
     Item       equipment[NUM_SLOTS];    /* equipped items */
+
+    /* Spells */
+    int        spells_known[MAX_SPELLS]; /* spell def indices, -1 = empty */
+    int        num_spells;
+    int        light_affinity;           /* 0-100 */
+    int        dark_affinity;
+    int        nature_affinity;
+    int        shield_absorb;            /* damage absorbed by Shield spell */
+    int        buff_str_turns;           /* temporary STR buff remaining */
+    int        buff_def_turns;
+    int        buff_spd_turns;
+
+    /* Character creation step */
+    int        create_step;  /* 0=class, 1=gender, 2=name, 3=stats, 4=story */
 
     /* Time */
     int        turn;

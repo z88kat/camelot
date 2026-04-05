@@ -1,15 +1,15 @@
 # Town definitions for Knights of Camelot
 # name,services,inn_cost,beer_cost,beer_name
-# services: inn,church,equip,potion,pawn,mystic,bank,well,stable,food
+# services: inn,church,equip,potion,pawn,mystic,bank,well,stable,food,jeweller
 # Major towns
-Camelot,inn+church+equip+potion+pawn+mystic+bank+well+stable+food,8,2,Camelot Ale
-London,inn+church+equip+potion+pawn+mystic+bank+stable+food,10,3,London Porter
-York,inn+church+equip+potion+pawn+bank+stable+food,8,2,York Bitter
-Winchester,inn+church+equip+pawn+bank+stable+food,8,2,Winchester Mead
+Camelot,inn+church+equip+potion+pawn+mystic+bank+well+stable+food+jeweller,8,2,Camelot Ale
+London,inn+church+equip+potion+pawn+mystic+bank+stable+food+jeweller,10,3,London Porter
+York,inn+church+equip+potion+pawn+bank+stable+food+jeweller,8,2,York Bitter
+Winchester,inn+church+equip+pawn+bank+stable+food+jeweller,8,2,Winchester Mead
 # Medium towns
-Canterbury,inn+church+potion+pawn+mystic+food,7,2,Holy Water Ale
+Canterbury,inn+church+potion+pawn+mystic+food+jeweller,7,2,Holy Water Ale
 Glastonbury,inn+church+mystic+potion+well+food,6,2,Glastonbury Cider
-Bath,inn+church+potion+pawn+food,7,2,Roman Spring Ale
+Bath,inn+church+potion+pawn+food+jeweller,7,2,Roman Spring Ale
 Sherwood,inn+equip+pawn+well+food,5,2,Sherwood Stout
 Tintagel,inn+church+equip+well+food,6,2,Tintagel Dark
 # Smaller towns
@@ -24,21 +24,21 @@ Isle of Man,inn+equip+pawn+food,7,2,Manx Ale
 Anglesey,inn+mystic+well+pawn,5,2,Anglesey Mead
 Orkney,inn+pawn+mystic+equip,8,3,Orkney Whisky
 # Active castles
-Camelot Castle,inn+equip+church+food,6,2,Royal Ale
+Camelot Castle,inn+equip+church+food+jeweller,6,2,Royal Ale
 Castle Surluise,inn+equip,6,2,Surluise Mead
-Castle Lothian,inn+equip+pawn,7,2,Highland Ale
+Castle Lothian,inn+equip+pawn+jeweller,7,2,Highland Ale
 Castle Northumberland,inn+equip,7,2,Northern Bitter
 Castle Gore,inn+equip+church+food,6,2,Gore Stout
 Castle Strangore,inn+equip+pawn+potion,6,2,Strangore Draught
 Castle Cradelment,inn+equip,6,2,Welsh Dragon Ale
 Castle Cornwall,inn+pawn,7,2,Cornish Dark
 Castle Listenoise,inn+church,5,2,Pilgrim's Rest
-Castle Benwick,inn+equip+potion+food,8,2,French Wine
+Castle Benwick,inn+equip+potion+food+jeweller,8,2,French Wine
 Castle Carados,inn+equip+pawn,7,3,Highland Whisky
 Castle Ireland,inn+equip+mystic,6,2,Irish Stout
-Castle Gaul,inn+equip+potion+pawn+food,8,3,Gallic Wine
+Castle Gaul,inn+equip+potion+pawn+food+jeweller,8,3,Gallic Wine
 Castle Brittany,inn+equip+pawn,7,2,Breton Cider
-Edinburgh Castle,inn+equip+potion+pawn+church+food,8,3,Edinburgh Ale
+Edinburgh Castle,inn+equip+potion+pawn+church+food+jeweller,8,3,Edinburgh Ale
 Dover Castle,inn+equip+pawn+bank+food,7,2,Dover Porter
 # Abbeys
 Westminster Abbey,inn+church+potion,3,4,Monk's Strong Ale
