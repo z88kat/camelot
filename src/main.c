@@ -11,11 +11,15 @@ extern void show_high_scores_screen(void);
 extern void show_fallen_heroes_screen(void);
 
 int main(int argc, char *argv[]) {
-    /* Parse optional seed from command line */
+    /* Parse command line flags */
     uint64_t seed = 0;
+    bool debug_mode = false;
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] == 's' && i + 1 < argc) {
             seed = (uint64_t)atoll(argv[++i]);
+        }
+        if (argv[i][0] == '-' && argv[i][1] == 'd') {
+            debug_mode = true;
         }
     }
 
@@ -85,6 +89,10 @@ int main(int argc, char *argv[]) {
         }
         /* Safety: ensure game is running before entering loop */
         gs.running = true;
+        if (debug_mode) {
+            gs.debug_mode = true;
+            gs.cheat_mode = true; /* debug implies cheat (score=0) */
+        }
         /* Flush any leftover input from title screen */
         flushinp();
         game_run(&gs);

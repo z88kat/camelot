@@ -55,6 +55,20 @@ static void show_death_screen(GameState *gs) {
     attron(COLOR_PAIR(CP_RED));
     mvprintw(row++, 4, "Cause of death: %s", gs->cause_of_death);
     attroff(COLOR_PAIR(CP_RED));
+    /* Funny epitaph */
+    {
+        const char *epitaphs[] = {
+            "The bards will not sing of this.",
+            "A hero's end. Sort of.",
+            "They tried their best. Probably.",
+            "At least the cat survived.",
+            "Should have bought more potions.",
+            "The inn was right there...",
+        };
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row++, 4, "\"%s\"", epitaphs[rng_range(0, 5)]);
+        attroff(COLOR_PAIR(CP_GRAY));
+    }
     row++;
 
     attron(COLOR_PAIR(CP_WHITE));
@@ -71,7 +85,11 @@ static void show_death_screen(GameState *gs) {
     attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
     mvprintw(row++, 4, "FINAL SCORE: %d%s", score, gs->cheat_mode ? " (CHEAT)" : "");
     attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    row += 2;
+    row++;
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row++, 4, "Game seed: %llu", (unsigned long long)rng_get_seed());
+    attroff(COLOR_PAIR(CP_GRAY));
+    row++;
 
     attron(COLOR_PAIR(CP_GRAY));
     mvprintw(row, 4, "Press any key to continue...");
@@ -617,8 +635,18 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
     if (hit_chance > 95) hit_chance = 95;
 
     if (!rng_chance(hit_chance)) {
-        log_add(&gs->log, gs->turn, CP_GRAY,
-                 "You swing at the %s but miss!", target->name);
+        if (rng_chance(10)) {
+            const char *funny_miss[] = {
+                "You swing heroically... and miss. The %s looks unimpressed.",
+                "You miss the %s. It yawns.",
+                "Your attack misses the %s by a mile. Embarrassing.",
+                "You whiff. The %s raises an eyebrow (if it has one).",
+            };
+            log_add(&gs->log, gs->turn, CP_GRAY, funny_miss[rng_range(0, 3)], target->name);
+        } else {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You swing at the %s but miss!", target->name);
+        }
         return;
     }
 
@@ -641,8 +669,18 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                  "CRITICAL HIT! You smash the %s for %d damage!", target->name, damage);
     } else {
-        log_add(&gs->log, gs->turn, CP_WHITE,
-                 "You hit the %s for %d damage.", target->name, damage);
+        if (rng_chance(10)) {
+            const char *funny_hit[] = {
+                "You hit the %s for %d. It looks personally offended.",
+                "Whack! The %s takes %d damage and staggers.",
+                "You smack the %s for %d. Your mother would be proud.",
+                "The %s takes %d damage and glares at you.",
+            };
+            log_add(&gs->log, gs->turn, CP_WHITE, funny_hit[rng_range(0, 3)], target->name, damage);
+        } else {
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "You hit the %s for %d damage.", target->name, damage);
+        }
     }
 
     target->hp -= damage;
@@ -8452,6 +8490,77 @@ void game_handle_input(GameState *gs, int key) {
         attroff(COLOR_PAIR(CP_GRAY));
         ui_refresh();
         ui_getkey();
+        return;
+    }
+
+    /* Debug: level skip (] key) */
+    if (key == ']' && gs->debug_mode && gs->mode == MODE_DUNGEON && gs->dungeon) {
+        int next = gs->dungeon->current_level + 1;
+        if (next < gs->dungeon->max_depth) {
+            gs->dungeon->current_level = next;
+            DungeonLevel *dl = current_dungeon_level(gs);
+            if (!dl->generated) {
+                map_generate(dl, next, gs->dungeon->max_depth);
+                entity_spawn_monsters(dl->monsters, &dl->num_monsters,
+                                       dl->tiles, next, dl->stairs_up[0]);
+                dungeon_spawn_items(dl);
+                spawn_dungeon_boss(gs, dl, gs->dungeon->name, next, gs->dungeon->max_depth);
+            }
+            gs->player_pos = dl->stairs_up[0];
+            /* Reveal entire map in debug mode */
+            for (int ry = 0; ry < MAP_HEIGHT; ry++)
+                for (int rx = 0; rx < MAP_WIDTH; rx++)
+                    dl->tiles[ry][rx].revealed = true;
+            dungeon_update_fov(gs);
+            log_add(&gs->log, gs->turn, CP_RED, "[DEBUG] Skipped to level %d.", next + 1);
+        } else {
+            log_add(&gs->log, gs->turn, CP_RED, "[DEBUG] Already at deepest level.");
+        }
+        return;
+    }
+
+    /* Debug: reveal full dungeon map ([ key) */
+    if (key == '[' && gs->debug_mode && gs->mode == MODE_DUNGEON) {
+        DungeonLevel *dl = current_dungeon_level(gs);
+        if (dl) {
+            for (int ry = 0; ry < MAP_HEIGHT; ry++)
+                for (int rx = 0; rx < MAP_WIDTH; rx++)
+                    dl->tiles[ry][rx].revealed = true;
+            log_add(&gs->log, gs->turn, CP_RED, "[DEBUG] Full map revealed.");
+        }
+        return;
+    }
+
+    /* Settings menu (= key) */
+    if (key == '=') {
+        while (1) {
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "=== Settings ===");
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(row++, 4, "Version: %s", GAME_VERSION_STRING);
+            row++;
+            mvprintw(row++, 4, "Game seed: %llu", (unsigned long long)rng_get_seed());
+            row++;
+            mvprintw(row++, 4, "Save location: ~/.camelot/save.dat");
+            mvprintw(row++, 4, "Morgue files:  ~/.camelot/morgue/");
+            mvprintw(row++, 4, "High scores:   ~/.camelot/scores.dat");
+            mvprintw(row++, 4, "Home chest:    ~/.camelot/home_chest.dat");
+            row++;
+            mvprintw(row++, 4, "Terminal: %dx%d", COLS, LINES);
+            attroff(COLOR_PAIR(CP_WHITE));
+            row++;
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(row++, 4, "Press [q] to close.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            int sk = ui_getkey();
+            if (sk == 'q' || sk == 'Q' || sk == 27 || sk == '=') break;
+        }
         return;
     }
 

@@ -325,6 +325,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | Key | Action |
 |-----|--------|
 | `?` | Help system (4 pages: commands, UI/items, symbols, tips) |
+| `=` | Settings (version, seed, file locations, terminal info) |
 | `@` | Character sheet (appearance, stats, affinities, combat info) |
 | `i` | Inventory |
 | `z` | Cast spell (overworld/dungeon) |
@@ -1044,12 +1045,30 @@ When you die, a detailed text file is saved to `~/.camelot/morgue/[name]_day[N].
 
 Morgue files persist indefinitely and can be shared for comparing runs.
 
+### Settings
+Press **`=`** to view game settings and info:
+- Game version
+- Game seed (for sharing challenge runs)
+- File locations (save, morgue, scores, home chest)
+- Terminal size
+
+### Debug Mode
+Launch with `./camelot -d` to enable debug mode:
+- **`]`** in dungeons: skip to next level
+- **`[`** in dungeons: reveal entire map
+- Score is always 0 (debug implies cheat mode)
+
+### Funny Messages
+10% of combat messages are replaced with humorous alternatives. Death screens include a random epitaph. Keep your eyes open for easter eggs!
+
 ## Building
 
 ```bash
-make          # Build the game
-./camelot     # Run the game
-make clean    # Clean build files
+make              # Build the game
+./camelot         # Run the game
+./camelot -s 123  # Start with a specific seed
+./camelot -d      # Debug mode (full map, level skip)
+make clean        # Clean build files
 ```
 
 Requires: C compiler (clang/gcc), ncurses library.

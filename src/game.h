@@ -122,6 +122,7 @@ typedef struct {
     int        witch_geas_turns;     /* turns left to complete witch task (0=none) */
     int        witch_geas_type;      /* which task (0-5) */
     bool       cheat_mode;           /* cheat mode enabled */
+    bool       debug_mode;           /* debug mode (-d flag) */
     int        king_travel_turn;      /* last turn kings moved */
     int        last_joust_day;        /* day of last tournament participation */
     char       last_joust_castle[MAX_NAME]; /* castle where last jousted */
