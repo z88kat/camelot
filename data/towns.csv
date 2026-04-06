@@ -7,7 +7,7 @@ London,inn+church+equip+potion+pawn+mystic+bank+stable+food+jeweller,10,3,London
 York,inn+church+equip+potion+pawn+bank+stable+food+jeweller,8,2,York Bitter
 Winchester,inn+church+equip+pawn+bank+stable+food+jeweller,8,2,Winchester Mead
 # Medium towns
-Canterbury,inn+church+potion+pawn+mystic+food+jeweller,7,2,Holy Water Ale
+Canterbury,inn+church+potion+pawn+mystic+food+jeweller+graveyard,7,2,Holy Water Ale
 Glastonbury,inn+church+mystic+potion+well+food,6,2,Glastonbury Cider
 Bath,inn+church+potion+pawn+food+jeweller+springs,7,2,Roman Spring Ale
 Sherwood,inn+equip+pawn+well+food,5,2,Sherwood Stout

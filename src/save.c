@@ -151,6 +151,60 @@ int fallen_load(FallenHero heroes[MAX_FALLEN]) {
     return count;
 }
 
+/* ------------------------------------------------------------------ */
+/* Home chest storage                                                  */
+/* ------------------------------------------------------------------ */
+
+static void get_chest_path(char *buf, int bufsize) {
+    char dir[256];
+    get_save_dir(dir, sizeof(dir));
+    snprintf(buf, bufsize, "%s/home_chest.dat", dir);
+}
+
+int home_chest_load(StoredItem items[MAX_STORED_ITEMS]) {
+    char path[300];
+    get_chest_path(path, sizeof(path));
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    int count = 0;
+    fread(&count, sizeof(int), 1, f);
+    if (count > MAX_STORED_ITEMS) count = MAX_STORED_ITEMS;
+    fread(items, sizeof(StoredItem), count, f);
+    fclose(f);
+    return count;
+}
+
+void home_chest_save(const StoredItem items[], int count) {
+    save_ensure_dir();
+    char path[300];
+    get_chest_path(path, sizeof(path));
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fwrite(&count, sizeof(int), 1, f);
+    fwrite(items, sizeof(StoredItem), count, f);
+    fclose(f);
+}
+
+void home_chest_add(const char *item_name, const char *player_name, int day,
+                    int type, int power, int value, int weight, char glyph, short color) {
+    StoredItem items[MAX_STORED_ITEMS];
+    int count = home_chest_load(items);
+    if (count >= MAX_STORED_ITEMS) return;
+
+    StoredItem *si = &items[count];
+    snprintf(si->name, sizeof(si->name), "%s", item_name);
+    snprintf(si->left_by, MAX_NAME, "%s", player_name);
+    si->day_stored = day;
+    si->type = type;
+    si->power = power;
+    si->value = value;
+    si->weight = weight;
+    si->glyph = glyph;
+    si->color_pair = color;
+    count++;
+    home_chest_save(items, count);
+}
+
 void fallen_add(const FallenHero *hero) {
     save_ensure_dir();
     FallenHero heroes[MAX_FALLEN];

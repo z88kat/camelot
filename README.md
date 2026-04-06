@@ -102,6 +102,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 | `B` | Yellow | Banker |
 | `S` | Brown | Stablemaster |
 | `~` | Cyan | Hot Springs (Bath only) |
+| `+` | Gray | Graveyard (Canterbury only) |
 | `O` | Blue | Well |
 | `K` | Yellow | King (castles) |
 | `Q` | Magenta | Queen (castles) |
@@ -942,6 +943,28 @@ Top 10 scores saved to `~/.camelot/scores.dat`. Each entry shows name, class, sc
 
 ### Fallen Heroes
 Up to 50 fallen characters recorded in `~/.camelot/fallen_heroes.dat`. Shows name, level, class, score, and cause of death for each. Most recent death listed first. "X brave souls have perished in the quest for the Grail."
+
+### Canterbury Graveyard
+In **Canterbury**, bump into the **Graveyard** (`+` gray) building to visit. Gravestones show all your previous fallen characters from past games:
+```
++---------------------------+
+| Here lies Sir Galahad      |
+| Knight     Level 7         |
+| Slain by a Red Dragon      |
++---------------------------+
+```
+Visiting grants **+1 chivalry** (paying respects to the fallen). Data persists in `~/.camelot/fallen_heroes.dat` across all playthroughs.
+
+### Player Home (Camelot)
+Visit **Camelot** town and press **`V`** to enter your home. Your home has:
+- **Storage chest**: unlimited capacity, items **persist across deaths** in `~/.camelot/home_chest.dat`
+  - `s` to stash an item from your inventory into the chest
+  - `t` to take an item from the chest into your inventory
+  - Items are tagged with who stored them and when: "Longsword (left by Sir Galahad, day 12)"
+- **Bed**: free rest until morning (full HP/MP, advance to 7:00)
+  - `r` to rest
+
+This creates a **meta-progression loop**: stash good weapons, rings, and potions for future characters. Combined with the bank (cross-game gold persistence -- not yet implemented), your legacy grows with each playthrough.
 
 ## Building
 

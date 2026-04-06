@@ -531,10 +531,25 @@ static int ow_add_location(Overworld *ow, const char *name, LocationType type,
     loc->discovered = false;
     loc->id = ow->num_locations;
 
-    /* Place glyph on map */
-    ow->map[y][x].glyph = glyph;
-    ow->map[y][x].color_pair = color;
-    ow->map[y][x].passable = true;
+    /* Place glyph on map -- towns and castles get 3x3 footprint */
+    bool large = (type == LOC_TOWN || type == LOC_CASTLE_ACTIVE ||
+                  type == LOC_CASTLE_ABANDONED || type == LOC_ABBEY);
+    if (large) {
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < OW_WIDTH && ny >= 0 && ny < OW_HEIGHT) {
+                    ow->map[ny][nx].glyph = (dx == 0 && dy == 0) ? glyph : '.';
+                    ow->map[ny][nx].color_pair = color;
+                    ow->map[ny][nx].passable = true;
+                }
+            }
+        }
+    } else {
+        ow->map[y][x].glyph = glyph;
+        ow->map[y][x].color_pair = color;
+        ow->map[y][x].passable = true;
+    }
 
     return ow->num_locations++;
 }

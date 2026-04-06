@@ -41,6 +41,26 @@ typedef struct {
 int  fallen_load(FallenHero heroes[MAX_FALLEN]);
 void fallen_add(const FallenHero *hero);
 
+/* Home chest storage (persists across deaths) */
+typedef struct {
+    char name[48];
+    char left_by[MAX_NAME];
+    int  day_stored;
+    int  type;       /* ItemType */
+    int  power;
+    int  value;
+    int  weight;
+    char glyph;
+    short color_pair;
+} StoredItem;
+
+#define MAX_STORED_ITEMS 50
+
+int  home_chest_load(StoredItem items[MAX_STORED_ITEMS]);
+void home_chest_save(const StoredItem items[], int count);
+void home_chest_add(const char *item_name, const char *player_name, int day,
+                    int type, int power, int value, int weight, char glyph, short color);
+
 /* Ensure ~/.camelot directory exists */
 void save_ensure_dir(void);
 

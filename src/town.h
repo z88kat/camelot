@@ -16,6 +16,7 @@
 #define SVC_FOOD_SHOP  (1 << 9)
 #define SVC_JEWELLER   (1 << 10)
 #define SVC_HOT_SPRINGS (1 << 11)
+#define SVC_GRAVEYARD   (1 << 12)
 
 /* Town definition */
 typedef struct {
@@ -56,7 +57,8 @@ typedef enum {
     NPC_DOG,         /* wanders, harmless */
     NPC_CAT,         /* wanders, harmless */
     NPC_CHICKEN,     /* wanders, harmless */
-    NPC_HOT_SPRINGS  /* Bath hot springs */
+    NPC_HOT_SPRINGS, /* Bath hot springs */
+    NPC_GRAVEYARD    /* Canterbury graveyard */
 } TownNPCType;
 
 /* An NPC placed in the town interior */
