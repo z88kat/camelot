@@ -101,6 +101,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 | `?` | Magenta | Mystic |
 | `B` | Yellow | Banker |
 | `S` | Brown | Stablemaster |
+| `~` | Cyan | Hot Springs (Bath only) |
 | `O` | Blue | Well |
 | `K` | Yellow | King (castles) |
 | `Q` | Magenta | Queen (castles) |
@@ -223,7 +224,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | `S` | Save game |
 | `z` | Cast a spell |
 | `i` | Inventory |
-| `M` | Minimap (full overworld overview) |
+| `M` | Minimap (full overworld overview, press `L` to toggle location labels) |
 | `q` | Quit game |
 
 ### Town / Castle Interior
@@ -678,6 +679,15 @@ Your title is displayed in town alongside your chivalry score.
 
 Raise chivalry by: donating at churches, confession, visiting Holy Island, completing quests, curing at church (+1).
 Lower chivalry by: looting churches (-12), desecrating magic circles (-15), stealing from shops (-8), getting caught stealing (-5), accepting dark bargains (-3).
+
+### Bath Hot Springs
+Inside the town of **Bath**, bump into the **Hot Springs** (`~` cyan) building to visit the Roman baths. Press **`b`** to bathe:
+- **Full HP and MP** restored
+- **Cures lycanthropy** and **vampirism** (removes stat bonuses)
+- **Restores debuffed stats** (any stat below 5 is raised to 5)
+- Free -- no gold cost
+
+Bath is the only free cure for both curses in the game. Worth the trip if you've been bitten.
 
 ### Abbeys
 Eight historical abbeys (`A` white) across England:

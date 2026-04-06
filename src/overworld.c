@@ -633,8 +633,8 @@ void overworld_init(Overworld *ow) {
 
     /* Step 4b: Islands -- accessible by boat (B tiles on shores) */
 
-    /* Isle of Wight -- south coast, off Hampshire */
-    draw_island(ow, 240, 215, 8, 3);
+    /* Isle of Wight -- south coast, off Hampshire (diamond shape) */
+    draw_island(ow, 252, 218, 12, 5);
 
     /* Isle of Man -- Irish Sea, between England and Ireland */
     draw_island(ow, 100, 80, 6, 8);

@@ -8,7 +8,7 @@ London,town,312,181,*,white_bold
 Canterbury,town,375,194,*,white_bold
 Winchester,town,238,194,*,white
 Glastonbury,town,194,188,*,magenta
-Bath,town,162,175,*,cyan
+Bath,town,162,175,*,white_bold
 Tintagel,town,94,194,*,white
 Cornwall,town,60,231,*,white
 Sherwood,town,262,119,*,green_bold
@@ -70,8 +70,11 @@ Camelot Abbey,abbey,208,160,A,white_bold
 # Misc
 Cave,cave,218,166,O,gray
 # Island locations
-Isle of Wight,town,240,215,*,white
+Newport,town,252,218,*,white
+Cowes,town,252,214,*,white
+Carisbrooke Castle,castle_active,249,218,#,white
 Isle of Man,town,100,80,*,white
+Gosport,town,252,207,*,white
 Lundy Island,landmark,85,170,+,gray
 Anglesey,town,80,112,*,white
 Avalon,landmark,40,200,+,yellow_bold

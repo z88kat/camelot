@@ -3678,9 +3678,82 @@ static void handle_overworld_input(GameState *gs, int key) {
                      time_of_day_name(gs->hour));
         }
 
-        ui_render_minimap((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
-                          gs->player_pos, loc_info);
-        ui_getkey();  /* wait for any key to close */
+        bool show_labels = true;
+
+        while (1) {
+            ui_render_minimap((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
+                              gs->player_pos, loc_info);
+
+            /* Calculate minimap scaling (must match ui_render_minimap internals) */
+            int term_rows_m, term_cols_m;
+            getmaxyx(stdscr, term_rows_m, term_cols_m);
+            int avail_cols_m = term_cols_m - 2;
+            int avail_rows_m = term_rows_m - 3;
+            int sx_m = (OW_WIDTH + avail_cols_m - 1) / avail_cols_m;
+            int sy_m = (OW_HEIGHT + avail_rows_m - 1) / avail_rows_m;
+            if (sx_m < 1) sx_m = 1;
+            if (sy_m < 1) sy_m = 1;
+            int mini_w_m = OW_WIDTH / sx_m;
+            int mini_h_m = OW_HEIGHT / sy_m;
+            if (mini_w_m > avail_cols_m) mini_w_m = avail_cols_m;
+            if (mini_h_m > avail_rows_m) mini_h_m = avail_rows_m;
+            int off_x_m = (term_cols_m - mini_w_m) / 2;
+            int off_y_m = 1 + (avail_rows_m - mini_h_m) / 2;
+
+            /* Draw location labels on the minimap */
+            if (show_labels) {
+                for (int i = 0; i < gs->overworld->num_locations; i++) {
+                    Location *ll = &gs->overworld->locations[i];
+                    /* Only label towns, castles, dungeons, abbeys */
+                    if (ll->type != LOC_TOWN && ll->type != LOC_CASTLE_ACTIVE &&
+                        ll->type != LOC_DUNGEON_ENTRANCE && ll->type != LOC_ABBEY &&
+                        ll->type != LOC_VOLCANO && ll->type != LOC_CASTLE_ABANDONED)
+                        continue;
+
+                    int lx = ll->pos.x / sx_m;
+                    int ly = ll->pos.y / sy_m;
+                    if (lx < 0 || lx >= mini_w_m || ly < 0 || ly >= mini_h_m) continue;
+
+                    /* Draw the location glyph highlighted */
+                    attron(COLOR_PAIR(ll->color_pair) | A_BOLD);
+                    mvaddch(off_y_m + ly, off_x_m + lx, ll->glyph);
+                    attroff(COLOR_PAIR(ll->color_pair) | A_BOLD);
+
+                    /* Draw name label to the right (truncate if needed) */
+                    int label_x = off_x_m + lx + 1;
+                    int max_len = off_x_m + mini_w_m - label_x;
+                    if (max_len > 0 && max_len > 3) {
+                        int nlen = (int)strlen(ll->name);
+                        if (nlen > max_len) nlen = max_len;
+                        attron(COLOR_PAIR(CP_WHITE));
+                        mvprintw(off_y_m + ly, label_x, "%.*s", nlen, ll->name);
+                        attroff(COLOR_PAIR(CP_WHITE));
+                    }
+                }
+
+                /* Redraw player on top */
+                int ppx = gs->player_pos.x / sx_m;
+                int ppy = gs->player_pos.y / sy_m;
+                if (ppx >= 0 && ppx < mini_w_m && ppy >= 0 && ppy < mini_h_m) {
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+                    mvaddch(off_y_m + ppy, off_x_m + ppx, '@');
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+                }
+            }
+
+            /* Toggle hint */
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(term_rows_m - 2, 1, "[L] Toggle labels  [any other key] Close");
+            attroff(COLOR_PAIR(CP_GRAY));
+            refresh();
+
+            int mk = getch();
+            if (mk == 'L' || mk == 'l') {
+                show_labels = !show_labels;
+            } else {
+                break;
+            }
+        }
         return;
     }
 
@@ -4921,6 +4994,61 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             };
             int n = sizeof(clucks) / sizeof(clucks[0]);
             log_add(&gs->log, gs->turn, CP_WHITE, "%s", clucks[rng_range(0, n - 1)]);
+        }
+        break;
+    case NPC_HOT_SPRINGS:
+        {
+            ui_clear();
+            int row = 2;
+            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "=== Roman Hot Springs ===");
+            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_CYAN));
+            mvprintw(row++, 4, "Steam rises from the ancient stone pools.");
+            mvprintw(row++, 4, "The warm mineral waters are said to cure all ills.");
+            attroff(COLOR_PAIR(CP_CYAN));
+            row++;
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(row++, 4, "[b] Bathe in the hot springs (free)");
+            mvprintw(row++, 4, "[q] Leave");
+            attroff(COLOR_PAIR(CP_WHITE));
+            ui_refresh();
+
+            int bk = ui_getkey();
+            if (bk == 'b') {
+                gs->hp = gs->max_hp;
+                gs->mp = gs->max_mp;
+                bool cured = false;
+                if (gs->has_lycanthropy) {
+                    gs->has_lycanthropy = false;
+                    gs->str -= 3; if (gs->str < 1) gs->str = 1;
+                    gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "The sacred waters wash away your lycanthropy!");
+                    cured = true;
+                }
+                if (gs->has_vampirism) {
+                    gs->has_vampirism = false;
+                    gs->str -= 3; if (gs->str < 1) gs->str = 1;
+                    gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "The blessed waters purge the vampirism from your blood!");
+                    cured = true;
+                }
+                if (gs->str < 5) { gs->str = 5; cured = true; }
+                if (gs->def < 5) { gs->def = 5; cured = true; }
+                if (gs->intel < 5) { gs->intel = 5; cured = true; }
+                if (gs->spd < 5) { gs->spd = 5; cured = true; }
+
+                if (cured) {
+                    log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                             "The hot springs cure your ailments! Full HP/MP, curses lifted.");
+                } else {
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "The warm waters soothe you. Full HP and MP restored.");
+                }
+            }
         }
         break;
     default:

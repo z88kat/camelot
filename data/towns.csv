@@ -9,7 +9,7 @@ Winchester,inn+church+equip+pawn+bank+stable+food+jeweller,8,2,Winchester Mead
 # Medium towns
 Canterbury,inn+church+potion+pawn+mystic+food+jeweller,7,2,Holy Water Ale
 Glastonbury,inn+church+mystic+potion+well+food,6,2,Glastonbury Cider
-Bath,inn+church+potion+pawn+food+jeweller,7,2,Roman Spring Ale
+Bath,inn+church+potion+pawn+food+jeweller+springs,7,2,Roman Spring Ale
 Sherwood,inn+equip+pawn+well+food,5,2,Sherwood Stout
 Tintagel,inn+church+equip+well+food,6,2,Tintagel Dark
 # Smaller towns
@@ -23,6 +23,9 @@ Isle of Wight,inn+pawn+equip+food,6,2,Island Bitter
 Isle of Man,inn+equip+pawn+food,7,2,Manx Ale
 Anglesey,inn+mystic+well+pawn,5,2,Anglesey Mead
 Orkney,inn+pawn+mystic+equip,8,3,Orkney Whisky
+Newport,inn+church+equip+pawn+food,6,2,Island Ale
+Cowes,inn+pawn+equip+food,5,2,Cowes Bitter
+Gosport,inn+equip+pawn+food+church,7,2,Gosport Porter
 # Active castles
 Camelot Castle,inn+equip+church+food+jeweller,6,2,Royal Ale
 Castle Surluise,inn+equip,6,2,Surluise Mead
@@ -40,6 +43,7 @@ Castle Gaul,inn+equip+potion+pawn+food+jeweller,8,3,Gallic Wine
 Castle Brittany,inn+equip+pawn,7,2,Breton Cider
 Edinburgh Castle,inn+equip+potion+pawn+church+food+jeweller,8,3,Edinburgh Ale
 Dover Castle,inn+equip+pawn+bank+food,7,2,Dover Porter
+Carisbrooke Castle,inn+equip+church,5,2,Castle Ale
 # Abbeys
 Westminster Abbey,inn+church+potion,3,4,Monk's Strong Ale
 Whitby Abbey,inn+church+potion,3,4,Dark Abbey Stout

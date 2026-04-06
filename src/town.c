@@ -31,6 +31,7 @@ static int parse_services(const char *s) {
     if (strstr(s, "stable")) svc |= SVC_STABLE;
     if (strstr(s, "food"))     svc |= SVC_FOOD_SHOP;
     if (strstr(s, "jeweller")) svc |= SVC_JEWELLER;
+    if (strstr(s, "springs"))  svc |= SVC_HOT_SPRINGS;
     return svc;
 }
 
@@ -248,6 +249,7 @@ void town_generate_map(TownMap *tm, const TownDef *td, bool has_quest_giver) {
         { SVC_STABLE,     'S', CP_BROWN,       "Stablemaster", NPC_STABLE },
         { SVC_FOOD_SHOP,  '%', CP_BROWN,       "Baker",        NPC_FOOD_SHOP },
         { SVC_JEWELLER,   '*', CP_CYAN_BOLD,   "Jeweller",     NPC_JEWELLER },
+        { SVC_HOT_SPRINGS,'~', CP_CYAN,        "Hot Springs",  NPC_HOT_SPRINGS },
     };
     int nbuildings = sizeof(buildings) / sizeof(buildings[0]);
 
