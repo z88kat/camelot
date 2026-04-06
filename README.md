@@ -69,7 +69,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 ### Overworld Creatures
 | Symbol | Colour | Creature | Behaviour |
 |--------|--------|----------|-----------|
-| `@` | White | Traveller | Walks roads, shares tips |
+| `@` | White | Traveller | Walks roads. 75% tips, 10% gift, 10% steal gold, 5% steal item |
 | `@` | Yellow | Pilgrim | Walks roads, heading to Canterbury |
 | `@` | Green | Merchant | Walks roads, advertises wares |
 | `@` | Brown | Peasant | Wanders grassland |
@@ -772,6 +772,16 @@ Kings in other castles react based on your chivalry:
 ### Special Overworld Encounters
 
 As you explore, rare events trigger based on your location, time, and luck:
+
+#### Travellers
+Bump into travellers (`@` white) on roads. Most share rumours and tips, but beware:
+- **75%**: friendly dialogue -- tips about towns, dungeons, and dangers
+- **10%**: **gives you an item** -- "I found this on the road. No use to me." (food, potion, or tool)
+- **10%**: **steals gold** -- pickpockets 3-15 gold from your purse and vanishes
+- **5%**: **steals an item** -- lifts a random item from your pack and disappears
+
+#### Travelling Kings
+Kings from various castles ride the overworld roads as `K` (yellow bold). Bump into them for dialogue. High chivalry (50+) earns respect and a 30% chance of a gold gift. They appear approximately every 50 turns.
 
 #### Breunis sans Pitie (Recurring Villain)
 A merciless knight who ambushes you on roads and grassland (~1 per 300 turns, 20% chance). A tough multi-round fight that gets **harder each time** -- he gains +2 STR, +1 DEF, +5 HP per defeat. First victory drops the **Dark Blade of Breunis** (power 11, unique weapon). He always comes back for more.

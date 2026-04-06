@@ -2247,12 +2247,69 @@ static void handle_overworld_input(GameState *gs, int key) {
                                  "The king glances at you briefly and rides on.");
                     }
                 } else {
-                    const char *msgs[] = {
-                        "A traveller nods. \"Safe travels, friend.\"",
-                        "\"The road to York is long. Watch for bandits.\"",
-                        "\"I've come from London. The markets are busy.\"",
-                    };
-                    log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, 2)]);
+                    int trav_roll = rng_range(1, 100);
+                    if (trav_roll <= 5 && gs->num_items > 0) {
+                        /* Pickpocket! Steal an item */
+                        int idx = rng_range(0, gs->num_items - 1);
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "The traveller bumps into you... your %s is gone!",
+                                 gs->inventory[idx].name);
+                        for (int j = idx; j < gs->num_items - 1; j++)
+                            gs->inventory[j] = gs->inventory[j + 1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "\"Sorry about that!\" He vanishes into the crowd.");
+                        creature->pos = (Vec2){ -1, -1 }; /* disappear */
+                    } else if (trav_roll <= 15) {
+                        /* Steal some gold */
+                        int stolen = rng_range(3, 15);
+                        if (stolen > gs->gold) stolen = gs->gold;
+                        if (stolen > 0) {
+                            gs->gold -= stolen;
+                            log_add(&gs->log, gs->turn, CP_RED,
+                                     "The traveller's hand dips into your purse! -%dg!", stolen);
+                            creature->pos = (Vec2){ -1, -1 };
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_WHITE,
+                                     "A traveller nods. \"Times are hard, friend.\"");
+                        }
+                    } else if (trav_roll <= 25) {
+                        /* Give the player an item */
+                        if (gs->num_items < MAX_INVENTORY) {
+                            int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                            for (int tries = 0; tries < 30; tries++) {
+                                int ri = rng_range(0, tcount - 1);
+                                if (tmps[ri].rarity >= 3 &&
+                                    (tmps[ri].type == ITYPE_FOOD || tmps[ri].type == ITYPE_POTION ||
+                                     tmps[ri].type == ITYPE_TOOL)) {
+                                    gs->inventory[gs->num_items] = item_create(ri, -1, -1);
+                                    gs->inventory[gs->num_items].on_ground = false;
+                                    gs->num_items++;
+                                    log_add(&gs->log, gs->turn, CP_GREEN,
+                                             "\"I found this on the road. No use to me.\" Got: %s",
+                                             tmps[ri].name);
+                                    break;
+                                }
+                            }
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_WHITE,
+                                     "\"I have something for you but your pack is full!\"");
+                        }
+                    } else {
+                        /* Normal dialogue */
+                        const char *msgs[] = {
+                            "A traveller nods. \"Safe travels, friend.\"",
+                            "\"The road to York is long. Watch for bandits.\"",
+                            "\"I've come from London. The markets are busy.\"",
+                            "\"Have you been to Glastonbury? Strange things happen there.\"",
+                            "\"I heard a knight fell in the Catacombs. Poor soul.\"",
+                            "\"The inn at Sherwood serves the best stout in England.\"",
+                            "\"Stay off the moors at night. Wolves, they say.\"",
+                            "\"A merchant told me there's treasure buried near the coast.\"",
+                        };
+                        int n = sizeof(msgs) / sizeof(msgs[0]);
+                        log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, n - 1)]);
+                    }
                 }
                 break;
             case OW_NPC_PILGRIM:
