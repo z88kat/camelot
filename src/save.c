@@ -29,8 +29,24 @@ bool save_exists(void) {
     char path[300];
     get_save_path(path, sizeof(path));
     FILE *f = fopen(path, "rb");
-    if (f) { fclose(f); return true; }
-    return false;
+    if (!f) return false;
+
+    /* Validate magic and version before reporting save exists */
+    char magic[4];
+    if (fread(magic, 1, 4, f) != 4 || memcmp(magic, MAGIC, 4) != 0) {
+        fclose(f); remove(path); return false;
+    }
+    int ver;
+    if (fread(&ver, sizeof(int), 1, f) != 1 || ver != SAVE_VERSION) {
+        fclose(f); remove(path); return false;
+    }
+    int struct_size;
+    if (fread(&struct_size, sizeof(int), 1, f) != 1 || struct_size != (int)sizeof(GameState)) {
+        fclose(f); remove(path); return false;
+    }
+
+    fclose(f);
+    return true;
 }
 
 bool save_game(const GameState *gs) {

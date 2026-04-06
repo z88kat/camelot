@@ -81,6 +81,8 @@ int main(int argc, char *argv[]) {
         } else {
             game_init(&gs);
         }
+        /* Safety: ensure game is running before entering loop */
+        gs.running = true;
         game_run(&gs);
     }
 
