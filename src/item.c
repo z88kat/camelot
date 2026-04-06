@@ -183,6 +183,12 @@ Item item_create(int template_id, int x, int y) {
     it.value = t->value;
     it.pos = (Vec2){ x, y };
     it.on_ground = true;
+    /* Assign BUC state: 10% blessed, 15% cursed, 75% uncursed */
+    int buc_roll = rng_range(1, 100);
+    if (buc_roll <= 10) it.buc = 3;      /* blessed */
+    else if (buc_roll <= 25) it.buc = 1;  /* cursed */
+    else it.buc = 2;                       /* uncursed */
+    it.buc_known = false;
     return it;
 }
 

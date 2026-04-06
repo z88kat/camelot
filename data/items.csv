@@ -137,6 +137,20 @@ Scroll of Monster Detection,?,red,scroll,1,5,30,2,0,2
 Scroll of Holy Word,?,yellow,scroll,1,5,60,4,0,1
 #
 # ===== Tools =====
+# ===== Ranged Weapons (power = base damage, min_depth doubles as range) =====
+Short Bow,),brown,weapon,4,20,25,0,6,4
+Longbow,),brown,weapon,7,25,60,2,10,2
+Crossbow,),gray,weapon,9,35,80,4,8,2
+Sling,),brown,weapon,3,10,15,0,5,4
+#
+# ===== Ammunition (power = damage modifier) =====
+Arrows,/,brown,tool,1,5,3,0,0,4
+Bolts,/,gray,tool,2,5,5,0,0,3
+Stones,/,gray,tool,0,3,1,0,0,5
+Throwing Knives,/,white,tool,2,3,8,0,0,3
+Silver Arrows,/,white,tool,3,5,15,2,0,1
+Fire Arrows,/,red,tool,2,5,12,3,0,1
+#
 # power field for light sources: fuel in turns (torch=200, lantern=500)
 Torch,(,yellow,tool,200,15,5,0,0,5
 Lantern,(,yellow,tool,500,20,25,0,0,3

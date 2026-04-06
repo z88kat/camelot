@@ -67,6 +67,8 @@ typedef struct {
     bool     on_ground;
     int      created_day;  /* game day when item was created (for spoilage) */
     bool     identified;   /* for potions: true if player knows what it is */
+    int      buc;          /* 0=unknown, 1=cursed, 2=uncursed, 3=blessed */
+    bool     buc_known;    /* has BUC state been identified? */
 } Item;
 
 #define MAX_ITEM_TEMPLATES 256

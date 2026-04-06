@@ -576,7 +576,13 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
     int weapon_pow = (gs->equipment[SLOT_WEAPON].template_id >= 0) ? gs->equipment[SLOT_WEAPON].power : 0;
     /* Mounted charge bonus: +2 STR on overworld */
     int mount_str = (gs->riding && gs->mode == MODE_OVERWORLD) ? 2 : 0;
-    int damage = gs->str + mount_str + weapon_pow + rng_range(-2, 2) - target->def;
+    /* BUC bonus: blessed +2, cursed -2 */
+    int buc_bonus = 0;
+    if (gs->equipment[SLOT_WEAPON].template_id >= 0) {
+        if (gs->equipment[SLOT_WEAPON].buc == 3) buc_bonus = 2;
+        else if (gs->equipment[SLOT_WEAPON].buc == 1) buc_bonus = -2;
+    }
+    int damage = gs->str + mount_str + weapon_pow + buc_bonus + rng_range(-2, 2) - target->def;
     if (damage < 1) damage = 1;
 
     /* Critical hit: 10% chance, 2x damage */
@@ -1384,6 +1390,18 @@ static void advance_time(GameState *gs, int minutes) {
                     break;
                 }
             }
+        }
+    }
+
+    /* Wandering spirits at night: drain MP on overworld */
+    if (gs->mode == MODE_OVERWORLD) {
+        TimeOfDay tod_sp = game_get_tod(gs);
+        if (tod_sp == TOD_NIGHT && gs->mp > 0 && gs->turn % 15 == 0 && rng_chance(10)) {
+            int drain = rng_range(1, 3);
+            gs->mp -= drain;
+            if (gs->mp < 0) gs->mp = 0;
+            log_add(&gs->log, gs->turn, CP_CYAN,
+                     "A spectral presence drifts past... you feel your mana draining. -%d MP", drain);
         }
     }
 
@@ -5758,6 +5776,18 @@ static void town_do_church(GameState *gs) {
         if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
         log_add(&gs->log, gs->turn, CP_WHITE,
                  "You kneel and pray. A sense of peace washes over you.");
+        /* Identify BUC state of all items */
+        int identified = 0;
+        for (int ii = 0; ii < gs->num_items; ii++) {
+            if (!gs->inventory[ii].buc_known) {
+                gs->inventory[ii].buc_known = true;
+                identified++;
+            }
+        }
+        if (identified > 0)
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "The holy light reveals the nature of %d item%s.",
+                     identified, identified == 1 ? "" : "s");
     } else if (key == 'd') {
         if (gs->gold < 20) {
             log_add(&gs->log, gs->turn, CP_RED, "You don't have enough gold to donate.");
@@ -6477,6 +6507,111 @@ static void handle_dungeon_input(GameState *gs, int key) {
                      "You find nothing unusual.");
         }
         advance_time(gs, 1);
+        return;
+    }
+
+    /* Ranged attack (f key in dungeon) */
+    if (key == 'f' && gs->mode == MODE_DUNGEON) {
+        /* Check for ranged weapon equipped */
+        Item *wpn = &gs->equipment[SLOT_WEAPON];
+        bool is_ranged = (wpn->template_id >= 0 &&
+                          (strcmp(wpn->name, "Short Bow") == 0 || strcmp(wpn->name, "Longbow") == 0 ||
+                           strcmp(wpn->name, "Crossbow") == 0 || strcmp(wpn->name, "Sling") == 0));
+        if (!is_ranged) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You need a ranged weapon equipped (bow, crossbow, or sling).");
+        } else {
+            /* Find ammo in inventory */
+            int ammo_idx = -1;
+            const char *bow_ammo = "Arrows";
+            if (strstr(wpn->name, "Crossbow")) bow_ammo = "Bolts";
+            else if (strstr(wpn->name, "Sling")) bow_ammo = "Stones";
+
+            for (int ii = 0; ii < gs->num_items; ii++) {
+                if (strstr(gs->inventory[ii].name, bow_ammo) ||
+                    (strcmp(bow_ammo, "Arrows") == 0 &&
+                     (strstr(gs->inventory[ii].name, "Silver Arrows") ||
+                      strstr(gs->inventory[ii].name, "Fire Arrows")))) {
+                    ammo_idx = ii; break;
+                }
+            }
+
+            if (ammo_idx < 0) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                         "You have no %s! Buy some from a blacksmith.", bow_ammo);
+            } else {
+                /* Find nearest visible enemy within range */
+                int range = 6; /* default range */
+                if (wpn->template_id >= 0) {
+                    int tc; const ItemTemplate *tt = item_get_templates(&tc);
+                    if (wpn->template_id < tc) range = tt[wpn->template_id].max_depth > 0 ? tt[wpn->template_id].max_depth : 6;
+                }
+                DungeonLevel *dl_r = current_dungeon_level(gs);
+                if (dl_r) {
+                    Entity *best_target = NULL;
+                    int best_dist = 9999;
+                    for (int m = 0; m < dl_r->num_monsters; m++) {
+                        Entity *em = &dl_r->monsters[m];
+                        if (!em->alive) continue;
+                        if (!dl_r->tiles[em->pos.y][em->pos.x].visible) continue;
+                        int ddx = abs(em->pos.x - gs->player_pos.x);
+                        int ddy = abs(em->pos.y - gs->player_pos.y);
+                        int dist = (ddx > ddy) ? ddx : ddy;
+                        if (dist <= range && dist < best_dist) {
+                            best_dist = dist;
+                            best_target = em;
+                        }
+                    }
+
+                    if (!best_target) {
+                        log_add(&gs->log, gs->turn, CP_GRAY,
+                                 "No targets in range (%d tiles).", range);
+                    } else {
+                        /* Fire! */
+                        int ammo_pow = gs->inventory[ammo_idx].power;
+                        int dmg = wpn->power + ammo_pow + gs->str / 2 + rng_range(-1, 2);
+                        if (dmg < 1) dmg = 1;
+
+                        bool crit = rng_chance(10);
+                        if (crit) dmg *= 2;
+
+                        best_target->hp -= dmg;
+                        if (crit) {
+                            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                     "CRITICAL! You shoot the %s for %d damage!",
+                                     best_target->name, dmg);
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_WHITE,
+                                     "You shoot the %s for %d damage.",
+                                     best_target->name, dmg);
+                        }
+
+                        /* Consume ammo (50% recovery for non-stones) */
+                        bool recovered = (strcmp(bow_ammo, "Stones") != 0 && rng_chance(50));
+                        if (!recovered) {
+                            for (int j = ammo_idx; j < gs->num_items - 1; j++)
+                                gs->inventory[j] = gs->inventory[j + 1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_GRAY, "(Ammo recovered)");
+                        }
+
+                        if (best_target->hp <= 0) {
+                            best_target->alive = false;
+                            gs->xp += best_target->xp_reward;
+                            gs->kills++;
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "The %s is slain! +%d XP",
+                                     best_target->name, best_target->xp_reward);
+                            ai_explode_on_death(gs, best_target);
+                        }
+
+                        advance_time(gs, 1);
+                        dungeon_enemy_turns(gs);
+                    }
+                }
+            }
+        }
         return;
     }
 
@@ -7755,11 +7890,19 @@ void game_handle_input(GameState *gs, int key) {
                 attroff(COLOR_PAIR(CP_RED));
             } else {
                 const char *disp_name = potion_display_name(gs, it);
-                attron(COLOR_PAIR(it->color_pair));
-                mvprintw(row++, 4, "%c) %s [%s] pow:%d val:%dg",
-                         'a' + ii, disp_name, item_type_name(it->type),
+                const char *buc_str = "";
+                if (it->buc_known) {
+                    if (it->buc == 3) buc_str = "blessed ";
+                    else if (it->buc == 1) buc_str = "cursed ";
+                }
+                short disp_color = it->color_pair;
+                if (it->buc_known && it->buc == 1) disp_color = CP_RED;
+                if (it->buc_known && it->buc == 3) disp_color = CP_YELLOW_BOLD;
+                attron(COLOR_PAIR(disp_color));
+                mvprintw(row++, 4, "%c) %s%s [%s] pow:%d val:%dg",
+                         'a' + ii, buc_str, disp_name, item_type_name(it->type),
                          it->power, it->value);
-                attroff(COLOR_PAIR(it->color_pair));
+                attroff(COLOR_PAIR(disp_color));
             }
         }
         row++;
@@ -9294,9 +9437,17 @@ static void game_render(GameState *gs) {
 }
 
 void game_run(GameState *gs) {
+    /* Flush any stale input before entering loop */
+    flushinp();
+    nodelay(stdscr, TRUE);
+    while (getch() != ERR) {} /* drain buffer */
+    nodelay(stdscr, FALSE);
+
     while (gs->running) {
         game_render(gs);
         int key = ui_getkey();
+        /* Ignore null/invalid keys */
+        if (key == ERR || key == 0) continue;
         game_handle_input(gs, key);
         game_update(gs);
     }

@@ -307,6 +307,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 |-----|--------|
 | `<` | Ascend stairs (return to overworld from level 1) |
 | `>` | Descend stairs / use exit portal |
+| `f` | Fire ranged weapon at nearest visible enemy (requires bow/crossbow + ammo) |
 | `g` | Pick up item on the ground |
 | `i` | Open inventory |
 | `z` | Cast a spell |
@@ -554,6 +555,30 @@ Dungeons are dark -- without a light source your vision radius is only **2 tiles
 - **Damage**: your STR + weapon power + random(-2,2) - enemy DEF - armor (minimum 1).
 - **Shield spell**: absorbs damage before it hits your HP.
 - **Equipped rings and amulets** add their power bonus to your stats.
+- **BUC bonus**: blessed weapons deal +2 damage, cursed weapons deal -2.
+
+#### Ranged Combat
+Press **`f`** in a dungeon to fire your ranged weapon at the nearest visible enemy:
+- **Requires**: a ranged weapon equipped (Short Bow, Longbow, Crossbow, or Sling) AND matching ammo in inventory
+- **Ammo types**: Arrows (for bows), Bolts (crossbow), Stones (sling), Throwing Knives (standalone). Also Silver Arrows and Fire Arrows
+- **Range**: Short Bow 6 tiles, Longbow 10, Crossbow 8, Sling 5
+- **Damage**: weapon power + ammo modifier + STR/2 + random
+- **Ammo recovery**: 50% chance to recover arrows/bolts after firing (stones consumed)
+- **Critical hits**: 10% chance for double damage, same as melee
+- Buy ammo from Blacksmiths, find in dungeons
+
+#### Blessed / Cursed / Uncursed (BUC)
+Every item has a hidden BUC state: **Blessed** (10%), **Uncursed** (75%), or **Cursed** (15%). BUC is unknown until identified.
+
+**Identify BUC**: pray at a church (`p`) -- the holy light reveals the BUC state of all carried items.
+
+**Effects**:
+- **Blessed** (shown in yellow): weapons +2 damage, potions heal more, armor +1 DEF
+- **Cursed** (shown in red): weapons -2 damage, armor -1 DEF
+- **Uncursed**: normal effects
+
+#### Wandering Spirits
+At **night** on the overworld, spectral presences may drain your MP (1-3 MP, ~7% chance per 15 turns). Stay indoors or carry holy items to avoid them.
 
 #### Monster AI
 Monsters use A* pathfinding to chase you through corridors and around obstacles.

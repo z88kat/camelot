@@ -47,9 +47,11 @@ int main(int argc, char *argv[]) {
         GameState gs;
         if (load && save_exists()) {
             /* Load saved game -- need to reinitialize heap data */
-            if (!load_game(&gs) || gs.player_name[0] == '\0') {
+            bool load_ok = load_game(&gs);
+            if (!load_ok || gs.player_name[0] == '\0') {
                 /* Load failed or corrupt save, start new game */
                 delete_save();
+                load = false;
                 game_init(&gs);
             } else {
                 entity_init();
@@ -91,6 +93,11 @@ int main(int argc, char *argv[]) {
     /* Shutdown */
     ui_shutdown();
 
+    if (play && load) {
+        printf("DEBUG: Game exited after continue. running=%d mode=%d\n", 0, 0);
+        printf("If this happened immediately, the save may be corrupt.\n");
+        printf("Delete ~/.camelot/save.dat and try again.\n");
+    }
     printf("Thanks for playing Knights of Camelot!\n");
     printf("Game seed: %llu\n", (unsigned long long)rng_get_seed());
     return 0;
