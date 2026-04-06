@@ -8,7 +8,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 
 ## Current State
 
-**Implemented (Phases 1-13):**
+**Implemented (Phases 1-14):**
 - Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling, random gold (30-200)
 - 50-spell system with Light, Dark, Nature, and Universal schools
 - A* pathfinding and FSM AI for monsters (IDLE/CHASE/FLEE states)
@@ -324,6 +324,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 ### UI (all modes)
 | Key | Action |
 |-----|--------|
+| `?` | Help system (4 pages: commands, UI/items, symbols, tips) |
 | `@` | Character sheet (appearance, stats, affinities, combat info) |
 | `i` | Inventory |
 | `z` | Cast spell (overworld/dungeon) |
@@ -1023,6 +1024,25 @@ Visit **Camelot** town and press **`V`** to enter your home. Your home has:
   - `r` to rest
 
 This creates a **meta-progression loop**: stash good weapons, rings, and potions for future characters. Combined with the bank (cross-game gold persistence -- not yet implemented), your legacy grows with each playthrough.
+
+### In-Game Help
+Press **`?`** at any time to open the help system. 4 pages, navigate with `<` `>` or arrow keys:
+
+1. **Commands** -- all keybindings for movement, overworld, and dungeon
+2. **UI & Items** -- character sheet, inventory, shops, spellbook, quest journal
+3. **Symbols** -- legend of all ASCII characters (NPCs, terrain, items, overworld)
+4. **Tips** -- gameplay advice for new players
+
+Press `q` to close.
+
+### Morgue Files
+When you die, a detailed text file is saved to `~/.camelot/morgue/[name]_day[N].txt` containing:
+- Character name, class, level, cause of death
+- Final stats, chivalry, equipment, inventory
+- Quests completed, spells known, kills, score
+- Game seed (for challenge runs or sharing)
+
+Morgue files persist indefinitely and can be shared for comparing runs.
 
 ## Building
 

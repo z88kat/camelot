@@ -3,6 +3,7 @@
 #include "rng.h"
 #include "pathfind.h"
 #include "save.h"
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -104,6 +105,50 @@ static void show_death_screen(GameState *gs) {
     snprintf(hero.title, sizeof(hero.title), "%s", chivalry_title(gs->chivalry));
     fallen_add(&hero);
 
+    /* Write morgue file */
+    {
+        save_ensure_dir();
+        char morgue_dir[300], morgue_path[350];
+        const char *home = getenv("HOME");
+        if (!home) home = ".";
+        snprintf(morgue_dir, sizeof(morgue_dir), "%s/.camelot/morgue", home);
+        mkdir(morgue_dir, 0755);
+        snprintf(morgue_path, sizeof(morgue_path), "%s/%s_day%d.txt",
+                 morgue_dir, gs->player_name, gs->day);
+        FILE *mf = fopen(morgue_path, "w");
+        if (mf) {
+            fprintf(mf, "=== Knights of Camelot -- Morgue File ===\n");
+            fprintf(mf, "Version: %s\n\n", GAME_VERSION_STRING);
+            fprintf(mf, "Name:  %s\n", gs->player_name);
+            fprintf(mf, "Class: %s\n", class_names[gs->player_class]);
+            fprintf(mf, "Title: %s\n", chivalry_title(gs->chivalry));
+            fprintf(mf, "Level: %d\n\n", gs->player_level);
+            fprintf(mf, "Cause of death: %s\n\n", gs->cause_of_death);
+            fprintf(mf, "STR: %d  DEF: %d  INT: %d  SPD: %d\n",
+                    gs->str, gs->def, gs->intel, gs->spd);
+            fprintf(mf, "HP: %d/%d  MP: %d/%d\n", gs->hp, gs->max_hp, gs->mp, gs->max_mp);
+            fprintf(mf, "Chivalry: %d  Gold: %d\n", gs->chivalry, gs->gold);
+            fprintf(mf, "Kills: %d  Turns: %d  Days: %d\n", gs->kills, gs->turn, gs->day);
+            fprintf(mf, "Quests: %d/%d  Spells: %d\n",
+                    quest_count_completed(&gs->quests), gs->quests.num_quests, gs->num_spells);
+            fprintf(mf, "Grail: %s\n\n", gs->quests.grail_quest_complete ? "FOUND" : "not found");
+            fprintf(mf, "Score: %d%s\n\n", score, gs->cheat_mode ? " (CHEAT)" : "");
+            fprintf(mf, "Equipment:\n");
+            const char *slot_names_m[] = {"Weapon","Armor","Shield","Helmet","Boots","Gloves","Ring1","Ring2","Amulet"};
+            for (int s = 0; s < NUM_SLOTS; s++) {
+                if (gs->equipment[s].template_id >= 0)
+                    fprintf(mf, "  %s: %s (pow:%d)\n", slot_names_m[s], gs->equipment[s].name, gs->equipment[s].power);
+            }
+            fprintf(mf, "\nInventory (%d items):\n", gs->num_items);
+            for (int ii = 0; ii < gs->num_items; ii++) {
+                if (gs->inventory[ii].template_id < 0) continue;
+                fprintf(mf, "  %s\n", gs->inventory[ii].name);
+            }
+            fprintf(mf, "\nGame seed: %llu\n", (unsigned long long)rng_get_seed());
+            fclose(mf);
+        }
+    }
+
     /* Delete save */
     delete_save();
 }
@@ -134,7 +179,11 @@ int show_title_screen(void) {
     attron(COLOR_PAIR(CP_WHITE));
     mvprintw(row++, 10, "The Quest for the Holy Grail");
     attroff(COLOR_PAIR(CP_WHITE));
-    row += 2;
+    row++;
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row++, 10, "Version %s", GAME_VERSION_STRING);
+    attroff(COLOR_PAIR(CP_GRAY));
+    row++;
 
     int menu_row = row;
     attron(COLOR_PAIR(CP_CYAN));
@@ -8403,6 +8452,171 @@ void game_handle_input(GameState *gs, int key) {
         attroff(COLOR_PAIR(CP_GRAY));
         ui_refresh();
         ui_getkey();
+        return;
+    }
+
+    /* In-game help system (? key) */
+    if (key == '?') {
+        static const char *help_pages[] = {
+            /* Page 0: Commands */
+            "=== COMMANDS ===\n"
+            "\n"
+            "MOVEMENT:\n"
+            "  h j k l y u b n  Move (vi-keys, 8-dir)\n"
+            "  Arrow keys        Move (4-dir)\n"
+            "  . or 5            Wait one turn\n"
+            "\n"
+            "OVERWORLD:\n"
+            "  Enter   Enter town/castle/landmark\n"
+            "  >       Enter dungeon or abandoned castle\n"
+            "  c       Camp (rest 8 hours)\n"
+            "  f       Fish (next to water)\n"
+            "  F       Forage for food\n"
+            "  K       Cook raw food\n"
+            "  x       Dig for treasure\n"
+            "  H       Mount/dismount horse\n"
+            "  S       Save game\n"
+            "\n"
+            "DUNGEON:\n"
+            "  < >     Ascend/descend stairs\n"
+            "  g       Pick up item\n"
+            "  f       Fire ranged weapon\n"
+            "  o+dir   Open door\n"
+            "  c+dir   Close door\n"
+            "  s       Search walls for secrets\n"
+            "  D       Disarm adjacent trap\n"
+            "  R       Rest to recover HP/MP\n"
+            "  T       Light/extinguish torch\n",
+
+            /* Page 1: UI & Items */
+            "=== UI & ITEMS ===\n"
+            "\n"
+            "  @       Character sheet\n"
+            "  i       Inventory\n"
+            "  z       Cast spell\n"
+            "  Z       View spellbook\n"
+            "  J       Quest journal\n"
+            "  ;       Look/identify mode\n"
+            "  M       Minimap (L=labels, arrows=scroll)\n"
+            "  P       Message history\n"
+            "  q       Quit (save prompt)\n"
+            "\n"
+            "INVENTORY:\n"
+            "  e       Equip item\n"
+            "  d       Drop item\n"
+            "  u       Use item (potions/food/scrolls)\n"
+            "\n"
+            "SHOPS:\n"
+            "  a-z     Buy item\n"
+            "  S       Sell\n"
+            "  h       Haggle for discount\n"
+            "  t       Steal (risky!)\n"
+            "\n"
+            "TOWN:\n"
+            "  V       Visit home (Camelot)\n"
+            "  q       Leave town\n",
+
+            /* Page 2: Symbols */
+            "=== SYMBOLS ===\n"
+            "\n"
+            "PLAYER & NPCs:\n"
+            "  @  You    K  King    Q  Queen   G  Guard\n"
+            "  I  Inn    P  Priest  $  Smith   !  Apothecary\n"
+            "  %  Baker  *  Jewel   ~  Springs +  Graveyard\n"
+            "  c  Cat    d  Dog     T  Folk    M  Monk\n"
+            "\n"
+            "TERRAIN:\n"
+            "  #  Wall   .  Floor   +  Door    /  Open door\n"
+            "  ~  Water  ^  Lava    _  Ice     \"  Fungus\n"
+            "  <  Up     >  Down    0  Portal  =  Chest\n"
+            "\n"
+            "OVERWORLD:\n"
+            "  *  Town   #  Castle  A  Abbey   >  Dungeon\n"
+            "  n  Cottage O Cave    (  Circle  V  Volcano\n"
+            "  \"  Grass  T  Forest  ^  Hills   ~  Sea\n"
+            "  .  Road   H  Bridge  =  River   B  Boat\n"
+            "\n"
+            "ITEMS:\n"
+            "  |  Weapon  [  Armor   )  Shield  ^  Helmet\n"
+            "  ]  Boot/Glove  !  Potion  ?  Scroll\n"
+            "  o  Ring    \"  Amulet  *  Gem    &  Treasure\n"
+            "  %  Food    (  Tool    $  Gold   /  Ammo\n",
+
+            /* Page 3: Tips */
+            "=== TIPS ===\n"
+            "\n"
+            "- Visit King Arthur at Camelot Castle first!\n"
+            "- Buy a horse early -- it halves travel time.\n"
+            "- Pray at churches to identify BUC state.\n"
+            "- Fish near water for free food.\n"
+            "- Cook raw meat (K) for 3x healing.\n"
+            "- Eat fish within 2 days or it spoils!\n"
+            "- Torches burn out -- carry spares or a lantern.\n"
+            "- Merlin (Glastonbury) always gives true Grail hints.\n"
+            "- Bath hot springs cure ALL curses for free.\n"
+            "- Stash items at home (V in Camelot) -- they\n"
+            "  persist across deaths!\n"
+            "- Save often (S on overworld).\n"
+            "- High chivalry = better prices and quests.\n"
+            "- Beware wood nymphs in forests -- they steal!\n"
+            "- Travellers may pickpocket you (5% chance).\n"
+            "- The Grail is in a random dungeon each game.\n"
+            "- Rescue the princess for the TRUE ending.\n"
+            "- Camp (c) restores 50% HP/MP but risks ambush.\n"
+            "- Tournament timing: press SPACE at the right\n"
+            "  moment for a perfect hit!\n"
+        };
+        int num_pages = 4;
+        int page = 0;
+
+        while (1) {
+            ui_clear();
+            int term_rows_hp, term_cols_hp;
+            ui_get_size(&term_rows_hp, &term_cols_hp);
+
+            /* Render current page */
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(0, 2, "HELP -- Page %d/%d -- [</>] Page  [q] Close", page + 1, num_pages);
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+
+            const char *text = help_pages[page];
+            int row = 2;
+            const char *p = text;
+            while (*p && row < term_rows_hp - 1) {
+                /* Find end of line */
+                const char *eol = p;
+                while (*eol && *eol != '\n') eol++;
+                int len = (int)(eol - p);
+                if (len > term_cols_hp - 4) len = term_cols_hp - 4;
+
+                /* Color headers */
+                if (len > 3 && p[0] == '=' && p[1] == '=' && p[2] == '=') {
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    mvprintw(row, 2, "%.*s", len, p);
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                } else if (len > 0 && p[len-1] == ':') {
+                    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                    mvprintw(row, 2, "%.*s", len, p);
+                    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                } else if (len > 2 && p[0] == '-') {
+                    attron(COLOR_PAIR(CP_CYAN));
+                    mvprintw(row, 2, "%.*s", len, p);
+                    attroff(COLOR_PAIR(CP_CYAN));
+                } else {
+                    attron(COLOR_PAIR(CP_WHITE));
+                    mvprintw(row, 2, "%.*s", len, p);
+                    attroff(COLOR_PAIR(CP_WHITE));
+                }
+                row++;
+                p = *eol ? eol + 1 : eol;
+            }
+            ui_refresh();
+
+            int hk = ui_getkey();
+            if (hk == 'q' || hk == 'Q' || hk == 27 || hk == '?') break;
+            if ((hk == '>' || hk == KEY_RIGHT || hk == 'l') && page < num_pages - 1) page++;
+            if ((hk == '<' || hk == KEY_LEFT || hk == 'h') && page > 0) page--;
+        }
         return;
     }
 

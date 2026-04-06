@@ -1,6 +1,12 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+/* Game version */
+#define GAME_VERSION_MAJOR 0
+#define GAME_VERSION_MINOR 14
+#define GAME_VERSION_PATCH 0
+#define GAME_VERSION_STRING "0.14.0"
+
 #include <stdbool.h>
 #include <stdint.h>
 

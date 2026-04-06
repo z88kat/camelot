@@ -15,7 +15,7 @@
 - [x] **Phase 11** -- Character Creation, Classes, Spells (50 spells, affiliations, chivalry, spell scrolls)
 - [x] **Phase 12** -- Dungeon Bosses & The Holy Grail (Round Table membership)
 - [x] **Phase 13** -- Save/Load, Permadeath, Death Screen & High Scores (bank, graveyard, fallen heroes)
-- [ ] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
+- [x] **Phase 14** -- Help System, Settings, Title Screen, Special Events & Polish
 
 ### Data Files Checklist
 - [x] `data/monsters.csv` -- 85+ monsters with stats, AI flags, drops

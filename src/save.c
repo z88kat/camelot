@@ -1,11 +1,12 @@
 #include "save.h"
+#include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
 static const char MAGIC[] = "CMLT";
-static const int SAVE_VERSION = 3;
+static const int SAVE_VERSION = GAME_VERSION_MINOR;
 
 static void get_save_dir(char *buf, int bufsize) {
     const char *home = getenv("HOME");
