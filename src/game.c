@@ -3679,50 +3679,58 @@ static void handle_overworld_input(GameState *gs, int key) {
         }
 
         bool show_labels = true;
+        Vec2 map_cursor = gs->player_pos; /* virtual centre for scrolling */
 
         while (1) {
             ui_render_minimap((Tile *)gs->overworld->map, OW_WIDTH, OW_HEIGHT,
-                              gs->player_pos, loc_info);
+                              map_cursor, loc_info);
 
-            /* Calculate minimap scaling (must match ui_render_minimap internals) */
+            /* Calculate scaling to match ui_render_minimap proportional mode */
             int term_rows_m, term_cols_m;
             getmaxyx(stdscr, term_rows_m, term_cols_m);
             int avail_cols_m = term_cols_m - 2;
             int avail_rows_m = term_rows_m - 3;
-            int sx_m = (OW_WIDTH + avail_cols_m - 1) / avail_cols_m;
-            int sy_m = (OW_HEIGHT + avail_rows_m - 1) / avail_rows_m;
-            if (sx_m < 1) sx_m = 1;
-            if (sy_m < 1) sy_m = 1;
-            int mini_w_m = OW_WIDTH / sx_m;
-            int mini_h_m = OW_HEIGHT / sy_m;
-            if (mini_w_m > avail_cols_m) mini_w_m = avail_cols_m;
-            if (mini_h_m > avail_rows_m) mini_h_m = avail_rows_m;
-            int off_x_m = (term_cols_m - mini_w_m) / 2;
-            int off_y_m = 1 + (avail_rows_m - mini_h_m) / 2;
+            int scale_m = (OW_WIDTH + avail_cols_m - 1) / avail_cols_m;
+            if (scale_m < 1) scale_m = 1;
+            int row_scale_m = scale_m * 2;
+            int view_w_m = avail_cols_m;
+            int view_h_m = avail_rows_m;
+            int map_view_w_m = view_w_m * scale_m;
+            int map_view_h_m = view_h_m * row_scale_m;
+
+            /* Camera (must match ui.c logic) */
+            int cam_x_m = map_cursor.x - map_view_w_m / 2;
+            int cam_y_m = map_cursor.y - map_view_h_m / 2;
+            if (cam_x_m < 0) cam_x_m = 0;
+            if (cam_y_m < 0) cam_y_m = 0;
+            if (cam_x_m + map_view_w_m > OW_WIDTH) cam_x_m = OW_WIDTH - map_view_w_m;
+            if (cam_y_m + map_view_h_m > OW_HEIGHT) cam_y_m = OW_HEIGHT - map_view_h_m;
+            if (cam_x_m < 0) cam_x_m = 0;
+            if (cam_y_m < 0) cam_y_m = 0;
+
+            int off_x_m = 1;
+            int off_y_m = 1;
 
             /* Draw location labels on the minimap */
             if (show_labels) {
                 for (int i = 0; i < gs->overworld->num_locations; i++) {
                     Location *ll = &gs->overworld->locations[i];
-                    /* Only label towns, castles, dungeons, abbeys */
                     if (ll->type != LOC_TOWN && ll->type != LOC_CASTLE_ACTIVE &&
                         ll->type != LOC_DUNGEON_ENTRANCE && ll->type != LOC_ABBEY &&
                         ll->type != LOC_VOLCANO && ll->type != LOC_CASTLE_ABANDONED)
                         continue;
 
-                    int lx = ll->pos.x / sx_m;
-                    int ly = ll->pos.y / sy_m;
-                    if (lx < 0 || lx >= mini_w_m || ly < 0 || ly >= mini_h_m) continue;
+                    int lx = (ll->pos.x - cam_x_m) / scale_m;
+                    int ly = (ll->pos.y - cam_y_m) / row_scale_m;
+                    if (lx < 0 || lx >= view_w_m || ly < 0 || ly >= view_h_m) continue;
 
-                    /* Draw the location glyph highlighted */
                     attron(COLOR_PAIR(ll->color_pair) | A_BOLD);
                     mvaddch(off_y_m + ly, off_x_m + lx, ll->glyph);
                     attroff(COLOR_PAIR(ll->color_pair) | A_BOLD);
 
-                    /* Draw name label to the right (truncate if needed) */
                     int label_x = off_x_m + lx + 1;
-                    int max_len = off_x_m + mini_w_m - label_x;
-                    if (max_len > 0 && max_len > 3) {
+                    int max_len = off_x_m + view_w_m - label_x;
+                    if (max_len > 3) {
                         int nlen = (int)strlen(ll->name);
                         if (nlen > max_len) nlen = max_len;
                         attron(COLOR_PAIR(CP_WHITE));
@@ -3732,24 +3740,38 @@ static void handle_overworld_input(GameState *gs, int key) {
                 }
 
                 /* Redraw player on top */
-                int ppx = gs->player_pos.x / sx_m;
-                int ppy = gs->player_pos.y / sy_m;
-                if (ppx >= 0 && ppx < mini_w_m && ppy >= 0 && ppy < mini_h_m) {
+                int ppx = (gs->player_pos.x - cam_x_m) / scale_m;
+                int ppy = (gs->player_pos.y - cam_y_m) / row_scale_m;
+                if (ppx >= 0 && ppx < view_w_m && ppy >= 0 && ppy < view_h_m) {
                     attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
                     mvaddch(off_y_m + ppy, off_x_m + ppx, '@');
                     attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
                 }
             }
 
-            /* Toggle hint */
             attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(term_rows_m - 2, 1, "[L] Toggle labels  [any other key] Close");
+            mvprintw(term_rows_m - 2, 1,
+                     "[arrows] Scroll  [L] Labels  [p] Centre on player  [any] Close");
             attroff(COLOR_PAIR(CP_GRAY));
             refresh();
 
             int mk = getch();
             if (mk == 'L' || mk == 'l') {
                 show_labels = !show_labels;
+            } else if (mk == KEY_UP || mk == 'k') {
+                map_cursor.y -= row_scale_m * 3;
+                if (map_cursor.y < 0) map_cursor.y = 0;
+            } else if (mk == KEY_DOWN || mk == 'j') {
+                map_cursor.y += row_scale_m * 3;
+                if (map_cursor.y >= OW_HEIGHT) map_cursor.y = OW_HEIGHT - 1;
+            } else if (mk == KEY_LEFT || mk == 'h') {
+                map_cursor.x -= scale_m * 5;
+                if (map_cursor.x < 0) map_cursor.x = 0;
+            } else if (mk == KEY_RIGHT || mk == 'l') {
+                map_cursor.x += scale_m * 5;
+                if (map_cursor.x >= OW_WIDTH) map_cursor.x = OW_WIDTH - 1;
+            } else if (mk == 'p' || mk == 'P') {
+                map_cursor = gs->player_pos; /* re-centre on player */
             } else {
                 break;
             }
