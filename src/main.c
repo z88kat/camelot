@@ -83,6 +83,8 @@ int main(int argc, char *argv[]) {
         }
         /* Safety: ensure game is running before entering loop */
         gs.running = true;
+        /* Flush any leftover input from title screen */
+        flushinp();
         game_run(&gs);
     }
 

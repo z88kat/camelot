@@ -142,6 +142,7 @@ typedef struct {
 
     /* Character creation step */
     int        create_step;  /* 0=class, 1=gender, 2=name, 3=appearance, 4=stats, 5=story */
+    char       start_town[MAX_NAME]; /* cheat: start at different town */
 
     /* Time */
     int        turn;

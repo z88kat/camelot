@@ -8400,8 +8400,21 @@ static void finalize_character(GameState *gs) {
         }
     }
 
-    /* Place player at Camelot */
-    gs->player_pos = (Vec2){ 211, 162 };
+    /* Place player at starting town */
+    if (gs->start_town[0] != '\0') {
+        /* Cheat: find the chosen town on the overworld */
+        bool found = false;
+        for (int i = 0; i < gs->overworld->num_locations; i++) {
+            if (strcmp(gs->overworld->locations[i].name, gs->start_town) == 0) {
+                gs->player_pos = gs->overworld->locations[i].pos;
+                found = true;
+                break;
+            }
+        }
+        if (!found) gs->player_pos = (Vec2){ 211, 162 };
+    } else {
+        gs->player_pos = (Vec2){ 211, 162 }; /* Default: Camelot */
+    }
     gs->ow_player_pos = gs->player_pos;
 
     gs->mode = MODE_OVERWORLD;
@@ -8681,6 +8694,7 @@ static void handle_character_create(GameState *gs, int key) {
             mvprintw(row++, 6, "[2] Rich Start (Gold 9999)");
             mvprintw(row++, 6, "[3] Max Stats (all 15)");
             mvprintw(row++, 6, "[4] All of the above");
+            mvprintw(row++, 6, "[5] Choose starting town");
             mvprintw(row++, 6, "[q] Cancel -- no cheats");
             attroff(COLOR_PAIR(CP_CYAN));
             ui_refresh();
@@ -8697,6 +8711,34 @@ static void handle_character_create(GameState *gs, int key) {
                 }
                 if (ck == '3' || ck == '4') {
                     gs->str = 15; gs->def = 15; gs->intel = 15; gs->spd = 15;
+                }
+            } else if (ck == '5') {
+                gs->cheat_mode = true;
+                ui_clear();
+                int tr = 2;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(tr++, 4, "=== Choose Starting Town ===");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                tr++;
+                const char *towns[] = {
+                    "Camelot", "London", "York", "Winchester", "Canterbury",
+                    "Glastonbury", "Bath", "Sherwood", "Tintagel", "Cornwall",
+                    "Wales", "Whitby"
+                };
+                attron(COLOR_PAIR(CP_CYAN));
+                for (int ti = 0; ti < 12; ti++) {
+                    mvprintw(tr++, 6, "[%c] %s", 'a' + ti, towns[ti]);
+                }
+                attroff(COLOR_PAIR(CP_CYAN));
+                tr++;
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(tr, 6, "Press a letter, or q to keep Camelot.");
+                attroff(COLOR_PAIR(CP_GRAY));
+                ui_refresh();
+
+                int tk = ui_getkey();
+                if (tk >= 'a' && tk < 'a' + 12) {
+                    snprintf(gs->start_town, MAX_NAME, "%s", towns[tk - 'a']);
                 }
             }
         } else if (key == '\n' || key == '\r' || key == KEY_ENTER) {
