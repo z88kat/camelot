@@ -531,15 +531,15 @@ static int ow_add_location(Overworld *ow, const char *name, LocationType type,
     loc->discovered = false;
     loc->id = ow->num_locations;
 
-    /* Place glyph on map -- towns and castles get 3x3 footprint */
+    /* Place glyph on map -- towns and castles get 2x2 footprint */
     bool large = (type == LOC_TOWN || type == LOC_CASTLE_ACTIVE ||
                   type == LOC_CASTLE_ABANDONED || type == LOC_ABBEY);
     if (large) {
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = 0; dy <= 1; dy++) {
+            for (int dx = 0; dx <= 1; dx++) {
                 int nx = x + dx, ny = y + dy;
                 if (nx >= 0 && nx < OW_WIDTH && ny >= 0 && ny < OW_HEIGHT) {
-                    ow->map[ny][nx].glyph = (dx == 0 && dy == 0) ? glyph : '.';
+                    ow->map[ny][nx].glyph = glyph;
                     ow->map[ny][nx].color_pair = color;
                     ow->map[ny][nx].passable = true;
                 }
@@ -866,7 +866,18 @@ void overworld_init(Overworld *ow) {
 
 Location *overworld_location_at(Overworld *ow, int x, int y) {
     for (int i = 0; i < ow->num_locations; i++) {
-        if (ow->locations[i].pos.x == x && ow->locations[i].pos.y == y)
+        int dx = abs(ow->locations[i].pos.x - x);
+        int dy = abs(ow->locations[i].pos.y - y);
+        /* Large locations (towns/castles/abbeys) have 2x2 footprint */
+        bool large = (ow->locations[i].type == LOC_TOWN ||
+                      ow->locations[i].type == LOC_CASTLE_ACTIVE ||
+                      ow->locations[i].type == LOC_CASTLE_ABANDONED ||
+                      ow->locations[i].type == LOC_ABBEY);
+        int ldx = x - ow->locations[i].pos.x;
+        int ldy = y - ow->locations[i].pos.y;
+        if (large && ldx >= 0 && ldx <= 1 && ldy >= 0 && ldy <= 1)
+            return &ow->locations[i];
+        if (!large && dx == 0 && dy == 0)
             return &ow->locations[i];
     }
     return NULL;

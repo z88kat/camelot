@@ -3,7 +3,7 @@
 # type: town,castle_active,castle_abandoned,landmark,dungeon,cottage,cave,volcano,magic_circle,abbey
 # color: brown,gray,green,yellow,red,white,cyan,magenta,yellow_bold,white_bold,green_bold,red_bold,cyan_bold,magenta_bold,blue,gray
 # Towns
-Camelot,town,212,162,*,yellow_bold
+Camelot,town,211,162,*,yellow_bold
 London,town,312,181,*,white_bold
 Canterbury,town,375,194,*,white_bold
 Winchester,town,238,194,*,white
@@ -36,17 +36,17 @@ Castle Dolorous Garde,castle_abandoned,250,106,#,gray
 Castle Perilous,castle_abandoned,181,172,#,magenta
 Bamburgh Castle,castle_abandoned,281,60,#,gray
 # Landmarks
-Your Home,landmark,213,163,h,white_bold
+# Your Home is inside Camelot town (press V to visit)
 Stonehenge,landmark,231,198,+,yellow
 Hadrian's Wall,landmark,238,65,+,white
 White Cliffs,landmark,440,215,+,white_bold
 Faerie Ring,landmark,244,115,o,green_bold
 Faerie Ring,landmark,144,181,o,green_bold
 # Dungeon Entrances
-Camelot Catacombs,dungeon,216,164,>,white
+Camelot Catacombs,dungeon,218,164,>,white
 Tintagel Caves,dungeon,91,195,>,white
 Sherwood Depths,dungeon,265,121,>,white
-Glastonbury Tor,dungeon,196,189,>,white
+Glastonbury Tor,dungeon,198,190,>,white
 White Cliffs Cave,dungeon,442,217,>,cyan
 Whitby Abbey,dungeon,334,89,>,red
 # Volcano
@@ -62,11 +62,11 @@ Magic Circle,magic_circle,195,55,(,blue
 Westminster Abbey,abbey,255,148,A,white_bold
 Whitby Abbey,abbey,268,72,A,gray
 Rievaulx Abbey,abbey,258,82,A,white
-Bath Abbey,abbey,164,177,A,white
+Bath Abbey,abbey,166,175,A,white
 St Mary's Abbey,abbey,272,96,A,white
 Cleeve Abbey,abbey,125,180,A,white
 Mount Grace Priory,abbey,250,78,A,white
-Camelot Abbey,abbey,208,160,A,white_bold
+Camelot Abbey,abbey,207,162,A,white_bold
 # Misc
 Cave,cave,218,166,O,gray
 # Island locations

@@ -7141,7 +7141,88 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
-    /* Look/identify mode (; key) -- examine visible tiles */
+    /* Overworld look/identify mode (; key) */
+    if (key == ';' && gs->mode == MODE_OVERWORLD) {
+        log_add(&gs->log, gs->turn, CP_WHITE, "Look mode: move cursor to examine. Press ; or Esc to exit.");
+        Vec2 cursor = gs->player_pos;
+
+        while (1) {
+            game_render(gs);
+
+            /* Draw cursor */
+            int term_rows_l, term_cols_l;
+            ui_get_size(&term_rows_l, &term_cols_l);
+            bool show_sb = (term_cols_l >= MIN_TERM_WIDTH);
+            int vw = show_sb ? (term_cols_l - SIDEBAR_WIDTH - 1) : term_cols_l;
+            int vh = term_rows_l - LOG_LINES - 2;
+            if (vh > VIEW_HEIGHT_DEFAULT) vh = VIEW_HEIGHT_DEFAULT;
+            if (vh < 5) vh = 5;
+            int cam_x = gs->player_pos.x - vw / 2;
+            int cam_y = gs->player_pos.y - vh / 2;
+            if (cam_x < 0) cam_x = 0;
+            if (cam_y < 0) cam_y = 0;
+            if (cam_x + vw > OW_WIDTH) cam_x = OW_WIDTH - vw;
+            if (cam_y + vh > OW_HEIGHT) cam_y = OW_HEIGHT - vh;
+
+            int cx = cursor.x - cam_x;
+            int cy = cursor.y - cam_y;
+            if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+                mvaddch(cy, cx, 'X');
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+            }
+
+            /* Show info about cursor position */
+            int info_row = vh + 1;
+            attron(COLOR_PAIR(CP_WHITE));
+            /* Check for location */
+            Location *loc_l = overworld_location_at(gs->overworld, cursor.x, cursor.y);
+            if (loc_l) {
+                const char *type_names[] = {
+                    "None", "Town", "Castle", "Abandoned Castle", "Landmark",
+                    "Dungeon", "Cottage", "Cave", "Volcano", "Magic Circle", "Abbey"
+                };
+                const char *tname = (loc_l->type < 11) ? type_names[loc_l->type] : "Location";
+                mvprintw(info_row, 1, "%-40s [%s]                    ", loc_l->name, tname);
+            } else {
+                /* Check for creature */
+                OWCreature *cr = overworld_creature_at(gs->overworld, cursor.x, cursor.y);
+                if (cr) {
+                    if (cr->hostile) {
+                        mvprintw(info_row, 1, "%-20s HP:%d/%d STR:%d DEF:%d XP:%d        ",
+                                 cr->name, cr->hp, cr->max_hp, cr->str, cr->def, cr->xp_reward);
+                    } else {
+                        mvprintw(info_row, 1, "%-20s (friendly)                              ", cr->name);
+                    }
+                } else {
+                    Tile *tl = &gs->overworld->map[cursor.y][cursor.x];
+                    const char *tn = terrain_name(tl->type);
+                    mvprintw(info_row, 1, "Terrain: %-20s                               ", tn);
+                }
+            }
+            attroff(COLOR_PAIR(CP_WHITE));
+
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(info_row + 1, 1, "Look mode: move cursor to examine. Press ; or Esc to exit.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            int lkey = ui_getkey();
+            if (lkey == 27 || lkey == ';') break;
+            Direction ldir = key_to_direction(lkey);
+            if (ldir != DIR_NONE) {
+                cursor.x += dir_dx[ldir];
+                cursor.y += dir_dy[ldir];
+                if (cursor.x < 0) cursor.x = 0;
+                if (cursor.y < 0) cursor.y = 0;
+                if (cursor.x >= OW_WIDTH) cursor.x = OW_WIDTH - 1;
+                if (cursor.y >= OW_HEIGHT) cursor.y = OW_HEIGHT - 1;
+            }
+        }
+        return;
+    }
+
+    /* Dungeon look/identify mode (; key) -- examine visible tiles */
     if (key == ';' && gs->mode == MODE_DUNGEON && gs->dungeon) {
         log_add(&gs->log, gs->turn, CP_WHITE, "Look mode: move cursor to examine. Press ; or Esc to exit.");
 
@@ -8020,7 +8101,7 @@ static void finalize_character(GameState *gs) {
     }
 
     /* Place player at Camelot */
-    gs->player_pos = (Vec2){ 212, 162 };
+    gs->player_pos = (Vec2){ 211, 162 };
     gs->ow_player_pos = gs->player_pos;
 
     gs->mode = MODE_OVERWORLD;
