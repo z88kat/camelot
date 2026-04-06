@@ -19,7 +19,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 - Town services: Inn, Church, Blacksmith, Apothecary, Baker, Jeweller, Pawnbroker, Mystic, Bank, Well, Stable
 - BSP-generated dungeons (160x80 tiles, scrollable) with multiple levels
 - 85+ monster types, bump-to-attack combat with hit/miss rolls and critical hits
-- 150+ items: weapons, armor, potions, food, scrolls, tools, 25 rings, 25 amulets, 20 gems, 20 treasures
+- 280+ items: weapons, armor, potions, food, scrolls, spell scrolls, tools, 25 rings, 25 amulets, 20 gems, 25 treasures
 - Weight-based inventory with encumbrance and 9 equipment slots (including amulet)
 - Quest system with 15 side quests and the Holy Grail main quest
 - Dungeon bosses on deepest levels (12 unique bosses + Mordred as Grail guardian)
@@ -196,6 +196,7 @@ Each level is 160x80 tiles (scrollable), generated with BSP rooms and corridors.
 | `1` `2` `3` | Select class (Knight/Wizard/Ranger) or gender (Male/Female) |
 | `r` | Random name / randomise appearance / re-roll stats and gold |
 | `1`-`4` | Cycle appearance options (hair, eyes, build, feature) |
+| `C` | Cheat mode (on stats screen -- God Mode, Rich Start, Max Stats) |
 | `Enter` | Accept and continue |
 | Backspace | Delete character in name entry |
 
@@ -285,7 +286,12 @@ The priest can cure poison from rotten fish, stat debuffs from monster curses, a
 #### Stable
 | Key | Action |
 |-----|--------|
-| `b` | Buy a horse (150 gold, one-time purchase) |
+| `1` | Buy a Pony (40-64g -- 1.5x speed, no hill penalty) |
+| `2` | Buy a Palfrey (85-119g -- 2x speed) |
+| `3` | Buy a Destrier (170-234g -- 2x speed, +2 DEF in combat) |
+| `s` | Sell your current horse (if you own one) |
+
+Prices vary by town. Can only own one horse at a time.
 
 #### Mystic
 Pay 5 gold for a fortune. 60% chance of +1 to a random stat, 40% chance of -1.
@@ -316,12 +322,14 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 |-----|--------|
 | `@` | Character sheet (appearance, stats, affinities, combat info) |
 | `i` | Inventory |
-| `z` | Cast spell |
+| `z` | Cast spell (overworld/dungeon) |
 | `Z` | View spellbook (all known spells with stats) |
-| `J` | Quest journal |
+| `J` | Quest journal (main quest + side quests) |
+| `;` | Look/identify mode (dungeon -- examine tiles, monsters, items) |
 | `M` | Minimap |
 | `P` | Message history (scroll with Up/Down, q to close) |
-| `q` | Quit game / leave town |
+| `S` | Save game (overworld only) |
+| `q` | Quit (prompts: `s` save & quit, `q` quit without saving, `Esc` cancel) |
 
 ## Player Guide
 
@@ -745,6 +753,31 @@ In swamps, forests, and marshes (~1 per 500 turns), a witch curses you with a **
 
 The witch's geas is always a dilemma -- complete it (small chivalry loss) or refuse (bigger loss + curse).
 
+### Jousting Tournaments
+Tournaments are held **4 days per 30-day cycle** at each castle, on different days per castle. When a tournament is on, you'll see "A jousting tournament today!" on entry. Bump into a **guard** (`G`) to enter. When no tournament is on, the guard tells you how many days until the next one.
+- **Entry fee**: 20-50 gold (varies each time)
+- **Requires a horse** -- Destrier gives a +8 hit bonus
+- **One entry per tournament** -- you can't joust again until the next tournament day
+- **3 rounds** against progressively tougher opponents:
+
+| Round | Opponent | Prize |
+|-------|----------|-------|
+| 1 | Local Squire | 30 gold, 10 XP |
+| 2 | Rival Knight | 80 gold, 20 XP |
+| 3 | Castle Champion | 200 gold, 30 XP, +5 chivalry |
+
+**How jousting works:**
+1. Choose your aim: **`h`** head (risky, instant KO but easy to miss), **`c`** chest (balanced), **`s`** shield (safe, low damage)
+2. Watch the charge animation -- two knights ride toward each other
+3. Press **`Space`** at the right moment as the knights meet:
+   - **Perfect timing** (hit within 1 tick of centre): automatic win, "PERFECT TIMING!"
+   - **Good timing** (within 3 ticks): solid hit, likely win
+   - **Poor/missed**: likely unhorsed
+
+**Losing**: take 3-10 HP damage, -1 chivalry, eliminated from the tournament. Can retry next visit.
+
+**Winning all 3 rounds**: "TOURNAMENT CHAMPION!" -- a prestigious achievement.
+
 ### Castle Cat
 Bump into a cat (`c` yellow) in any castle to pick it up as a pet:
 - **+1 SPD** while the cat follows you
@@ -870,7 +903,7 @@ All game content is defined in CSV files under `data/` -- edit these to rebalanc
 | File | Contents |
 |------|----------|
 | `data/monsters.csv` | 85+ monster types with stats, AI flags, drops |
-| `data/items.csv` | 150+ items: weapons, armor, rings, amulets, gems, treasures, potions, food, scrolls, tools |
+| `data/items.csv` | 280+ items: weapons, armor, rings, amulets, gems, treasures, potions, food, scrolls, spell scrolls, tools |
 | `data/spells.csv` | 50 spells across Light, Dark, Nature, Universal schools |
 | `data/quests.csv` | 15 side quests (delivery, fetch, kill) |
 | `data/towns.csv` | 43 towns, castles, and abbeys with services |

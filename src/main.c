@@ -47,20 +47,36 @@ int main(int argc, char *argv[]) {
         GameState gs;
         if (load && save_exists()) {
             /* Load saved game -- need to reinitialize heap data */
-            load_game(&gs);
-            entity_init();
-            item_init();
-            spell_init();
-            gs.overworld = calloc(1, sizeof(Overworld));
-            overworld_init(gs.overworld);
-            overworld_spawn_creatures(gs.overworld);
-            town_init();
-            /* Restore player position on overworld */
-            gs.running = true;
-            if (gs.mode != MODE_OVERWORLD) gs.mode = MODE_OVERWORLD;
-            gs.dungeon = NULL;
-            log_init(&gs.log);
-            log_add(&gs.log, gs.turn, CP_WHITE, "Welcome back, %s!", gs.player_name);
+            if (!load_game(&gs)) {
+                /* Load failed, start new game */
+                game_init(&gs);
+            } else {
+                entity_init();
+                item_init();
+                spell_init();
+                town_init();
+
+                /* Recreate overworld (heap allocated, can't be saved) */
+                gs.overworld = calloc(1, sizeof(Overworld));
+                overworld_init(gs.overworld);
+                overworld_spawn_creatures(gs.overworld);
+
+                /* Clear invalid pointers from save */
+                gs.dungeon = NULL;
+                gs.current_town = NULL;
+
+                /* Force overworld mode (dungeon/town state not preserved) */
+                gs.mode = MODE_OVERWORLD;
+                gs.running = true;
+
+                /* Reinitialize message log */
+                log_init(&gs.log);
+                log_add(&gs.log, gs.turn, CP_WHITE,
+                        "Welcome back, %s!", gs.player_name);
+                log_add(&gs.log, gs.turn, CP_GRAY,
+                        "Day %d, %02d:%02d. You resume your quest.",
+                        gs.day, gs.hour, gs.minute);
+            }
         } else {
             game_init(&gs);
         }

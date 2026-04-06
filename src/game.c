@@ -139,11 +139,11 @@ int show_title_screen(void) {
     int menu_row = row;
     attron(COLOR_PAIR(CP_CYAN));
     if (has_save)
-        mvprintw(row++, 14, "[C] Continue saved game");
-    mvprintw(row++, 14, "[N] New Game");
-    mvprintw(row++, 14, "[H] High Scores");
-    mvprintw(row++, 14, "[F] Fallen Heroes");
-    mvprintw(row++, 14, "[Q] Quit");
+        mvprintw(row++, 14, "[c] Continue saved game");
+    mvprintw(row++, 14, "[n] New Game");
+    mvprintw(row++, 14, "[h] High Scores");
+    mvprintw(row++, 14, "[f] Fallen Heroes");
+    mvprintw(row++, 14, "[q] Quit");
     attroff(COLOR_PAIR(CP_CYAN));
     (void)menu_row;
 
@@ -151,7 +151,7 @@ int show_title_screen(void) {
 
     while (1) {
         int key = ui_getkey();
-        if (key == 'C' && has_save) return 2;
+        if ((key == 'C' || key == 'c') && has_save) return 2;
         if (key == 'N' || key == 'n') return 1;
         if (key == 'H' || key == 'h') return 3;
         if (key == 'F' || key == 'f') return 4;
@@ -2598,6 +2598,29 @@ static void handle_overworld_input(GameState *gs, int key) {
                     gs->riding = false;
                     log_add(&gs->log, gs->turn, CP_BROWN, "You dismount and tie your horse outside.");
                 }
+                /* Announce tournament if this is a castle and player has a horse */
+                bool is_a_castle = (strncmp(td->name, "Castle", 6) == 0 ||
+                                    strcmp(td->name, "Camelot Castle") == 0 ||
+                                    strcmp(td->name, "Edinburgh Castle") == 0 ||
+                                    strcmp(td->name, "Dover Castle") == 0);
+                if (is_a_castle && gs->horse_type > 0) {
+                    /* Check if tournament today */
+                    unsigned int ch2 = 0;
+                    for (const char *p = td->name; *p; p++)
+                        ch2 = ch2 * 31 + (unsigned char)*p;
+                    int moon = game_get_moon_day(gs);
+                    int tdays[4] = {
+                        (int)(ch2 % 7) + 1, (int)((ch2 / 7) % 7) + 8,
+                        (int)((ch2 / 49) % 7) + 15, (int)((ch2 / 343) % 7) + 22
+                    };
+                    bool tourn_today = false;
+                    for (int d = 0; d < 4; d++)
+                        if (moon == tdays[d]) { tourn_today = true; break; }
+                    if (tourn_today) {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "A jousting tournament today! Bump into a guard to enter.");
+                    }
+                }
                 bool has_quest = (quest_find_available(&gs->quests, td->name, gs->chivalry) != NULL);
                 town_generate_map(&gs->town_map, td, has_quest);
                 gs->town_player_pos = gs->town_map.entrance;
@@ -4547,15 +4570,237 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         break;
     case NPC_GUARD:
         {
-            const char *msgs[] = {
-                "The guard salutes. \"All is well, m'lord.\"",
-                "\"Move along. The King's peace must be kept.\"",
-                "\"I've heard bandits roam the northern roads.\"",
-                "\"Stay out of trouble within these walls.\"",
-                "\"The castle is secure. Rest easy.\"",
-            };
-            int n = sizeof(msgs) / sizeof(msgs[0]);
-            log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, n - 1)]);
+            /* Check if castle has jousting -- offer tournament */
+            bool is_castle = (gs->current_town &&
+                              (strncmp(gs->current_town->name, "Castle", 6) == 0 ||
+                               strcmp(gs->current_town->name, "Camelot Castle") == 0 ||
+                               strcmp(gs->current_town->name, "Edinburgh Castle") == 0 ||
+                               strcmp(gs->current_town->name, "Dover Castle") == 0));
+
+            /* Tournament days: 4 days per 30-day cycle, different per castle */
+            bool tournament_today = false;
+            if (is_castle && gs->current_town) {
+                unsigned int ch = 0;
+                for (const char *p = gs->current_town->name; *p; p++)
+                    ch = ch * 31 + (unsigned char)*p;
+                int moon = game_get_moon_day(gs);
+                int days[4] = {
+                    (int)(ch % 7) + 1,
+                    (int)((ch / 7) % 7) + 8,
+                    (int)((ch / 49) % 7) + 15,
+                    (int)((ch / 343) % 7) + 22
+                };
+                for (int d = 0; d < 4; d++)
+                    if (moon == days[d]) { tournament_today = true; break; }
+            }
+
+            /* Check if already jousted at this castle today */
+            bool already_jousted = (gs->last_joust_day == gs->day &&
+                                    gs->current_town &&
+                                    strcmp(gs->last_joust_castle, gs->current_town->name) == 0);
+
+            if (is_castle && gs->horse_type > 0 && tournament_today && !already_jousted) {
+                /* Offer jousting tournament */
+                int entry_fee = 20 + rng_range(0, 30);
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "\"A jousting tournament today! Entry fee: %dg. Press 'j' to enter.\"", entry_fee);
+                game_render(gs);
+                int jk = ui_getkey();
+                if (jk == 'j') {
+                    if (gs->gold < entry_fee) {
+                        log_add(&gs->log, gs->turn, CP_RED, "You can't afford the entry fee.");
+                    } else {
+                        gs->gold -= entry_fee;
+                        gs->last_joust_day = gs->day;
+                        snprintf(gs->last_joust_castle, MAX_NAME, "%s", gs->current_town->name);
+                        /* 3 rounds of jousting */
+                        const char *opponents[] = { "Local Squire", "Rival Knight", "Castle Champion" };
+                        int opp_skill[] = { 30, 55, 75 };
+                        int prizes[] = { 30, 80, 200 };
+                        bool destrier_bonus = (gs->horse_type == 3);
+                        int total_winnings = 0;
+
+                        for (int round = 0; round < 3; round++) {
+                            ui_clear();
+                            int row = 3;
+                            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                            mvprintw(row++, 4, "=== JOUSTING TOURNAMENT -- Round %d ===", round + 1);
+                            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                            row++;
+                            attron(COLOR_PAIR(CP_WHITE));
+                            mvprintw(row++, 4, "Opponent: %s", opponents[round]);
+                            row++;
+
+                            /* ASCII jousting animation */
+                            mvprintw(row++, 4, "You charge! Press SPACE at the right moment...");
+                            mvprintw(row++, 4, "Choose aim: [h]ead (risky) [c]hest (balanced) [s]hield (safe)");
+                            attroff(COLOR_PAIR(CP_WHITE));
+                            ui_refresh();
+
+                            int aim = ui_getkey();
+                            int aim_bonus = 0, aim_dmg = 0;
+                            if (aim == 'h') { aim_bonus = -15; aim_dmg = 30; } /* head: hard to hit, big damage */
+                            else if (aim == 'c') { aim_bonus = 0; aim_dmg = 20; } /* chest: balanced */
+                            else { aim_bonus = 15; aim_dmg = 10; } /* shield: easy, low damage */
+
+                            /* Timing mini-game: show charge animation */
+                            row++;
+                            int charge_row = row;
+                            attron(COLOR_PAIR(CP_WHITE));
+                            mvprintw(charge_row, 4, "                                           ");
+                            attroff(COLOR_PAIR(CP_WHITE));
+                            ui_refresh();
+
+                            /* Quick countdown with visual */
+                            int timing = 0;
+                            for (int tick = 0; tick < 20; tick++) {
+                                mvprintw(charge_row, 4, "                                           ");
+                                int px = 4 + tick;
+                                int ox = 44 - tick;
+                                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                                mvaddch(charge_row, px, '>');
+                                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                                attron(COLOR_PAIR(CP_RED) | A_BOLD);
+                                mvaddch(charge_row, ox, '<');
+                                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+                                ui_refresh();
+
+                                /* Check for keypress (non-blocking would be ideal but use timeout) */
+                                timeout(150);
+                                int tkey = getch();
+                                timeout(-1);
+                                if (tkey == ' ') {
+                                    /* Perfect timing is around tick 9-11 (middle) */
+                                    int dist = abs(tick - 10);
+                                    if (dist <= 1) timing = 2; /* perfect */
+                                    else if (dist <= 3) timing = 1; /* good */
+                                    else timing = 0; /* miss */
+                                    break;
+                                }
+                            }
+                            /* Always restore blocking mode after charge animation */
+                            timeout(-1);
+                            /* Flush any buffered input from the timing loop */
+                            nodelay(stdscr, TRUE);
+                            while (getch() != ERR) {}
+                            nodelay(stdscr, FALSE);
+
+                            row = charge_row + 2;
+                            /* Calculate result -- timing is the main factor */
+                            int player_hit = 10 + (timing * 30) + aim_bonus + gs->str / 2;
+                            if (destrier_bonus) player_hit += 8;
+                            int opp_hit_chance = opp_skill[round] + rng_range(0, 20);
+
+                            bool player_wins = (player_hit > opp_hit_chance);
+
+                            if (timing == 2) {
+                                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                mvprintw(row++, 4, "PERFECT TIMING!");
+                                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                player_wins = true; /* perfect always wins */
+                            } else if (timing == 1) {
+                                attron(COLOR_PAIR(CP_WHITE));
+                                mvprintw(row++, 4, "Good hit!");
+                                attroff(COLOR_PAIR(CP_WHITE));
+                            } else {
+                                attron(COLOR_PAIR(CP_GRAY));
+                                mvprintw(row++, 4, "Poor timing...");
+                                attroff(COLOR_PAIR(CP_GRAY));
+                            }
+
+                            row++;
+                            if (player_wins) {
+                                int prize = prizes[round];
+                                gs->gold += prize;
+                                total_winnings += prize;
+                                gs->xp += 10 + round * 10;
+                                attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
+                                mvprintw(row++, 4, "You unhorse the %s! +%dg, +%d XP!",
+                                         opponents[round], prize, 10 + round * 10);
+                                attroff(COLOR_PAIR(CP_GREEN) | A_BOLD);
+
+                                if (round == 2) {
+                                    /* Won the championship! */
+                                    gs->chivalry += 5;
+                                    if (gs->chivalry > 100) gs->chivalry = 100;
+                                    row++;
+                                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                    mvprintw(row++, 4, "TOURNAMENT CHAMPION! +5 chivalry!");
+                                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                }
+                            } else {
+                                int dmg = rng_range(3, 10);
+                                gs->hp -= dmg;
+                                if (gs->hp < 1) gs->hp = 1;
+                                gs->chivalry -= 1;
+                                if (gs->chivalry < 0) gs->chivalry = 0;
+                                attron(COLOR_PAIR(CP_RED));
+                                mvprintw(row++, 4, "The %s unhorses you! -%d HP, -1 chivalry.",
+                                         opponents[round], dmg);
+                                attroff(COLOR_PAIR(CP_RED));
+                            }
+
+                            row += 2;
+                            attron(COLOR_PAIR(CP_GRAY));
+                            mvprintw(row, 4, "Press any key to continue...");
+                            attroff(COLOR_PAIR(CP_GRAY));
+                            ui_refresh();
+                            /* Wait a moment and flush input before waiting for key */
+                            napms(500);
+                            flushinp();
+                            ui_getkey();
+
+                            if (!player_wins) {
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "Eliminated in round %d. Total winnings: %dg.", round + 1, total_winnings);
+                                break;
+                            }
+                            if (round == 2) {
+                                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                         "Tournament Champion! Total winnings: %dg, +5 chivalry!", total_winnings);
+                            }
+                        }
+                    }
+                }
+            } else if (is_castle && already_jousted) {
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "\"You've already competed today! Come back for the next tournament.\"");
+            } else if (is_castle && gs->horse_type > 0 && !tournament_today) {
+                /* Tell player when next tournament is */
+                unsigned int ch = 0;
+                if (gs->current_town) {
+                    for (const char *p = gs->current_town->name; *p; p++)
+                        ch = ch * 31 + (unsigned char)*p;
+                }
+                int moon = game_get_moon_day(gs);
+                int days[4] = {
+                    (int)(ch % 7) + 1, (int)((ch / 7) % 7) + 8,
+                    (int)((ch / 49) % 7) + 15, (int)((ch / 343) % 7) + 22
+                };
+                int next_day = 99;
+                for (int d = 0; d < 4; d++) {
+                    if (days[d] > moon && days[d] < next_day) next_day = days[d];
+                }
+                if (next_day > 30) next_day = days[0]; /* wrap to next cycle */
+                int wait = next_day - moon;
+                if (wait <= 0) wait += 30;
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "\"No tournament today. The next one is in %d day%s.\"",
+                         wait, wait == 1 ? "" : "s");
+            } else if (is_castle && gs->horse_type == 0) {
+                log_add(&gs->log, gs->turn, CP_WHITE,
+                         "\"The tournament requires a horse. Visit a stable first.\"");
+            } else {
+                const char *msgs[] = {
+                    "The guard salutes. \"All is well, m'lord.\"",
+                    "\"Move along. The King's peace must be kept.\"",
+                    "\"I've heard bandits roam the northern roads.\"",
+                    "\"Stay out of trouble within these walls.\"",
+                    "\"The castle is secure. Rest easy.\"",
+                };
+                int n = sizeof(msgs) / sizeof(msgs[0]);
+                log_add(&gs->log, gs->turn, CP_WHITE, "%s", msgs[rng_range(0, n - 1)]);
+            }
         }
         break;
     case NPC_DOG:
