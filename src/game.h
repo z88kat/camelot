@@ -112,6 +112,7 @@ typedef struct {
 
     /* Curses and special states */
     bool       has_lycanthropy;      /* werewolf curse */
+    bool       has_vampirism;       /* vampire curse */
     bool       nessie_defeated;      /* Loch Ness encounter done */
     bool       faerie_queen_met;     /* Faerie Queen pact done */
     int        breunis_kills;        /* times Breunis sans Pitie defeated */

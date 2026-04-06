@@ -249,7 +249,8 @@ static const int num_potion_colours = 22;
 static const char *potion_display_name(GameState *gs, Item *it) {
     static char buf[64];
     if (it->type != ITYPE_POTION || it->identified ||
-        (it->template_id >= 0 && gs->potions_identified[it->template_id])) {
+        it->template_id < 0 || it->template_id >= 256 ||
+        gs->potions_identified[it->template_id]) {
         return it->name;
     }
     int ci = gs->potion_colour_map[it->template_id] % num_potion_colours;
@@ -316,6 +317,7 @@ static void spawn_dungeon_boss(GameState *gs, DungeonLevel *dl, const char *dung
 
     /* If this dungeon holds the Grail and quest is active, override boss with Mordred */
     bool is_grail_dungeon = (gs->quests.grail_quest_active && !gs->has_grail &&
+                              gs->grail_dungeon[0] != '\0' &&
                               strcmp(dungeon_name, gs->grail_dungeon) == 0);
     if (is_grail_dungeon) {
         boss_name = "Mordred"; boss_glyph = 'M'; boss_color = CP_MAGENTA_BOLD;
@@ -585,6 +587,12 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
 
     target->hp -= damage;
 
+    /* Vampirism: drain 2 HP per melee hit */
+    if (gs->has_vampirism && damage > 0) {
+        gs->hp += 2;
+        if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+    }
+
     if (target->hp <= 0) {
         target->alive = false;
         gs->xp += target->xp_reward;
@@ -693,6 +701,24 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
                      "The werewolf's bite burns! You feel a dark change within...");
             log_add(&gs->log, gs->turn, CP_YELLOW,
                      "LYCANTHROPY! +3 STR, +2 SPD, but beware the full moon!");
+        }
+    }
+
+    /* Vampire bite: 10% chance of vampirism */
+    if (!gs->has_vampirism && !gs->has_lycanthropy &&
+        (strstr(attacker->name, "Vampire") || strstr(attacker->name, "vampire"))) {
+        if (rng_chance(10)) {
+            gs->has_vampirism = true;
+            gs->str += 3;
+            gs->spd += 2;
+            gs->chivalry -= 10;
+            if (gs->chivalry < 0) gs->chivalry = 0;
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "The vampire's fangs pierce your neck! You feel cold...");
+            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                     "VAMPIRISM! +3 STR, +2 SPD, HP drain on attacks, no hunger.");
+            log_add(&gs->log, gs->turn, CP_RED,
+                     "But sunlight will burn you! Stay indoors during the day. -10 chivalry.");
         }
     }
 
@@ -890,7 +916,7 @@ static void dungeon_enemy_turns(GameState *gs) {
 
     /* Timed spawning: every ~80 turns, spawn a new monster outside FOV */
     if (gs->turn % 80 == 0) {
-        int radius = gs->has_torch ? FOV_RADIUS : 2;
+        int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
         if (entity_spawn_one(dl->monsters, &dl->num_monsters,
                               dl->tiles, dl->depth, gs->player_pos, radius)) {
             /* Spawned silently -- player won't know */
@@ -1006,7 +1032,14 @@ static void dungeon_enemy_turns(GameState *gs) {
                 gs->hp -= damage;
                 log_add(&gs->log, gs->turn, CP_RED,
                          "The %s hurls an attack at you! -%d HP", e->name, damage);
-                if (gs->hp <= 0) { gs->hp = 1; }
+                if (gs->hp <= 0) {
+                    gs->hp = 0;
+                    snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
+                             "Slain by %s (ranged)", e->name);
+                    show_death_screen(gs);
+                    gs->running = false;
+                    return;
+                }
                 continue;
             }
         }
@@ -1150,7 +1183,7 @@ static void dungeon_update_fov(GameState *gs) {
     if (!gs->dungeon) return;
     DungeonLevel *dl = current_dungeon_level(gs);
     if (!dl) return;
-    int radius = gs->has_torch ? FOV_RADIUS : 2;
+    int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
     fov_compute((Tile *)dl->tiles, MAP_WIDTH, MAP_HEIGHT, gs->player_pos, radius);
 }
 
@@ -1197,6 +1230,28 @@ static void advance_time(GameState *gs, int minutes) {
     if (gs->buff_spd_turns > 0) {
         gs->buff_spd_turns--;
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
+    }
+
+    /* Vampirism: sunlight damage when outdoors during daytime */
+    if (gs->has_vampirism && gs->mode == MODE_OVERWORLD) {
+        TimeOfDay tod = game_get_tod(gs);
+        if (tod != TOD_NIGHT && tod != TOD_EVENING && tod != TOD_DAWN) {
+            /* Daytime sunlight burns! 3 HP per 10 turns */
+            if (gs->turn % 10 == 0) {
+                gs->hp -= 3;
+                if (gs->hp <= 5 && gs->hp > 0)
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "The sunlight sears your flesh! -%d HP. Seek shelter!", 3);
+                if (gs->hp <= 0) {
+                    gs->hp = 0;
+                    snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
+                             "Burned to ash by sunlight (Vampirism)");
+                    show_death_screen(gs);
+                    gs->running = false;
+                    return;
+                }
+            }
+        }
     }
 
     /* Track gold earned (for score) */
@@ -3440,7 +3495,12 @@ static void handle_overworld_input(GameState *gs, int key) {
 
                     /* Transform raw food into cooked version with higher power */
                     int cooked_power = raw->power * 3;
-                    snprintf(raw->name, sizeof(raw->name), "Cooked Meat");
+                    char cooked_name[48];
+                    if (strncmp(raw->name, "Raw ", 4) == 0)
+                        snprintf(cooked_name, sizeof(cooked_name), "Cooked %s", raw->name + 4);
+                    else
+                        snprintf(cooked_name, sizeof(cooked_name), "Cooked %s", raw->name);
+                    snprintf(raw->name, sizeof(raw->name), "%s", cooked_name);
                     raw->power = cooked_power;
                     raw->value = raw->value * 2;
                     raw->color_pair = CP_BROWN;
@@ -3451,7 +3511,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                     check_lunar_events(gs, old_hour);
 
                     log_add(&gs->log, gs->turn, CP_GREEN,
-                             "The meat sizzles. Cooked Meat (power: %d) is ready!", cooked_power);
+                             "%s is ready! (power: %d)", cooked_name, cooked_power);
                 }
             }
         }
@@ -3771,6 +3831,27 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             mvprintw(row++, 4, "\"Ah, %s. I have been expecting you.\"", gs->player_name);
             row++;
 
+            /* Merlin can cure vampirism */
+            if (gs->has_vampirism) {
+                mvprintw(row++, 4, "\"I sense the darkness within you... vampirism.\"");
+                mvprintw(row++, 4, "\"I know an ancient cure. Hold still...\"");
+                attroff(COLOR_PAIR(CP_CYAN));
+                gs->has_vampirism = false;
+                gs->str -= 3; if (gs->str < 1) gs->str = 1;
+                gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
+                attron(COLOR_PAIR(CP_GREEN));
+                mvprintw(row++, 4, "Merlin cures your vampirism!");
+                attroff(COLOR_PAIR(CP_GREEN));
+                row++;
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row, 4, "Press any key to continue.");
+                attroff(COLOR_PAIR(CP_GRAY));
+                ui_refresh();
+                ui_getkey();
+                log_add(&gs->log, gs->turn, CP_GREEN, "Merlin cures your vampirism!");
+                gs->light_affinity += 3;
+            } else {
+
             /* Merlin teaches a spell or buffs INT */
             int scount;
             const SpellDef *spells = spell_get_defs(&scount);
@@ -3820,6 +3901,7 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             ui_refresh();
             ui_getkey();
             gs->light_affinity += 3;
+            } /* end else (non-vampire Merlin) */
         } else if (gs->current_town && strcmp(gs->current_town->name, "Cornwall") == 0) {
             /* Morgan le Fay in Cornwall */
             ui_clear();
@@ -4962,6 +5044,31 @@ static void town_do_church(GameState *gs) {
                  "The priest bars the door. \"Begone, thief! You are not welcome here!\"");
         return;
     }
+    if (gs->has_vampirism) {
+        gs->hp -= 5;
+        if (gs->hp < 1) gs->hp = 1;
+        log_add(&gs->log, gs->turn, CP_RED,
+                 "Holy ground burns you! -5 HP. The priest recoils in horror.");
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "\"Creature of the night! I can cure you for 50 gold. Press 'u'.\"");
+        game_render(gs);
+        int vk = ui_getkey();
+        if (vk == 'u') {
+            if (gs->gold >= 50) {
+                gs->gold -= 50;
+                gs->has_vampirism = false;
+                gs->str -= 3; if (gs->str < 1) gs->str = 1;
+                gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
+                gs->hp -= 20;
+                if (gs->hp < 1) gs->hp = 1;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "The priest performs a painful exorcism. Vampirism cured! (-20 HP, -50g)");
+            } else {
+                log_add(&gs->log, gs->turn, CP_RED, "You don't have enough gold. (Need 50g)");
+            }
+        }
+        return;
+    }
 
     ui_clear();
     int row = 2;
@@ -5666,7 +5773,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
 
             /* Random chance of monster appearing (3% per turn) */
             if (dl && rng_chance(3)) {
-                int radius = gs->has_torch ? FOV_RADIUS : 2;
+                int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
                 if (entity_spawn_one(dl->monsters, &dl->num_monsters,
                                       dl->tiles, dl->depth, gs->player_pos, radius)) {
                     log_add(&gs->log, gs->turn, CP_YELLOW,
@@ -7104,6 +7211,10 @@ void game_handle_input(GameState *gs, int key) {
             mvprintw(row++, 6, "Mount: %s%s", hnames[gs->horse_type],
                      gs->riding ? " (riding)" : " (dismounted)");
         }
+        if (gs->has_lycanthropy)
+            mvprintw(row++, 6, "Curse: LYCANTHROPY (beware the full moon!)");
+        if (gs->has_vampirism)
+            mvprintw(row++, 6, "Curse: VAMPIRISM (sunlight burns, drain HP on attacks)");
         mvprintw(row++, 6, "Spells: %d/%d known", gs->num_spells, gs->max_spells_capacity);
         attroff(COLOR_PAIR(CP_WHITE));
 

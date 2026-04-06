@@ -487,9 +487,9 @@ A free way to keep your food supply topped up while travelling. Combine with coo
 Both reset after **5-20 days** (cottages) or **7-20 days** (caves) for revisiting.
 
 ### Horses
-Buy a horse from any **Stablemaster** (`S`) for **150 gold** (one-time purchase). Once owned:
+Buy a horse from any **Stablemaster** (`S`). Three types available at varying prices per town (see Stable keys above). Once owned:
 - Press **`H`** on the overworld to mount or dismount
-- **Doubles your travel speed** on all terrain (roads: 5→3 min, grassland: 10→5 min, swamp: 35→18 min)
+- **Halves travel time** on all terrain (Palfrey/Destrier: roads 5→3 min, grassland 10→5 min; Pony: 1.5x speed, hills treated as grassland)
 - Status bar shows **"Riding"** while mounted
 - You **automatically dismount** when entering a town, castle, dungeon, or boat
 - You **automatically remount** when leaving a town or dungeon back to the overworld
@@ -562,6 +562,30 @@ If bitten by a werewolf, you gain **Lycanthropy**: a permanent +3 STR and +2 SPD
 - Full HP restored ("you... ate something")
 
 **Cure lycanthropy**: church cure (`u` for 30 gold), Purify spell, or Holy Water potion. Curing removes the +3 STR/+2 SPD bonus.
+
+#### Vampirism (Vampire Curse)
+If bitten by a Vampire or Vampire Lord (10% chance per hit), you contract **Vampirism**:
+
+**Benefits:**
+- **+3 STR, +2 SPD** permanently while cursed
+- **HP drain**: steal 2 HP per melee hit you land on enemies
+- **Dark vision**: full FOV in dungeons without a torch
+- **No hunger**: you don't need to eat (you... sustain differently)
+
+**Drawbacks:**
+- **Sunlight burns**: 3 HP damage per 10 turns while outdoors during daytime. Can kill you!
+- **Holy ground burns**: entering a church costs 5 HP and blocks normal services
+- **-10 chivalry** immediately on infection
+- **NPCs react with fear**
+
+**Cure vampirism:**
+- **Church**: the priest offers a painful exorcism (50 gold, costs 20 HP)
+- **Merlin** (Glastonbury): cures you for free when you visit
+- **Purify spell**: removes the curse
+
+Vampirism and lycanthropy are **mutually exclusive** -- you can only have one curse at a time. Curing removes the stat bonuses.
+
+**Strategy**: Vampirism is powerful for dungeon crawling (dark vision + HP drain + high stats) but dangerous on the overworld (sunlight). Plan your travel for night-time, and carry a cure option in case you need to visit a church.
 
 ### Items & Inventory
 Press **`i`** to open your inventory.
@@ -756,7 +780,7 @@ The witch's geas is always a dilemma -- complete it (small chivalry loss) or ref
 ### Jousting Tournaments
 Tournaments are held **4 days per 30-day cycle** at each castle, on different days per castle. When a tournament is on, you'll see "A jousting tournament today!" on entry. Bump into a **guard** (`G`) to enter. When no tournament is on, the guard tells you how many days until the next one.
 - **Entry fee**: 20-50 gold (varies each time)
-- **Requires a horse** -- Destrier gives a +8 hit bonus
+- **Requires a horse** -- Destrier gives a +8 jousting hit bonus (on top of its +2 DEF in regular combat)
 - **One entry per tournament** -- you can't joust again until the next tournament day
 - **3 rounds** against progressively tougher opponents:
 
