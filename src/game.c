@@ -7986,7 +7986,9 @@ static void game_render(GameState *gs) {
                 OWCreature *c = &gs->overworld->creatures[i];
                 int dx = c->pos.x - gs->player_pos.x;
                 int dy = c->pos.y - gs->player_pos.y;
-                int dist_sq = dx * dx + dy * dy;
+                /* Aspect correction for terminal chars */
+                int adx = dx / 2;
+                int dist_sq = adx * adx + dy * dy;
 
                 int vis_range = sight_radius;
                 if (c->hostile) vis_range = sight_radius * 3 / 4;  /* enemies harder to spot */
@@ -8057,7 +8059,9 @@ static void game_render(GameState *gs) {
                     for (int vx = 0; vx < map_view_width; vx++) {
                         int dx = vx - px;
                         int dy = vy - py;
-                        int dist_sq = dx * dx + dy * dy;
+                        /* Aspect correction: terminal chars are ~2x taller than wide */
+                        int adx = dx / 2;
+                        int dist_sq = adx * adx + dy * dy;
                         if (dist_sq <= light_r * light_r) continue; /* inside light radius */
 
                         chtype ch = mvinch(vy, vx);
@@ -8095,7 +8099,9 @@ static void game_render(GameState *gs) {
                         if (!t->visible) continue;
 
                         int dx = vx - px, dy = vy - py;
-                        int dist_sq = dx * dx + dy * dy;
+                        /* Aspect correction for terminal chars */
+                        int adx = dx / 2;
+                        int dist_sq = adx * adx + dy * dy;
 
                         /* Inner glow: bright yellow close to player */
                         if (dist_sq <= 4) {
