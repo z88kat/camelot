@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 static const char MAGIC[] = "CMLT";
-static const int SAVE_VERSION = 1;
+static const int SAVE_VERSION = 2;
 
 static void get_save_dir(char *buf, int bufsize) {
     const char *home = getenv("HOME");

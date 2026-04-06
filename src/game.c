@@ -2510,6 +2510,41 @@ static void handle_overworld_input(GameState *gs, int key) {
             gs->dark_affinity += 1;
         }
 
+        /* Wood Nymph encounter (~1 per 250 turns in forests) */
+        if (ow_terrain == TILE_FOREST && gs->turn % 250 == 125 && rng_chance(15) &&
+            gs->num_items > 0) {
+            /* 10% chance she gives a gift instead of stealing */
+            if (rng_chance(10)) {
+                log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                         "A wood nymph appears and blows you a kiss!");
+                gs->spd += 2;
+                gs->buff_spd_turns = 100;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "Nymph's Kiss! +2 SPD for 100 turns.");
+                gs->nature_affinity += 1;
+            } else {
+                /* SPD check to resist theft */
+                bool resisted = (gs->spd > 6 && rng_chance(30));
+                if (resisted) {
+                    log_add(&gs->log, gs->turn, CP_GREEN,
+                             "A wood nymph reaches for your pack but you dodge her!");
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "She giggles and vanishes into the trees.");
+                } else {
+                    /* Steal a random item */
+                    int steal_idx = rng_range(0, gs->num_items - 1);
+                    log_add(&gs->log, gs->turn, CP_GREEN_BOLD,
+                             "A wood nymph snatches your %s and vanishes!",
+                             gs->inventory[steal_idx].name);
+                    for (int j = steal_idx; j < gs->num_items - 1; j++)
+                        gs->inventory[j] = gs->inventory[j + 1];
+                    gs->inventory[--gs->num_items].template_id = -1;
+                    log_add(&gs->log, gs->turn, CP_GRAY,
+                             "Her laughter echoes through the trees...");
+                }
+            }
+        }
+
         /* Rainbow countdown and pot of gold check */
         if (gs->rainbow_active) {
             gs->rainbow_turns--;

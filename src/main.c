@@ -47,8 +47,9 @@ int main(int argc, char *argv[]) {
         GameState gs;
         if (load && save_exists()) {
             /* Load saved game -- need to reinitialize heap data */
-            if (!load_game(&gs)) {
-                /* Load failed, start new game */
+            if (!load_game(&gs) || gs.player_name[0] == '\0') {
+                /* Load failed or corrupt save, start new game */
+                delete_save();
                 game_init(&gs);
             } else {
                 entity_init();

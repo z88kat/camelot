@@ -802,6 +802,14 @@ In swamps, forests, and marshes (~1 per 500 turns), a witch curses you with a **
 
 The witch's geas is always a dilemma -- complete it (small chivalry loss) or refuse (bigger loss + curse).
 
+#### Wood Nymph
+A mischievous forest spirit (~1 per 250 turns in forests). She cannot be attacked -- she vanishes if you try.
+- **90% chance**: she **steals a random item** from your inventory. "A wood nymph snatches your Longsword and vanishes!" The item is gone permanently
+- **10% chance**: she gives you a **Nymph's Kiss** instead -- +2 SPD for 100 turns
+- **SPD check**: if your SPD is above 6, you have a 30% chance to dodge the theft
+
+Travel through forests quickly or keep your SPD high to avoid losing precious items.
+
 ### Jousting Tournaments
 Tournaments are held **4 days per 30-day cycle** at each castle, on different days per castle. When a tournament is on, you'll see "A jousting tournament today!" on entry. Bump into a **guard** (`G`) to enter. When no tournament is on, the guard tells you how many days until the next one.
 - **Entry fee**: 20-50 gold (varies each time)
