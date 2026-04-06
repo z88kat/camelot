@@ -70,11 +70,11 @@ Camelot Abbey,abbey,208,160,A,white_bold
 # Misc
 Cave,cave,218,166,O,gray
 # Island locations
-Newport,town,252,218,*,white
-Cowes,town,252,214,*,white
-Carisbrooke Castle,castle_active,249,218,#,white
+Newport,town,280,241,*,white
+Cowes,town,280,238,*,white
+Carisbrooke Castle,castle_active,276,241,#,white
 Isle of Man,town,100,80,*,white
-Gosport,town,252,207,*,white
+Gosport,town,275,232,*,white
 Lundy Island,landmark,85,170,+,gray
 Anglesey,town,80,112,*,white
 Avalon,landmark,40,200,+,yellow_bold

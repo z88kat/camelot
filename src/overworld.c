@@ -633,8 +633,17 @@ void overworld_init(Overworld *ow) {
 
     /* Step 4b: Islands -- accessible by boat (B tiles on shores) */
 
-    /* Isle of Wight -- south coast, off Hampshire (diamond shape) */
-    draw_island(ow, 252, 218, 12, 5);
+    /* Isle of Wight -- carve the Solent channel, then draw the island.
+       First clear a wide area of sea around the island, then draw land on top. */
+    for (int sx = 255; sx <= 305; sx++) {
+        for (int sy = 233; sy <= 248; sy++) {
+            if (sx >= 0 && sx < OW_WIDTH && sy >= 0 && sy < OW_HEIGHT) {
+                set_sea(&ow->map[sy][sx]);
+            }
+        }
+    }
+    /* Now draw the island in the cleared sea area */
+    draw_island(ow, 280, 241, 10, 4);
 
     /* Isle of Man -- Irish Sea, between England and Ireland */
     draw_island(ow, 100, 80, 6, 8);
