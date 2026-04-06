@@ -219,6 +219,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 | `c` | Camp (rest 8 hours, restore 50% HP/MP, risk of ambush) |
 | `f` | Fish from a shore tile (must be adjacent to water) |
 | `F` | Forage for food (forests, grassland, hills) |
+| `x` | Dig for buried treasure (must be near marked spot) |
 | `K` | Cook raw food (needs Torch or Tinderbox, campable terrain) |
 | `H` | Mount/dismount horse (if owned) |
 | `S` | Save game |
@@ -469,6 +470,20 @@ Press **`F`** (Shift+F) on the overworld to search for wild food. Works in **for
 - **50% chance**: Nothing found
 
 A free way to keep your food supply topped up while travelling. Combine with cooking (`K`) for maximum benefit -- forage Raw Meat from beast encounters, then cook it for 3x healing power.
+
+### Treasure Maps
+**Tattered Maps** (`&` brown) are rare items found in dungeons. Use one from your inventory (`i` then `u`) to view it -- it shows a crude ASCII map with a red `X` marking the treasure location and a hint about the region (Northern/Central/Southern England).
+
+Navigate to the marked spot on the overworld and press **`x`** to dig. You must be within 1 tile of the `X`. Digging takes 15 minutes.
+
+**Cache types** (random):
+- **Small** (30%): 50-100 gold
+- **Medium** (30%): 150-300 gold + a weapon, armor, or potion
+- **Large** (25%): 500-800 gold + a rare ring, amulet, gem, or spell scroll
+- **Bandit trap** (10%): ambush! Fight bandits (5-12 HP damage), loot their pockets
+- **Undead guardian** (5%): a Barrow-Wight rises! Tough fight (8-15 HP damage), but 100-250 gold reward
+
+5-8 treasure maps are scattered across the game's dungeons. Each map reveals the nearest unfound treasure to your current position.
 
 ### Cottages & Caves
 **Cottages** (`n` brown) and **caves** (`O` gray) are scattered across the map. Press Enter to explore. Each has a random encounter inside:

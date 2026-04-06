@@ -143,6 +143,7 @@ Lantern,(,yellow,tool,500,20,25,0,0,3
 Oil Flask,(,brown,tool,300,10,10,0,0,4
 Lockpick,(,gray,tool,1,5,20,1,0,3
 Tinderbox,(,brown,tool,1,10,10,0,0,3
+Tattered Map,&,brown,tool,0,2,30,1,0,1
 Pickaxe,(,gray,tool,1,30,15,0,0,3
 Rope,(,brown,tool,1,20,10,0,0,3
 #

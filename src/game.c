@@ -3392,6 +3392,115 @@ static void handle_overworld_input(GameState *gs, int key) {
         return;
     }
 
+    /* Dig for treasure (x key) */
+    if (key == 'x') {
+        bool found_treasure = false;
+        for (int ti = 0; ti < gs->num_treasure_maps; ti++) {
+            if (gs->treasure_found[ti]) continue;
+            int ddx = abs(gs->player_pos.x - gs->treasure_spots[ti].x);
+            int ddy = abs(gs->player_pos.y - gs->treasure_spots[ti].y);
+            if (ddx <= 1 && ddy <= 1) {
+                gs->treasure_found[ti] = 1;
+                found_treasure = true;
+
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                         "You dig and find buried treasure!");
+
+                int cache_type = rng_range(1, 100);
+                if (cache_type <= 10) {
+                    /* Fake map / bandit ambush */
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "It's a trap! Bandits ambush you!");
+                    int dmg = rng_range(5, 12) - gs->def;
+                    if (dmg < 1) dmg = 1;
+                    gs->hp -= dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    int gold = rng_range(10, 25);
+                    gs->gold += gold;
+                    gs->xp += 15;
+                    gs->kills++;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You fight off the bandits. -%d HP, +%dg from their pockets.", dmg, gold);
+                } else if (cache_type <= 15) {
+                    /* Trapped -- undead guardian */
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "A Barrow-Wight rises from the earth!");
+                    int dmg = rng_range(8, 15) - gs->def;
+                    if (dmg < 2) dmg = 2;
+                    gs->hp -= dmg;
+                    if (gs->hp < 1) gs->hp = 1;
+                    int gold = rng_range(100, 250);
+                    gs->gold += gold;
+                    gs->xp += 40;
+                    gs->kills++;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "You defeat the guardian! -%d HP, +%dg treasure!", dmg, gold);
+                } else if (cache_type <= 45) {
+                    /* Small cache */
+                    int gold = rng_range(50, 100);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "A small cache: %d gold coins!", gold);
+                } else if (cache_type <= 75) {
+                    /* Medium cache */
+                    int gold = rng_range(150, 300);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "A chest of treasure! %d gold!", gold);
+                    /* Also give a random item */
+                    if (gs->num_items < MAX_INVENTORY) {
+                        int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                        for (int tries = 0; tries < 30; tries++) {
+                            int ri = rng_range(0, tcount - 1);
+                            if (tmps[ri].rarity >= 2 &&
+                                (tmps[ri].type == ITYPE_WEAPON || tmps[ri].type == ITYPE_ARMOR ||
+                                 tmps[ri].type == ITYPE_POTION)) {
+                                gs->inventory[gs->num_items] = item_create(ri, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                log_add(&gs->log, gs->turn, CP_CYAN,
+                                         "Also found: %s", tmps[ri].name);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    /* Large cache */
+                    int gold = rng_range(500, 800);
+                    gs->gold += gold;
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "A massive hoard! %d gold!", gold);
+                    /* Give a rare item */
+                    if (gs->num_items < MAX_INVENTORY) {
+                        int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+                        for (int tries = 0; tries < 50; tries++) {
+                            int ri = rng_range(0, tcount - 1);
+                            if (tmps[ri].rarity <= 2 &&
+                                (tmps[ri].type == ITYPE_RING || tmps[ri].type == ITYPE_AMULET ||
+                                 tmps[ri].type == ITYPE_GEM || tmps[ri].type == ITYPE_SPELL_SCROLL)) {
+                                gs->inventory[gs->num_items] = item_create(ri, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                                log_add(&gs->log, gs->turn, CP_CYAN_BOLD,
+                                         "Also found: %s!", tmps[ri].name);
+                                break;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        if (!found_treasure) {
+            log_add(&gs->log, gs->turn, CP_GRAY,
+                     "You dig but find nothing here. Check your map again.");
+        }
+        int old_hour = gs->hour;
+        advance_time(gs, 15);
+        check_lunar_events(gs, old_hour);
+        return;
+    }
+
     /* Forage for food (F = Shift+F) -- find food in forests/grassland */
     if (key == 'F') {
         TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
@@ -7126,6 +7235,64 @@ void game_handle_input(GameState *gs, int key) {
                         }
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
+                    } else if (strcmp(sel->name, "Tattered Map") == 0) {
+                        /* Show treasure map -- find closest unfound treasure */
+                        int best = -1, best_dist = 999999;
+                        for (int mi = 0; mi < gs->num_treasure_maps; mi++) {
+                            if (gs->treasure_found[mi]) continue;
+                            int ddx = gs->treasure_spots[mi].x - gs->player_pos.x;
+                            int ddy = gs->treasure_spots[mi].y - gs->player_pos.y;
+                            int d = ddx * ddx + ddy * ddy;
+                            if (d < best_dist) { best_dist = d; best = mi; }
+                        }
+                        if (best >= 0) {
+                            ui_clear();
+                            int mrow = 2;
+                            attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
+                            mvprintw(mrow++, 4, "=== Tattered Treasure Map ===");
+                            attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+                            mrow++;
+
+                            /* Draw a crude mini-map centred on the treasure */
+                            Vec2 tpos = gs->treasure_spots[best];
+                            int map_r = 15;
+                            for (int my = -8; my <= 8; my++) {
+                                for (int mx = -map_r; mx <= map_r; mx++) {
+                                    int wx = tpos.x + mx, wy = tpos.y + my;
+                                    int sx = 20 + mx + map_r, sy = mrow + my + 8;
+                                    if (wx < 0 || wx >= OW_WIDTH || wy < 0 || wy >= OW_HEIGHT) {
+                                        mvaddch(sy, sx, '~');
+                                        continue;
+                                    }
+                                    if (wx == tpos.x && wy == tpos.y) {
+                                        attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+                                        mvaddch(sy, sx, 'X');
+                                        attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+                                    } else {
+                                        Tile *mt = &gs->overworld->map[wy][wx];
+                                        attron(COLOR_PAIR(mt->color_pair));
+                                        mvaddch(sy, sx, mt->glyph);
+                                        attroff(COLOR_PAIR(mt->color_pair));
+                                    }
+                                }
+                            }
+                            mrow += 18;
+                            attron(COLOR_PAIR(CP_YELLOW));
+                            mvprintw(mrow++, 4, "The X marks the spot! Navigate there and press 'x' to dig.");
+                            attroff(COLOR_PAIR(CP_YELLOW));
+                            attron(COLOR_PAIR(CP_GRAY));
+                            mvprintw(mrow++, 4, "Approximate location: %s",
+                                     tpos.y < 80 ? "Northern England" :
+                                     tpos.y < 140 ? "Central England" :
+                                     tpos.y < 200 ? "Southern England" : "The South Coast");
+                            mvprintw(mrow, 4, "Press any key to close.");
+                            attroff(COLOR_PAIR(CP_GRAY));
+                            ui_refresh();
+                            ui_getkey();
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_GRAY,
+                                     "The map is faded and unreadable. All treasures have been found.");
+                        }
                     } else if (sel->type == ITYPE_SPELL_SCROLL) {
                         /* Learn a spell from a scroll */
                         int spell_id = sel->power;
@@ -7636,6 +7803,21 @@ static void finalize_character(GameState *gs) {
     overworld_spawn_creatures(gs->overworld);
     town_init();
     quest_init(&gs->quests);
+
+    /* Generate treasure map locations on passable overworld tiles */
+    gs->num_treasure_maps = rng_range(5, 8);
+    for (int i = 0; i < gs->num_treasure_maps; i++) {
+        gs->treasure_found[i] = 0;
+        for (int tries = 0; tries < 200; tries++) {
+            int tx = rng_range(50, OW_WIDTH - 50);
+            int ty = rng_range(20, OW_HEIGHT - 20);
+            if (gs->overworld->map[ty][tx].passable &&
+                !overworld_location_at(gs->overworld, tx, ty)) {
+                gs->treasure_spots[i] = (Vec2){ tx, ty };
+                break;
+            }
+        }
+    }
 
     /* Place player at Camelot */
     gs->player_pos = (Vec2){ 212, 162 };

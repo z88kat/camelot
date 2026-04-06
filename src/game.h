@@ -124,6 +124,12 @@ typedef struct {
     bool       cheat_mode;           /* cheat mode enabled */
     int        last_joust_day;        /* day of last tournament participation */
     char       last_joust_castle[MAX_NAME]; /* castle where last jousted */
+    /* Treasure maps */
+    #define MAX_TREASURE_MAPS 8
+    Vec2       treasure_spots[8];     /* overworld locations of buried treasure */
+    int        treasure_found[8];     /* 0=not found, 1=found */
+    int        num_treasure_maps;
+
     char       grail_dungeon[MAX_NAME]; /* which dungeon holds the Grail */
     bool       has_grail;            /* player is carrying the Grail */
     char       cause_of_death[128];  /* what killed the player */
