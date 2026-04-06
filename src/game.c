@@ -6112,48 +6112,76 @@ static void handle_town_input(GameState *gs, int key) {
 
     /* Player Home storage chest (V key in Camelot) */
     if (key == 'V' && gs->current_town && strcmp(gs->current_town->name, "Camelot") == 0) {
-        StoredItem chest[MAX_STORED_ITEMS];
-        int chest_count = home_chest_load(chest);
+        while (1) {
+            StoredItem chest[MAX_STORED_ITEMS];
+            int chest_count = home_chest_load(chest);
 
-        ui_clear();
-        int row = 1;
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "=== Your Home -- Storage Chest ===");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        row++;
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 4, "[s] Stash an item    [t] Take an item    [r] Rest until morning    [q] Leave");
-        attroff(COLOR_PAIR(CP_WHITE));
-        row++;
-
-        if (chest_count == 0) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 6, "The chest is empty.");
-            attroff(COLOR_PAIR(CP_GRAY));
-        } else {
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "Chest contents (%d items):", chest_count);
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            ui_clear();
             int term_rows_h, term_cols_h;
             ui_get_size(&term_rows_h, &term_cols_h);
-            for (int i = 0; i < chest_count && row < term_rows_h - 3; i++) {
-                attron(COLOR_PAIR(chest[i].color_pair));
-                mvprintw(row++, 6, "%c) %s (pow:%d val:%dg) -- left by %s, day %d",
-                         'a' + i, chest[i].name, chest[i].power, chest[i].value,
-                         chest[i].left_by, chest[i].day_stored);
-                attroff(COLOR_PAIR(chest[i].color_pair));
-            }
-        }
-        ui_refresh();
+            int row = 1;
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(row++, 4, "=== Your Home -- Storage Chest ===");
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            row++;
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(row++, 4, "[s] Stash an item    [t] Take an item    [r] Rest    [q] Leave");
+            attroff(COLOR_PAIR(CP_WHITE));
+            row++;
 
-        int hk = ui_getkey();
-        if (hk == 's' && gs->num_items > 0) {
-            /* Stash an item */
-            if (chest_count >= MAX_STORED_ITEMS) {
-                log_add(&gs->log, gs->turn, CP_RED, "The chest is full! (max %d items)", MAX_STORED_ITEMS);
+            if (chest_count == 0) {
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row++, 6, "The chest is empty.");
+                attroff(COLOR_PAIR(CP_GRAY));
             } else {
-                log_add(&gs->log, gs->turn, CP_WHITE, "Select an item to stash (a-z):");
-                game_render(gs);
+                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                mvprintw(row++, 4, "Chest contents (%d/%d):", chest_count, MAX_STORED_ITEMS);
+                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                for (int i = 0; i < chest_count && row < term_rows_h - 3; i++) {
+                    attron(COLOR_PAIR(chest[i].color_pair));
+                    mvprintw(row++, 6, "%c) %s (pow:%d val:%dg) -- left by %s, day %d",
+                             'a' + i, chest[i].name, chest[i].power, chest[i].value,
+                             chest[i].left_by, chest[i].day_stored);
+                    attroff(COLOR_PAIR(chest[i].color_pair));
+                }
+            }
+            ui_refresh();
+
+            int hk = ui_getkey();
+            if (hk == 'q' || hk == 'Q' || hk == 27) {
+                break;
+            } else if (hk == 's') {
+                /* Stash an item -- show inventory list */
+                if (gs->num_items == 0) {
+                    log_add(&gs->log, gs->turn, CP_GRAY, "You have nothing to stash.");
+                    continue;
+                }
+                if (chest_count >= MAX_STORED_ITEMS) {
+                    log_add(&gs->log, gs->turn, CP_RED, "The chest is full! (max %d)", MAX_STORED_ITEMS);
+                    continue;
+                }
+
+                ui_clear();
+                int sr = 1;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(sr++, 4, "=== Stash Item in Chest ===");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                sr++;
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(sr++, 4, "Select an item to stash, or q to go back:");
+                attroff(COLOR_PAIR(CP_WHITE));
+                sr++;
+                for (int ii = 0; ii < gs->num_items && sr < term_rows_h - 2; ii++) {
+                    Item *it = &gs->inventory[ii];
+                    if (it->template_id < 0) continue;
+                    attron(COLOR_PAIR(it->color_pair));
+                    mvprintw(sr++, 6, "%c) %s [%s] pow:%d val:%dg",
+                             'a' + ii, it->name, item_type_name(it->type),
+                             it->power, it->value);
+                    attroff(COLOR_PAIR(it->color_pair));
+                }
+                ui_refresh();
+
                 int sk = ui_getkey();
                 if (sk >= 'a' && sk < 'a' + gs->num_items) {
                     int idx = sk - 'a';
@@ -6167,21 +6195,43 @@ static void handle_town_input(GameState *gs, int key) {
                         gs->inventory[j] = gs->inventory[j + 1];
                     gs->inventory[--gs->num_items].template_id = -1;
                 }
-            }
-        } else if (hk == 't' && chest_count > 0) {
-            /* Take an item */
-            if (gs->num_items >= MAX_INVENTORY) {
-                log_add(&gs->log, gs->turn, CP_RED, "Your inventory is full!");
-            } else {
-                log_add(&gs->log, gs->turn, CP_WHITE, "Select an item to take (a-z):");
-                game_render(gs);
+                /* Loop back to chest screen */
+            } else if (hk == 't') {
+                /* Take an item from chest */
+                if (chest_count == 0) {
+                    log_add(&gs->log, gs->turn, CP_GRAY, "The chest is empty.");
+                    continue;
+                }
+                if (gs->num_items >= MAX_INVENTORY) {
+                    log_add(&gs->log, gs->turn, CP_RED, "Your inventory is full!");
+                    continue;
+                }
+                /* Chest contents already shown -- just wait for selection */
+                ui_clear();
+                int tr = 1;
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                mvprintw(tr++, 4, "=== Take Item from Chest ===");
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                tr++;
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(tr++, 4, "Select an item to take, or q to go back:");
+                attroff(COLOR_PAIR(CP_WHITE));
+                tr++;
+                for (int i = 0; i < chest_count && tr < term_rows_h - 2; i++) {
+                    attron(COLOR_PAIR(chest[i].color_pair));
+                    mvprintw(tr++, 6, "%c) %s (pow:%d val:%dg) -- left by %s",
+                             'a' + i, chest[i].name, chest[i].power, chest[i].value,
+                             chest[i].left_by);
+                    attroff(COLOR_PAIR(chest[i].color_pair));
+                }
+                ui_refresh();
+
                 int tk = ui_getkey();
                 if (tk >= 'a' && tk < 'a' + chest_count) {
                     int idx = tk - 'a';
-                    /* Create item from stored data */
                     Item taken;
                     memset(&taken, 0, sizeof(taken));
-                    taken.template_id = -7; /* special: from chest */
+                    taken.template_id = -7;
                     snprintf(taken.name, sizeof(taken.name), "%s", chest[idx].name);
                     taken.glyph = chest[idx].glyph;
                     taken.color_pair = chest[idx].color_pair;
@@ -6193,20 +6243,20 @@ static void handle_town_input(GameState *gs, int key) {
                     gs->inventory[gs->num_items++] = taken;
                     log_add(&gs->log, gs->turn, CP_CYAN,
                              "Took %s from the chest.", chest[idx].name);
-                    /* Remove from chest */
                     for (int j = idx; j < chest_count - 1; j++)
                         chest[j] = chest[j + 1];
                     chest_count--;
                     home_chest_save(chest, chest_count);
                 }
+                /* Loop back to chest screen */
+            } else if (hk == 'r') {
+                gs->hp = gs->max_hp;
+                gs->mp = gs->max_mp;
+                gs->hour = 7; gs->minute = 0;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "You rest in your own bed. Full HP/MP restored. Good morning!");
+                /* Stay in home screen */
             }
-        } else if (hk == 'r') {
-            /* Rest at home -- free, advance to morning */
-            gs->hp = gs->max_hp;
-            gs->mp = gs->max_mp;
-            gs->hour = 7; gs->minute = 0;
-            log_add(&gs->log, gs->turn, CP_GREEN,
-                     "You rest in your own bed. Full HP/MP restored. Good morning!");
         }
         return;
     }
