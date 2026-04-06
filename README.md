@@ -901,6 +901,29 @@ Every dungeon has a **boss** on its deepest level:
 
 If the Grail is in a dungeon, **Mordred** replaces the normal boss as the final guardian.
 
+### Dungeon Chests
+Chests (`=` brown or red) appear in dungeon rooms (1-3 per level). Walk onto one to interact:
+- **Unlocked** (`=` brown): opens immediately, gives gold + a random item
+- **Locked** (`=` red): requires a Lockpick, Ranger skill (automatic), or bashing (STR check, 30% chance to destroy contents)
+- **Trapped** (20%): triggers a poison dart, explosion, or gas cloud on opening
+- **Mimic** (5%): the chest is actually a monster! Tough fight, drops gold on defeat
+
+Chest loot scales with dungeon depth -- deeper chests contain better items.
+
+### Travelling Kings
+Kings from various castles travel the overworld roads as `K` (yellow bold). Bump into them for dialogue -- high chivalry (50+) may earn you a gold purse. They appear approximately every 50 turns.
+
+### Rescue the Princess
+At any castle, a king with high regard for you (chivalry 50+) may ask you to rescue his kidnapped daughter from an Evil Sorcerer's tower:
+1. **Accept the quest**: a **Sorcerer's Tower** (`|` magenta) appears in the hills
+2. **Clear the tower**: 3-5 levels of magical enemies, with the Evil Sorcerer as the boss
+3. **Free the princess**: defeating the Evil Sorcerer rescues her
+4. **Claim your reward**: visit any castle king afterwards
+   - **Accept marriage**: the **TRUE ENDING** -- become King/Queen, +10000 score
+   - **Decline**: +5 chivalry, +500 gold, continue playing
+
+The princess quest and the Grail quest are independent -- you can complete both, one, or neither.
+
 ### Title Screen
 When you launch the game, you see the title screen with an ASCII art banner and menu:
 - **[C] Continue** -- resume from your saved game (only shown if a save exists)

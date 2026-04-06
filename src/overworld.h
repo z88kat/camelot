@@ -96,4 +96,8 @@ void overworld_move_creatures(Overworld *ow, Vec2 player_pos);
 /* Get the creature at a position, or NULL. */
 OWCreature *overworld_creature_at(Overworld *ow, int x, int y);
 
+/* Add a new location to the overworld at runtime. */
+int overworld_add_location(Overworld *ow, const char *name, LocationType type,
+                           int x, int y, char glyph, short color);
+
 #endif /* OVERWORLD_H */

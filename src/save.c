@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 static const char MAGIC[] = "CMLT";
-static const int SAVE_VERSION = 2;
+static const int SAVE_VERSION = 3;
 
 static void get_save_dir(char *buf, int bufsize) {
     const char *home = getenv("HOME");
@@ -43,6 +43,8 @@ bool save_game(const GameState *gs) {
     fwrite(MAGIC, 1, 4, f);
     int ver = SAVE_VERSION;
     fwrite(&ver, sizeof(int), 1, f);
+    int struct_size = (int)sizeof(GameState);
+    fwrite(&struct_size, sizeof(int), 1, f);
     fwrite(gs, sizeof(GameState), 1, f);
     fclose(f);
     return true;
@@ -62,7 +64,12 @@ bool load_game(GameState *gs) {
     fread(&ver, sizeof(int), 1, f);
     if (ver != SAVE_VERSION) { fclose(f); return false; }
 
-    fread(gs, sizeof(GameState), 1, f);
+    int struct_size;
+    fread(&struct_size, sizeof(int), 1, f);
+    if (struct_size != (int)sizeof(GameState)) { fclose(f); return false; }
+
+    size_t read = fread(gs, 1, sizeof(GameState), f);
+    if (read != sizeof(GameState)) { fclose(f); return false; }
     fclose(f);
 
     /* Pointers are invalid after load -- must reinit */

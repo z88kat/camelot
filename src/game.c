@@ -311,6 +311,10 @@ static void spawn_dungeon_boss(GameState *gs, DungeonLevel *dl, const char *dung
     } else if (strcmp(dungeon_name, "Bamburgh Castle") == 0) {
         boss_name = "Bandit King"; boss_glyph = 'P'; boss_color = CP_YELLOW_BOLD;
         bhp = 45; bstr = 13; bdef = 8; bxp = 80;
+    } else if (strcmp(dungeon_name, "Sorcerer's Tower") == 0) {
+        boss_name = "Evil Sorcerer"; boss_glyph = 'S'; boss_color = CP_MAGENTA_BOLD;
+        bhp = 55; bstr = 14; bdef = 7; bspd = 4; bxp = 200;
+        bflags |= AI_RANGED_ATTACK | AI_SUMMON | AI_DEBUFF;
     } else {
         return; /* unknown dungeon */
     }
@@ -416,6 +420,7 @@ static void get_dungeon_depth(const char *name, int *min_d, int *max_d) {
     else if (strcmp(name, "Castle Dolorous Garde") == 0) { *min_d = 2; *max_d = 3; }
     else if (strcmp(name, "Castle Perilous") == 0) { *min_d = 2; *max_d = 3; }
     else if (strcmp(name, "Bamburgh Castle") == 0) { *min_d = 2; *max_d = 3; }
+    else if (strcmp(name, "Sorcerer's Tower") == 0) { *min_d = 3; *max_d = 5; }
     else { *min_d = 3; *max_d = 8; }  /* default */
 }
 
@@ -601,6 +606,19 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
                  "The %s is slain! +%d XP (Kills: %d)", target->name, target->xp_reward, gs->kills);
         /* On-death effects */
         ai_explode_on_death(gs, target);
+
+        /* Princess rescue: killing Evil Sorcerer in the tower frees the princess */
+        if (gs->princess_quest_active && !gs->princess_rescued &&
+            strcmp(target->name, "Evil Sorcerer") == 0 &&
+            gs->dungeon && strcmp(gs->dungeon->name, "Sorcerer's Tower") == 0) {
+            gs->princess_rescued = true;
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "*** The Evil Sorcerer falls! The princess is FREE! ***");
+            log_add(&gs->log, gs->turn, CP_WHITE,
+                     "She thanks you and returns to her father's castle.");
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "Visit any castle king to claim your reward!");
+        }
 
         /* Monster drops */
         DungeonLevel *dl = current_dungeon_level(gs);
@@ -1094,6 +1112,113 @@ static void dungeon_enemy_turns(GameState *gs) {
 }
 
 /* Spawn items on a dungeon level */
+/* Check if player stepped on a dungeon chest */
+static void check_chests(GameState *gs) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return;
+
+    for (int i = 0; i < dl->num_chests; i++) {
+        DungeonChest *ch = &dl->chests[i];
+        if (ch->opened) continue;
+        if (ch->pos.x != gs->player_pos.x || ch->pos.y != gs->player_pos.y) continue;
+
+        /* Mimic! */
+        if (ch->mimic) {
+            ch->opened = true;
+            dl->tiles[ch->pos.y][ch->pos.x].glyph = '.';
+            dl->tiles[ch->pos.y][ch->pos.x].color_pair = CP_WHITE;
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "The chest springs to life -- it's a MIMIC!");
+            int dmg = rng_range(8, 15) - gs->def;
+            if (dmg < 2) dmg = 2;
+            gs->hp -= dmg;
+            if (gs->hp < 1) gs->hp = 1;
+            int gold = rng_range(20, 60);
+            gs->gold += gold;
+            gs->xp += 25;
+            gs->kills++;
+            log_add(&gs->log, gs->turn, CP_YELLOW,
+                     "You defeat the Mimic! -%d HP, +%dg, +25 XP.", dmg, gold);
+            return;
+        }
+
+        /* Locked chest */
+        if (ch->locked) {
+            bool has_lockpick = false;
+            for (int ii = 0; ii < gs->num_items; ii++)
+                if (strcmp(gs->inventory[ii].name, "Lockpick") == 0) { has_lockpick = true; break; }
+            bool is_ranger = (gs->player_class == CLASS_RANGER);
+
+            if (is_ranger || has_lockpick) {
+                log_add(&gs->log, gs->turn, CP_CYAN,
+                         "You pick the lock on the chest%s.", is_ranger ? " (Ranger skill)" : "");
+                ch->locked = false;
+            } else {
+                /* Bash attempt */
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "The chest is locked! You bash it open with brute force...");
+                if (rng_chance(30)) {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "CRASH! You smashed the contents. Nothing salvageable.");
+                    ch->opened = true;
+                    dl->tiles[ch->pos.y][ch->pos.x].glyph = '.';
+                    dl->tiles[ch->pos.y][ch->pos.x].color_pair = CP_WHITE;
+                    return;
+                }
+                ch->locked = false;
+            }
+        }
+
+        /* Trapped chest */
+        if (ch->trapped) {
+            int trap_type = rng_range(0, 2);
+            if (trap_type == 0) {
+                int dmg = rng_range(3, 8);
+                gs->hp -= dmg;
+                if (gs->hp < 1) gs->hp = 1;
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "Poison dart! The chest was trapped! -%d HP", dmg);
+            } else if (trap_type == 1) {
+                int dmg = rng_range(5, 10);
+                gs->hp -= dmg;
+                if (gs->hp < 1) gs->hp = 1;
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "BOOM! The chest explodes! -%d HP", dmg);
+            } else {
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "Gas cloud! You feel confused and disoriented.");
+            }
+        }
+
+        /* Open the chest -- give loot */
+        ch->opened = true;
+        dl->tiles[ch->pos.y][ch->pos.x].glyph = '.';
+        dl->tiles[ch->pos.y][ch->pos.x].color_pair = CP_WHITE;
+
+        int gold = rng_range(10 + dl->depth * 5, 40 + dl->depth * 10);
+        gs->gold += gold;
+        log_add(&gs->log, gs->turn, CP_YELLOW,
+                 "You open the chest! Found %d gold!", gold);
+
+        /* Random item from the chest */
+        if (gs->num_items < MAX_INVENTORY) {
+            int tcount; const ItemTemplate *tmps = item_get_templates(&tcount);
+            for (int tries = 0; tries < 30; tries++) {
+                int ri = rng_range(0, tcount - 1);
+                if (tmps[ri].rarity >= 2 && tmps[ri].min_depth <= dl->depth) {
+                    gs->inventory[gs->num_items] = item_create(ri, -1, -1);
+                    gs->inventory[gs->num_items].on_ground = false;
+                    gs->num_items++;
+                    log_add(&gs->log, gs->turn, CP_CYAN,
+                             "Also found: %s", tmps[ri].name);
+                    break;
+                }
+            }
+        }
+        return;
+    }
+}
+
 static void dungeon_spawn_items(DungeonLevel *dl) {
     int num_items = rng_range(8, 16 + dl->depth * 2);
     if (num_items > MAX_GROUND_ITEMS - 10) num_items = MAX_GROUND_ITEMS - 10;  /* leave room for drops */
@@ -1230,6 +1355,36 @@ static void advance_time(GameState *gs, int minutes) {
     if (gs->buff_spd_turns > 0) {
         gs->buff_spd_turns--;
         if (gs->buff_spd_turns == 0) { gs->spd -= 3; if (gs->spd < 1) gs->spd = 1; }
+    }
+
+    /* King travel: every 50 turns, a king may appear on a road */
+    if (gs->mode == MODE_OVERWORLD && gs->turn - gs->king_travel_turn >= 50) {
+        gs->king_travel_turn = gs->turn;
+        if (rng_chance(20) && gs->overworld->num_creatures < MAX_OW_CREATURES) {
+            const char *king_names[] = {
+                "King Galahaut", "King Pellam", "King Ban", "King Carados",
+                "King Agwisance", "King Howell", "King Bohrs"
+            };
+            int ki = rng_range(0, 6);
+            /* Place on a road near player */
+            for (int tries = 0; tries < 100; tries++) {
+                int kx = gs->player_pos.x + rng_range(-30, 30);
+                int ky = gs->player_pos.y + rng_range(-30, 30);
+                if (kx > 0 && kx < OW_WIDTH - 1 && ky > 0 && ky < OW_HEIGHT - 1 &&
+                    gs->overworld->map[ky][kx].type == TILE_ROAD &&
+                    !overworld_creature_at(gs->overworld, kx, ky)) {
+                    OWCreature *c = &gs->overworld->creatures[gs->overworld->num_creatures++];
+                    memset(c, 0, sizeof(*c));
+                    c->type = OW_NPC_TRAVELLER;
+                    c->pos = (Vec2){ kx, ky };
+                    c->glyph = 'K';
+                    c->color_pair = CP_YELLOW_BOLD;
+                    snprintf(c->name, MAX_NAME, "%s", king_names[ki]);
+                    c->hostile = false;
+                    break;
+                }
+            }
+        }
     }
 
     /* Vampirism: sunlight damage when outdoors during daytime */
@@ -2073,7 +2228,25 @@ static void handle_overworld_input(GameState *gs, int key) {
         if (creature && !creature->hostile && passable) {
             switch (creature->type) {
             case OW_NPC_TRAVELLER:
-                {
+                if (creature->glyph == 'K') {
+                    /* Travelling king */
+                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                             "%s rides past with his retinue.", creature->name);
+                    if (gs->chivalry >= 50) {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "\"Well met, brave %s! Your reputation precedes you.\"",
+                                 gs->player_gender == GENDER_MALE ? "Sir" : "Lady");
+                        if (rng_chance(30)) {
+                            int gold = rng_range(20, 50);
+                            gs->gold += gold;
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                     "He tosses you a purse. \"For your service to the realm.\" +%dg", gold);
+                        }
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_WHITE,
+                                 "The king glances at you briefly and rides on.");
+                    }
+                } else {
                     const char *msgs[] = {
                         "A traveller nods. \"Safe travels, friend.\"",
                         "\"The road to York is long. Watch for bandits.\"",
@@ -4758,6 +4931,74 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                          "The King rises. \"Welcome, %s %s! Your fame precedes you.\"",
                          title, gs->player_name);
+                /* Princess rescued -- offer reward/marriage */
+                if (gs->princess_rescued && !gs->princess_married) {
+                    ui_clear();
+                    int row = 3;
+                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    mvprintw(row++, 4, "\"You have rescued my daughter! You are a true hero!\"");
+                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    row++;
+                    attron(COLOR_PAIR(CP_YELLOW));
+                    mvprintw(row++, 4, "\"She wishes to marry you. Will you accept?\"");
+                    attroff(COLOR_PAIR(CP_YELLOW));
+                    row++;
+                    attron(COLOR_PAIR(CP_CYAN));
+                    mvprintw(row++, 4, "[y] Accept -- become %s (TRUE ENDING, +10000 score)",
+                             gs->player_gender == GENDER_MALE ? "King" : "Queen");
+                    mvprintw(row++, 4, "[n] Decline -- +5 chivalry, +500 gold, continue playing");
+                    attroff(COLOR_PAIR(CP_CYAN));
+                    ui_refresh();
+                    int mk = ui_getkey();
+                    if (mk == 'y' || mk == 'Y') {
+                        gs->princess_married = true;
+                        gs->xp += 10000;
+                        gs->chivalry = 100;
+                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                 "*** You married the Princess and became %s! THE TRUE ENDING! ***",
+                                 gs->player_gender == GENDER_MALE ? "King" : "Queen");
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "+10000 score! Your quest is truly complete.");
+                    } else {
+                        gs->chivalry += 5;
+                        if (gs->chivalry > 100) gs->chivalry = 100;
+                        gs->gold += 500;
+                        gs->princess_rescued = false; /* quest done, no re-offer */
+                        log_add(&gs->log, gs->turn, CP_WHITE,
+                                 "The princess is disappointed but understanding. +5 chivalry, +500g.");
+                    }
+                    break;
+                }
+                /* Offer princess quest if chivalry 50+ and not already active */
+                if (gs->chivalry >= 50 && !gs->princess_quest_active && !gs->princess_rescued) {
+                    log_add(&gs->log, gs->turn, CP_YELLOW,
+                             "\"My daughter has been kidnapped by an Evil Sorcerer!\"");
+                    log_add(&gs->log, gs->turn, CP_WHITE,
+                             "\"She is locked in a tower. Will you rescue her? Press 'y' to accept.\"");
+                    game_render(gs);
+                    int pk = ui_getkey();
+                    if (pk == 'y' || pk == 'Y') {
+                        gs->princess_quest_active = true;
+                        /* Place the tower as a dungeon entrance on the overworld */
+                        snprintf(gs->princess_tower, MAX_NAME, "Sorcerer's Tower");
+                        /* Find a spot on the overworld for the tower */
+                        for (int tries = 0; tries < 200; tries++) {
+                            int tx = rng_range(80, OW_WIDTH - 80);
+                            int ty = rng_range(30, OW_HEIGHT - 30);
+                            if (gs->overworld->map[ty][tx].passable &&
+                                gs->overworld->map[ty][tx].type == TILE_HILLS &&
+                                !overworld_location_at(gs->overworld, tx, ty)) {
+                                overworld_add_location(gs->overworld, "Sorcerer's Tower",
+                                                LOC_DUNGEON_ENTRANCE, tx, ty, '|', CP_MAGENTA_BOLD);
+                                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                         "Quest accepted! The Sorcerer's Tower has appeared in the hills.");
+                                log_add(&gs->log, gs->turn, CP_WHITE,
+                                         "Find and enter it to rescue the princess.");
+                                break;
+                            }
+                        }
+                    }
+                }
             } else if (gs->chivalry >= 30) {
                 log_add(&gs->log, gs->turn, CP_YELLOW,
                          "The King nods. \"What brings you to my court, %s?\"", title);
@@ -6390,6 +6631,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 gs->player_pos.y = ny;
                 advance_time(gs, 1);
                 check_traps(gs);
+                check_chests(gs);
                 dungeon_update_fov(gs);
                 dungeon_enemy_turns(gs);
 
@@ -6727,6 +6969,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_WHITE, "You push open the door.");
                 advance_time(gs, 1);
                 check_traps(gs);
+                check_chests(gs);
                 dungeon_update_fov(gs);
             } else if (target->type == TILE_DOOR_LOCKED) {
                 /* Locked door -- attempt to bash it open */

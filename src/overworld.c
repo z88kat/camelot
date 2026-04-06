@@ -883,6 +883,11 @@ Location *overworld_location_at(Overworld *ow, int x, int y) {
     return NULL;
 }
 
+int overworld_add_location(Overworld *ow, const char *name, LocationType type,
+                           int x, int y, char glyph, short color) {
+    return ow_add_location(ow, name, type, x, y, glyph, color);
+}
+
 bool overworld_is_passable(Overworld *ow, int x, int y) {
     if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) return false;
     return ow->map[y][x].passable;

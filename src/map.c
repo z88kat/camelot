@@ -1025,6 +1025,38 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
     /* Place traps */
     place_traps(level);
 
+    /* Place dungeon chests (1-3 per level) */
+    {
+        int num = rng_range(1, 3);
+        level->num_chests = 0;
+        for (int ci = 0; ci < num && level->num_chests < MAX_CHESTS; ci++) {
+            for (int tries = 0; tries < 100; tries++) {
+                int cx = rng_range(5, MAP_WIDTH - 5);
+                int cy = rng_range(5, MAP_HEIGHT - 5);
+                if (level->tiles[cy][cx].type != TILE_FLOOR) continue;
+                /* Must be in a room (many open neighbours) */
+                int open = 0;
+                for (int ddy = -1; ddy <= 1; ddy++)
+                    for (int ddx = -1; ddx <= 1; ddx++)
+                        if (level->tiles[cy+ddy][cx+ddx].passable) open++;
+                if (open < 5) continue;
+
+                DungeonChest *ch = &level->chests[level->num_chests];
+                ch->pos = (Vec2){ cx, cy };
+                ch->opened = false;
+                ch->mimic = rng_chance(5);          /* 5% mimic */
+                ch->trapped = !ch->mimic && rng_chance(20); /* 20% trapped */
+                ch->locked = !ch->mimic && rng_chance(30);  /* 30% locked */
+
+                /* Place chest glyph on map */
+                level->tiles[cy][cx].glyph = '=';
+                level->tiles[cy][cx].color_pair = ch->locked ? CP_RED : CP_BROWN;
+                level->num_chests++;
+                break;
+            }
+        }
+    }
+
     /* Hide solid rock -- only show walls adjacent to open space.
        This MUST run last, after all corridor/floor carving is done. */
     for (int y = 0; y < MAP_HEIGHT; y++) {

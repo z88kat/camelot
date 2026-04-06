@@ -32,6 +32,17 @@ typedef struct {
 
 #define MAX_TRAPS 16
 
+/* Dungeon chest */
+typedef struct {
+    Vec2     pos;
+    bool     locked;      /* requires lockpick/bash */
+    bool     trapped;     /* triggers trap on open */
+    bool     mimic;       /* actually a monster! */
+    bool     opened;      /* already looted */
+} DungeonChest;
+
+#define MAX_CHESTS 6
+
 /* A single dungeon level */
 typedef struct {
     Tile     tiles[MAP_HEIGHT][MAP_WIDTH];
@@ -45,6 +56,8 @@ typedef struct {
     int      num_monsters;
     Item     ground_items[MAX_GROUND_ITEMS];
     int      num_ground_items;
+    DungeonChest chests[MAX_CHESTS];
+    int      num_chests;
     bool     generated;  /* has this level been generated? */
     int      depth;      /* 0 = first level */
 } DungeonLevel;
