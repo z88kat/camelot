@@ -161,6 +161,8 @@ Tinderbox,(,brown,tool,1,10,10,0,0,3
 Tattered Map,&,brown,tool,0,2,30,1,0,1
 Pickaxe,(,gray,tool,1,30,15,0,0,3
 Rope,(,brown,tool,1,20,10,0,0,3
+# Fishing Rod: power = number of casts before it breaks
+Fishing Rod,(,brown,tool,30,15,25,0,0,3
 #
 # ===== Spell Scrolls (power = spell index in spells.csv) =====
 # Learn: read to permanently learn the spell. Consumed on use.

@@ -1928,9 +1928,15 @@ static void advance_time(GameState *gs, int minutes) {
         if (gs->torch_fuel <= 0) {
             gs->has_torch = false;
             gs->torch_fuel = 0;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "Your %s goes out! You are plunged into darkness.",
-                     gs->torch_type == 2 ? "lantern" : "torch");
+            if (gs->mode == MODE_DUNGEON) {
+                log_add(&gs->log, gs->turn, CP_RED,
+                         "Your %s goes out! You are plunged into darkness.",
+                         gs->torch_type == 2 ? "lantern" : "torch");
+            } else {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                         "Your %s goes out.",
+                         gs->torch_type == 2 ? "lantern" : "torch");
+            }
             /* Lantern remains usable with oil refuel, torch is consumed */
             if (gs->torch_type == 1) gs->torch_type = 0;
         }
@@ -4419,10 +4425,37 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
         }
         if (near_water) {
+            /* Need a Fishing Rod with at least one cast left. */
+            int rod_idx = -1;
+            for (int ii = 0; ii < gs->num_items; ii++) {
+                if (strcmp(gs->inventory[ii].name, "Fishing Rod") == 0 &&
+                    gs->inventory[ii].power > 0) {
+                    rod_idx = ii; break;
+                }
+            }
+            if (rod_idx < 0) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                        "You need a Fishing Rod to fish here.");
+                return;
+            }
             log_add(&gs->log, gs->turn, CP_CYAN, "You cast a line into the water...");
             int old_hour = gs->hour;
             advance_time(gs, 30); /* fishing takes 30 minutes */
             check_lunar_events(gs, old_hour);
+
+            /* Consume one use of the rod; break it if it hits zero. */
+            gs->inventory[rod_idx].power--;
+            if (gs->inventory[rod_idx].power <= 0) {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                        "Your Fishing Rod snaps! It is ruined.");
+                for (int j = rod_idx; j < gs->num_items - 1; j++)
+                    gs->inventory[j] = gs->inventory[j+1];
+                gs->inventory[--gs->num_items].template_id = -1;
+            } else if (gs->inventory[rod_idx].power <= 5) {
+                log_add(&gs->log, gs->turn, CP_GRAY,
+                        "Your Fishing Rod is starting to fray. (%d uses left)",
+                        gs->inventory[rod_idx].power);
+            }
 
             int catch_roll = rng_range(1, 100);
             if (catch_roll <= 40) {
@@ -8541,9 +8574,26 @@ void game_handle_input(GameState *gs, int key) {
                         }
                     }
                 } else if (akey == 'd') {
-                    log_add(&gs->log, gs->turn, CP_WHITE, "Dropped %s.", sel->name);
-                    for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
-                    gs->inventory[--gs->num_items].template_id = -1;
+                    if (gs->mode == MODE_DUNGEON) {
+                        DungeonLevel *dl_drop = current_dungeon_level(gs);
+                        if (dl_drop && dl_drop->num_ground_items < MAX_GROUND_ITEMS) {
+                            Item drop = *sel;
+                            drop.pos = gs->player_pos;
+                            drop.on_ground = true;
+                            dl_drop->ground_items[dl_drop->num_ground_items++] = drop;
+                            log_add(&gs->log, gs->turn, CP_WHITE, "Dropped %s.", sel->name);
+                            for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_YELLOW,
+                                    "There is no room to drop anything here.");
+                        }
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                "You drop the %s and it tumbles down a hole you did not see.", sel->name);
+                        for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                    }
                 } else if (akey == 'u') {
                     if (sel->type == ITYPE_POTION) {
                         /* Identify this potion type */

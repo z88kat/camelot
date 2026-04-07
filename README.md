@@ -2,6 +2,8 @@
 
 **The Quest for the Holy Grail** -- a terminal-based ASCII roguelike set in Arthurian England.
 
+![World map of Arthurian England](images/world-map.png)
+
 ## About
 
 Knights of Camelot is a full-featured roguelike game written in C using ncurses. You play as a knight, wizard, or ranger on a quest to find the Holy Grail. Explore an overworld map of medieval England, visit towns and castles, delve into dangerous dungeons, and encounter legendary characters from Arthurian myth.
