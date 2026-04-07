@@ -135,6 +135,7 @@ Scroll of Recall,?,yellow,scroll,1,5,50,3,0,1
 Scroll of Enchantment,?,magenta,scroll,1,5,80,5,0,1
 Scroll of Monster Detection,?,red,scroll,1,5,30,2,0,2
 Scroll of Holy Word,?,yellow,scroll,1,5,60,4,0,1
+Scroll of Remove Curse,?,white,scroll,1,5,55,3,0,2
 #
 # ===== Tools =====
 # ===== Ranged Weapons (power = base damage, min_depth doubles as range) =====
@@ -292,3 +293,16 @@ Amulet of Sacred Light,",white,amulet,3,2,280,9,0,1
 Amulet of Dark Power,",magenta,amulet,3,2,280,9,0,1
 Amulet of the Lake,",blue,amulet,4,2,400,10,0,1
 Amulet of Eternity,",cyan,amulet,4,2,450,12,0,1
+#
+# ===== Legendary Artifacts (rarity 1, deep) =====
+Lancelot's Sword,|,yellow,weapon,12,40,900,8,0,1
+Merlin's Staff,|,magenta,weapon,8,30,950,8,0,1
+Galahad's Helm,^,yellow,helmet,6,30,800,8,0,1
+Bors' Shield,),yellow,shield,6,60,800,8,0,1
+Gawain's Gauntlets,],yellow,gloves,4,20,700,7,0,1
+Ring of Rebirth,o,yellow,ring,1,1,1500,9,0,1
+Round Table Fragment,&,yellow,quest,1,5,2000,9,0,1
+Siege Perilous,&,yellow,quest,0,20,2000,10,0,1
+Tristan's Harp,(,cyan,tool,1,15,800,7,0,1
+Questing Beast's Horn,(,yellow,tool,1,10,800,7,0,1
+Cauldron of Rebirth,(,yellow,tool,1,40,1500,9,0,1

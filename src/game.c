@@ -10,6 +10,8 @@
 
 /* Forward declarations */
 static void ai_explode_on_death(GameState *gs, Entity *e);
+static bool player_try_revive(GameState *gs);
+static int player_artifact_bonus(const GameState *gs, const char *stat);
 static void handle_character_create(GameState *gs, int key);
 static void render_character_create(GameState *gs);
 static void dungeon_update_fov(GameState *gs);
@@ -491,6 +493,59 @@ static void get_dungeon_depth(const char *name, int *min_d, int *max_d) {
     else { *min_d = 3; *max_d = 8; }  /* default */
 }
 
+/* Passive carry bonuses from legendary artifacts. stat is "str","def","int","spd","mp". */
+static int player_artifact_bonus(const GameState *gs, const char *stat) {
+    int bonus = 0;
+    bool has_round_table = false;
+    bool has_merlin_staff = false;
+    for (int i = 0; i < gs->num_items; i++) {
+        const Item *it = &gs->inventory[i];
+        if (it->template_id < 0) continue;
+        if (strcmp(it->name, "Round Table Fragment") == 0) has_round_table = true;
+        if (strcmp(it->name, "Merlin's Staff") == 0) has_merlin_staff = true;
+    }
+    for (int s = 0; s < NUM_SLOTS; s++) {
+        const Item *it = &gs->equipment[s];
+        if (it->template_id < 0) continue;
+        if (strcmp(it->name, "Merlin's Staff") == 0) has_merlin_staff = true;
+    }
+    if (has_round_table) bonus += 1; /* +1 to all stats */
+    if (has_merlin_staff && strcmp(stat, "mp") == 0) bonus += 10;
+    return bonus;
+}
+
+/* If the player has a Cauldron of Rebirth or Ring of Rebirth in inventory,
+ * consume it and restore HP to full. Returns true if revival occurred. */
+static bool player_try_revive(GameState *gs) {
+    for (int i = 0; i < gs->num_items; i++) {
+        Item *it = &gs->inventory[i];
+        if (it->template_id < 0) continue;
+        if (strcmp(it->name, "Cauldron of Rebirth") == 0 ||
+            strcmp(it->name, "Ring of Rebirth") == 0) {
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "*** %s shatters in a blaze of light! You are reborn! ***",
+                     it->name);
+            gs->hp = gs->max_hp;
+            for (int j = i; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+            gs->inventory[--gs->num_items].template_id = -1;
+            return true;
+        }
+    }
+    /* Equipped Ring of Rebirth slot too */
+    for (int s = 0; s < NUM_SLOTS; s++) {
+        Item *it = &gs->equipment[s];
+        if (it->template_id < 0) continue;
+        if (strcmp(it->name, "Ring of Rebirth") == 0) {
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "*** Your Ring of Rebirth shatters! You are reborn! ***");
+            gs->hp = gs->max_hp;
+            it->template_id = -1;
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Check if player stepped on a trap */
 static void check_traps(GameState *gs) {
     DungeonLevel *dl = current_dungeon_level(gs);
@@ -659,7 +714,7 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         if (gs->equipment[SLOT_WEAPON].buc == 3) buc_bonus = 2;
         else if (gs->equipment[SLOT_WEAPON].buc == 1) buc_bonus = -2;
     }
-    int damage = gs->str + mount_str + weapon_pow + buc_bonus + rng_range(-2, 2) - target->def;
+    int damage = gs->str + mount_str + weapon_pow + buc_bonus + player_artifact_bonus(gs, "str") + rng_range(-2, 2) - target->def;
     if (damage < 1) damage = 1;
 
     /* Critical hit: 10% chance, 2x damage */
@@ -773,11 +828,17 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     }
 
     int armor_pow = 0;
-    for (int s = SLOT_ARMOR; s <= SLOT_GLOVES; s++)
-        if (gs->equipment[s].template_id >= 0) armor_pow += gs->equipment[s].power;
+    for (int s = SLOT_ARMOR; s <= SLOT_GLOVES; s++) {
+        if (gs->equipment[s].template_id >= 0) {
+            armor_pow += gs->equipment[s].power;
+            /* BUC bonus: blessed +1, cursed -1 per piece */
+            if (gs->equipment[s].buc == 3) armor_pow += 1;
+            else if (gs->equipment[s].buc == 1) armor_pow -= 1;
+        }
+    }
     /* Destrier war horse grants +2 DEF when mounted */
     int mount_def = (gs->riding && gs->horse_type == 3) ? 2 : 0;
-    int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow - mount_def;
+    int damage = attacker->str + rng_range(-2, 2) - gs->def - armor_pow - mount_def - player_artifact_bonus(gs, "def");
     if (damage < 1) damage = 1;
 
     /* Shield spell absorb */
@@ -834,6 +895,7 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     }
 
     if (gs->hp <= 0) {
+        if (player_try_revive(gs)) return;
         gs->hp = 0;
         snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
                  "Slain by %s", attacker->name);
@@ -4941,7 +5003,9 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 snprintf(hint_buf, sizeof(hint_buf), intros[rng_range(0, 3)], hint_dungeon);
                 log_add(&gs->log, gs->turn, CP_YELLOW, "%s", hint_buf);
             } else {
-                const char *chatter[] = {
+                static char loaded[64][192];
+                static int n_loaded = -1;
+                static const char *builtin[] = {
                     "\"Lovely day, isn't it?\"",
                     "\"Watch out for bandits on the roads.\"",
                     "\"Have you visited the inn? Best ale in England!\"",
@@ -4949,8 +5013,26 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                     "\"The King rode through here last week.\"",
                     "\"Strange lights in the forest last night...\"",
                 };
-                int n = sizeof(chatter) / sizeof(chatter[0]);
-                log_add(&gs->log, gs->turn, CP_WHITE, "%s", chatter[rng_range(0, n - 1)]);
+                int n_builtin = (int)(sizeof(builtin)/sizeof(builtin[0]));
+                if (n_loaded < 0) {
+                    n_loaded = 0;
+                    FILE *df = fopen("data/dialogue.csv", "r");
+                    if (df) {
+                        char line[192];
+                        while (fgets(line, sizeof(line), df) && n_loaded < 64) {
+                            if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+                            line[strcspn(line, "\n\r")] = 0;
+                            if (line[0] == 0) continue;
+                            snprintf(loaded[n_loaded], sizeof(loaded[0]), "%s", line);
+                            n_loaded++;
+                        }
+                        fclose(df);
+                    }
+                }
+                const char *line;
+                if (n_loaded > 0) line = loaded[rng_range(0, n_loaded - 1)];
+                else line = builtin[rng_range(0, n_builtin - 1)];
+                log_add(&gs->log, gs->turn, CP_WHITE, "%s", line);
             }
         }
         break;
@@ -8010,6 +8092,11 @@ void game_handle_input(GameState *gs, int key) {
                     EquipSlot slot = item_get_slot(sel->type);
                     if (slot == SLOT_NONE) {
                         log_add(&gs->log, gs->turn, CP_GRAY, "You can't equip that.");
+                    } else if (gs->equipment[slot].template_id >= 0 &&
+                               gs->equipment[slot].buc == 1 && gs->equipment[slot].buc_known) {
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "The %s is cursed! You cannot remove it.",
+                                 gs->equipment[slot].name);
                     } else {
                         Item old_equip = gs->equipment[slot];
                         gs->equipment[slot] = *sel;
@@ -8034,6 +8121,38 @@ void game_handle_input(GameState *gs, int key) {
                         bool was_unknown = (sel->template_id >= 0 && !gs->potions_identified[sel->template_id]);
                         if (sel->template_id >= 0)
                             gs->potions_identified[sel->template_id] = true;
+
+                        /* Holy Water: uncurse all worn cursed equipment */
+                        if (strcmp(sel->name, "Holy Water") == 0) {
+                            int uncursed = 0;
+                            for (int es = 0; es < NUM_SLOTS; es++) {
+                                Item *eq = &gs->equipment[es];
+                                if (eq->template_id >= 0 && eq->buc == 1) {
+                                    eq->buc = 2;
+                                    eq->buc_known = true;
+                                    uncursed++;
+                                }
+                            }
+                            if (uncursed > 0)
+                                log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                                         "Holy Water purifies %d cursed item%s!",
+                                         uncursed, uncursed == 1 ? "" : "s");
+                            else
+                                log_add(&gs->log, gs->turn, CP_WHITE,
+                                         "The Holy Water tingles but finds no curse to break.");
+                            for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                            sel->buc_known = true;
+                            return;
+                        }
+
+                        /* BUC scaling on potion power: blessed x1.5, cursed x0.5 */
+                        int eff_power = sel->power;
+                        if (sel->buc == 3) eff_power = (eff_power * 3) / 2;
+                        else if (sel->buc == 1) eff_power = eff_power / 2;
+                        if (eff_power < 1) eff_power = 1;
+                        sel->power = eff_power;
+                        sel->buc_known = true;
 
                         /* Apply effect based on potion name */
                         bool is_mana = (strstr(sel->name, "Mana") != NULL);
@@ -8096,6 +8215,66 @@ void game_handle_input(GameState *gs, int key) {
                         }
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
+                    } else if (strcmp(sel->name, "Tristan's Harp") == 0) {
+                        DungeonLevel *dl = current_dungeon_level(gs);
+                        int paci = 0;
+                        if (dl) {
+                            for (int mi = 0; mi < dl->num_monsters; mi++) {
+                                Entity *e = &dl->monsters[mi];
+                                if (!e->alive) continue;
+                                e->ai_state = AI_STATE_IDLE;
+                                paci++;
+                            }
+                        }
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "You play Tristan's Harp. %d enemies are entranced.", paci);
+                    } else if (strcmp(sel->name, "Questing Beast's Horn") == 0) {
+                        DungeonLevel *dl = current_dungeon_level(gs);
+                        int scared = 0;
+                        if (dl) {
+                            for (int mi = 0; mi < dl->num_monsters; mi++) {
+                                Entity *e = &dl->monsters[mi];
+                                if (!e->alive) continue;
+                                if (e->hp <= 10) { e->ai_state = AI_STATE_FLEE; scared++; }
+                            }
+                        }
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "The horn blasts! %d weak foes flee in terror.", scared);
+                    } else if (sel->type == ITYPE_SCROLL) {
+                        bool consume = true;
+                        if (strcmp(sel->name, "Scroll of Identify") == 0) {
+                            /* Pick another inventory item to identify BUC of */
+                            mvprintw(row + 1, 4, "Identify which item? (a-z, q=cancel)");
+                            ui_refresh();
+                            int ck = ui_getkey();
+                            if (ck >= 'a' && ck <= 'z') {
+                                int ti = ck - 'a';
+                                if (ti < gs->num_items && gs->inventory[ti].template_id >= 0) {
+                                    gs->inventory[ti].buc_known = true;
+                                    if (gs->inventory[ti].type == ITYPE_POTION && gs->inventory[ti].template_id >= 0)
+                                        gs->potions_identified[gs->inventory[ti].template_id] = true;
+                                    log_add(&gs->log, gs->turn, CP_WHITE,
+                                             "You identify the %s.", gs->inventory[ti].name);
+                                } else { consume = false; }
+                            } else { consume = false; }
+                        } else if (strcmp(sel->name, "Scroll of Remove Curse") == 0) {
+                            int uncursed = 0;
+                            for (int es = 0; es < NUM_SLOTS; es++) {
+                                Item *eq = &gs->equipment[es];
+                                if (eq->template_id >= 0 && eq->buc == 1) {
+                                    eq->buc = 2; eq->buc_known = true; uncursed++;
+                                }
+                            }
+                            log_add(&gs->log, gs->turn, CP_WHITE_BOLD,
+                                     "A wave of purity washes over you. Uncursed %d item%s.",
+                                     uncursed, uncursed == 1 ? "" : "s");
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_GRAY, "You read the %s but nothing happens here.", sel->name);
+                        }
+                        if (consume) {
+                            for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                        }
                     } else if (strcmp(sel->name, "Tattered Map") == 0) {
                         /* Show treasure map -- find closest unfound treasure */
                         int best = -1, best_dist = 999999;
