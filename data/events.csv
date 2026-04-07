@@ -1,0 +1,22 @@
+# Knights of Camelot - lunar / calendar events
+# Reference data for src/game.c::check_lunar_events. The cycle is 30 days
+# (game_get_moon_day). Events fire at dawn on day_of_cycle and persist for
+# `duration` days. Effects are dispatched in code by day number.
+#
+# Columns:
+#   name,day_of_cycle,duration,effect_type,effect_power,description
+# effect_type values: undead_bias, mana_regen, restock, xp_bonus,
+#                     full_moon, rest_bonus, teleport, shadow, damage_bonus,
+#                     dark_magic, food_bonus, holy, festival, market, druid, court
+New Moon,1,1,undead_bias,50,Undead spawn rate increased; the night is darkest
+Waxing Crescent,5,1,festival,0,Feast Day at Camelot - HP/MP restored
+Market Day,10,1,market,0,Merchants gather; bonus gold from trade
+Druid Gathering,12,1,druid,2,Nature affinity boost
+Full Moon Eve,14,1,full_moon,0,Tomorrow is the full moon
+Full Moon,15,1,full_moon,1,Werewolves transform; lunacy spells +50%
+Tournament,18,1,xp_bonus,100,Combat XP doubled today
+Holy Day,20,1,holy,2,Light affinity and chivalry boosted
+Witching Hour,22,1,dark_magic,2,Dark affinity boosted
+Kings Court,25,1,court,1,Arthur holds court at Camelot
+Night of Spirits,27,1,shadow,0,Undead are more dangerous tonight
+Harvest Moon,30,1,food_bonus,1,Food is plentiful; bread is gifted

@@ -1,0 +1,15 @@
+# Knights of Camelot - special dungeon rooms
+# Currently this file documents the room types generated in src/map.c
+# (decoration block in map_generate). The first-discovery flavor messages
+# are emitted from src/game.c::check_special_rooms.
+#
+# Columns:
+#   name,min_depth,max_depth,rarity,room_type,extra_loot,monster_bias,description
+# room_type values: temple, library, crypt, treasure_vault, monster_lair, armoury, flooded
+temple,1,20,15,temple,0,0,A holy chamber with a central altar surrounded by candles
+library,1,20,15,library,2,0,Bookshelves line the walls; spell scrolls may be found
+crypt,2,20,12,crypt,1,3,Stone coffins and undead enemies
+treasure_vault,3,20,8,treasure_vault,4,0,Piles of gold and a guarded chest
+monster_lair,1,20,12,monster_lair,0,4,Bones and a den of beasts
+armoury,2,20,10,armoury,3,0,Racks of weapons and armour
+flooded,2,20,8,flooded,0,0,Shallow water covers the floor

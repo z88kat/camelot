@@ -1,0 +1,24 @@
+# Knights of Camelot - trap definitions
+# Loaded by src/trap.c. Index order MUST match the TrapType enum in
+# src/map.h (TRAP_NONE first, then PIT, POISON_DART, TRIPWIRE, ARROW,
+# ALARM, BEAR, FIRE, TELEPORT, GAS, COLLAPSE, SPIKE, MANA_DRAIN).
+#
+# Columns:
+#   name,glyph,color,trigger_chance,damage,effect,effect_param,message
+# Effect values:
+#   none, teleport, alarm, gas_poison, gas_sleep, mana_drain, summon,
+#   pit, dart, spike, fire, ice, tripwire, bear, collapse
+# Message may contain a single %d which is replaced with the damage value.
+None,.,gray,0,0,none,0,
+Pit Trap,^,brown,100,8,pit,0,You fall into a pit trap! -%d HP
+Poison Dart,^,green,100,3,dart,0,A poison dart shoots from the wall! -%d HP (poisoned!)
+Tripwire,^,gray,100,0,tripwire,0,You trip over a wire and stumble!
+Arrow Trap,^,yellow,100,8,dart,0,Arrows fly from the walls! -%d HP
+Alarm Trap,^,red,100,0,alarm,0,ALARM! A loud bell rings! All enemies alerted!
+Bear Trap,^,brown,100,4,bear,0,A bear trap snaps shut on your leg! -%d HP
+Fire Trap,^,red,100,10,fire,0,Flames erupt beneath you! -%d HP
+Teleport Trap,^,magenta,100,0,teleport,0,A teleport trap! The world spins... you're somewhere else!
+Gas Trap,^,green,100,0,gas_poison,0,Poison gas fills the air! You feel confused.
+Collapsing Floor,^,gray,100,15,collapse,0,The floor collapses beneath you! -%d HP
+Spike Trap,^,gray,100,6,spike,0,Spikes shoot up from the floor! -%d HP
+Mana Drain,^,magenta,100,0,mana_drain,15,A magical trap drains your mana! -%d MP

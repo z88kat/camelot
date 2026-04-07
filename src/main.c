@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) {
             } else {
                 entity_init();
                 item_init();
+                trap_init();
                 spell_init();
                 town_init();
 

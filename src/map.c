@@ -406,6 +406,15 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
 
             int room_type = rng_range(0, 3);
 
+            /* Record this as a special room for first-discovery messaging */
+            if (level->num_special_rooms < MAX_SPECIAL_ROOMS) {
+                int sri = level->num_special_rooms++;
+                level->special_rooms[sri] = (Vec2){ rx, ry };
+                /* map room_type to canonical id: 0=temple,1=library,2=crypt,3=treasure_vault */
+                level->special_room_type[sri] = room_type;
+                level->special_room_seen[sri] = false;
+            }
+
             if (room_type == 0) {
                 /* Temple -- altar in center, candle glyphs */
                 level->tiles[ry][rx].glyph = '_';

@@ -60,6 +60,12 @@ typedef struct {
     int      num_chests;
     bool     generated;  /* has this level been generated? */
     int      depth;      /* 0 = first level */
+    /* Special rooms (decorated by map.c). Up to 4 per level. */
+    #define MAX_SPECIAL_ROOMS 4
+    Vec2     special_rooms[MAX_SPECIAL_ROOMS];
+    int      special_room_type[MAX_SPECIAL_ROOMS]; /* 0=temple,1=library,2=crypt,3=treasure_vault,4=monster_lair,5=armoury,6=flooded */
+    bool     special_room_seen[MAX_SPECIAL_ROOMS];
+    int      num_special_rooms;
 } DungeonLevel;
 
 /* A complete dungeon (all levels) */

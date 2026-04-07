@@ -10,6 +10,7 @@
 #include "fov.h"
 #include "item.h"
 #include "spell.h"
+#include "trap.h"
 
 /* Player class */
 typedef enum {
@@ -45,7 +46,7 @@ typedef enum {
     TOD_EVENING     /* 19:00 - 21:59 */
 } TimeOfDay;
 
-typedef struct {
+typedef struct GameState {
     /* Current dungeon (heap allocated, NULL if not in dungeon) */
     Dungeon   *dungeon;
 

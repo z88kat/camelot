@@ -546,10 +546,36 @@ static bool player_try_revive(GameState *gs) {
     return false;
 }
 
+/* Check if player stepped near a special room and announce on first sight. */
+static void check_special_rooms(GameState *gs) {
+    DungeonLevel *dl = current_dungeon_level(gs);
+    if (!dl) return;
+    for (int i = 0; i < dl->num_special_rooms; i++) {
+        if (dl->special_room_seen[i]) continue;
+        int dx = dl->special_rooms[i].x - gs->player_pos.x;
+        int dy = dl->special_rooms[i].y - gs->player_pos.y;
+        if (dx*dx + dy*dy > 16) continue; /* within ~4 tiles */
+        dl->special_room_seen[i] = true;
+        const char *msgs[] = {
+            "A holy temple! Candles flicker around an ancient altar.",
+            "A dusty library lined with crumbling tomes and a reading desk.",
+            "A grim crypt. Stone coffins line the walls. The dead rest here.",
+            "A treasure vault! Gold gleams in the torchlight!",
+            "A monster lair. Bones litter the floor -- something lives here.",
+            "An old armoury. Racks of weapons and armour line the walls.",
+            "A flooded chamber. Cold water laps at your boots."
+        };
+        int idx = dl->special_room_type[i];
+        if (idx < 0 || idx >= (int)(sizeof(msgs)/sizeof(msgs[0]))) idx = 0;
+        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "%s", msgs[idx]);
+    }
+}
+
 /* Check if player stepped on a trap */
 static void check_traps(GameState *gs) {
     DungeonLevel *dl = current_dungeon_level(gs);
     if (!dl) return;
+    check_special_rooms(gs);
 
     for (int i = 0; i < dl->num_traps; i++) {
         Trap *t = &dl->traps[i];
@@ -563,88 +589,9 @@ static void check_traps(GameState *gs) {
         dl->tiles[t->pos.y][t->pos.x].glyph = '^';
         dl->tiles[t->pos.y][t->pos.x].color_pair = CP_RED;
 
-        switch (t->type) {
-        case TRAP_PIT: {
-            int dmg = rng_range(5, 10);
-            gs->hp -= dmg;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "You fall into a pit trap! -%d HP", dmg);
-            break;
-        }
-        case TRAP_POISON_DART: {
-            gs->hp -= 3;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "A poison dart shoots from the wall! -3 HP (poisoned!)");
-            break;
-        }
-        case TRAP_TRIPWIRE:
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "You trip over a wire and stumble!");
-            break;
-        case TRAP_ARROW: {
-            gs->hp -= 8;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "Arrows fly from the walls! -8 HP");
-            break;
-        }
-        case TRAP_ALARM:
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "ALARM! A loud bell rings! All enemies alerted!");
-            break;
-        case TRAP_BEAR: {
-            gs->hp -= 4;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "A bear trap snaps shut on your leg! -4 HP");
-            break;
-        }
-        case TRAP_FIRE: {
-            gs->hp -= 10;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "Flames erupt beneath you! -10 HP");
-            break;
-        }
-        case TRAP_TELEPORT: {
-            /* Teleport to random floor tile */
-            for (int tries = 0; tries < 200; tries++) {
-                int rx = rng_range(2, MAP_WIDTH - 3);
-                int ry = rng_range(2, MAP_HEIGHT - 3);
-                if (dl->tiles[ry][rx].type == TILE_FLOOR) {
-                    gs->player_pos = (Vec2){ rx, ry };
-                    break;
-                }
-            }
-            log_add(&gs->log, gs->turn, CP_MAGENTA,
-                     "A teleport trap! The world spins... you're somewhere else!");
-            break;
-        }
-        case TRAP_GAS:
-            log_add(&gs->log, gs->turn, CP_GREEN,
-                     "Poison gas fills the air! You feel confused.");
-            break;
-        case TRAP_COLLAPSE: {
-            gs->hp -= 15;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "The floor collapses beneath you! -15 HP");
-            break;
-        }
-        case TRAP_SPIKE: {
-            gs->hp -= 6;
-            log_add(&gs->log, gs->turn, CP_RED,
-                     "Spikes shoot up from the floor! -6 HP");
-            break;
-        }
-        case TRAP_MANA_DRAIN: {
-            int drain = rng_range(10, 20);
-            gs->mp -= drain;
-            if (gs->mp < 0) gs->mp = 0;
-            log_add(&gs->log, gs->turn, CP_MAGENTA,
-                     "A magical trap drains your mana! -%d MP", drain);
-            break;
-        }
-        default: break;
-        }
-
-        if (gs->hp < 1) gs->hp = 1;  /* don't die from traps yet (death in Phase 13) */
+        /* Data-driven dispatch via trap.c */
+        const TrapDef *def = trap_def_for_type(t->type);
+        trap_apply_def(gs, def);
     }
 
     /* Passive trap detection -- chance to spot nearby traps */
@@ -9451,6 +9398,7 @@ void game_init(GameState *gs) {
     /* Initialize data */
     entity_init();
     item_init();
+    trap_init();
     spell_init();
 
     /* Default state */

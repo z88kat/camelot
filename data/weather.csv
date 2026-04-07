@@ -1,0 +1,20 @@
+# Knights of Camelot - weather definitions
+# Reference data for the weather system in src/game.c (weather_name,
+# weather_icon, get_regional_weather, change_weather). The hardcoded
+# WeatherType enum order in src/game.h must match the first 6 rows here.
+#
+# Columns:
+#   name,glyph_overlay,vis_mod,speed_mod,encounter_mod,duration_min,duration_max,region_weights
+# vis_mod:    multiplier x100 applied to FOV radius (100 = no change)
+# speed_mod:  flat penalty added to overworld step minutes
+# encounter_mod: percent change to monster encounter chance
+# duration_*: turns the weather lasts (range)
+# region_weights: comma-free hint of where it favours (free text)
+Clear,*,100,0,0,80,250,everywhere
+Light Rain,/,90,2,5,80,200,Wales/Whitby/North
+Heavy Rain,/,75,4,10,60,150,Wales/Whitby
+Fog,~,50,1,15,80,200,Wales/lowlands/coast
+Snow,+,75,4,5,80,200,Scotland/north
+Storm,!,50,5,20,40,120,coast/north
+Mist,~,80,1,5,60,150,marshes/lakes
+Hail,*,70,3,10,30,80,north/storms
