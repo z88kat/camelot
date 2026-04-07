@@ -21,7 +21,10 @@ bool ui_init(void) {
 
     /* Basic 8-color pairs */
     init_pair(CP_WHITE,       COLOR_WHITE,   COLOR_BLACK);
-    init_pair(CP_RED,         COLOR_RED,     COLOR_BLACK);
+    /* "Red" is rendered as orange (xterm-256 idx 208) for readability on
+     * black backgrounds, falling back to bright yellow on 8-color terms. */
+    if (use_256_colors) init_pair(CP_RED, 208, COLOR_BLACK);
+    else                init_pair(CP_RED, COLOR_YELLOW, COLOR_BLACK);
     init_pair(CP_GREEN,       COLOR_GREEN,   COLOR_BLACK);
     init_pair(CP_YELLOW,      COLOR_YELLOW,  COLOR_BLACK);
     init_pair(CP_BLUE,        COLOR_CYAN,    COLOR_BLACK);
@@ -36,7 +39,8 @@ bool ui_init(void) {
 
     /* Bold variants (same pairs, applied with A_BOLD at render time) */
     init_pair(CP_WHITE_BOLD,  COLOR_WHITE,   COLOR_BLACK);
-    init_pair(CP_RED_BOLD,    COLOR_RED,     COLOR_BLACK);
+    if (use_256_colors) init_pair(CP_RED_BOLD, 208, COLOR_BLACK);
+    else                init_pair(CP_RED_BOLD, COLOR_YELLOW, COLOR_BLACK);
     init_pair(CP_GREEN_BOLD,  COLOR_GREEN,   COLOR_BLACK);
     init_pair(CP_YELLOW_BOLD, COLOR_YELLOW,  COLOR_BLACK);
     init_pair(CP_BLUE_BOLD,   COLOR_BLUE,    COLOR_BLACK);
@@ -45,7 +49,8 @@ bool ui_init(void) {
 
     /* UI color pairs */
     init_pair(CP_STATUS_BAR,  COLOR_WHITE,   COLOR_BLUE);
-    init_pair(CP_LOG_DAMAGE,  COLOR_RED,     COLOR_BLACK);
+    if (use_256_colors) init_pair(CP_LOG_DAMAGE, 208, COLOR_BLACK);
+    else                init_pair(CP_LOG_DAMAGE, COLOR_YELLOW, COLOR_BLACK);
     init_pair(CP_LOG_HEAL,    COLOR_GREEN,   COLOR_BLACK);
     init_pair(CP_LOG_QUEST,   COLOR_YELLOW,  COLOR_BLACK);
     init_pair(CP_LOG_LOOT,    COLOR_CYAN,    COLOR_BLACK);
