@@ -73,6 +73,8 @@ typedef struct GameState {
     int        torch_fuel;  /* turns of fuel remaining (0 = out) */
     int        torch_type;  /* 0=none, 1=torch, 2=lantern */
     int        horse_type;  /* 0=none, 1=Pony, 2=Palfrey, 3=Destrier */
+    int        horse_str;   /* rolled when buying a horse */
+    int        horse_max_carry; /* total carry capacity of horse, weight units */
     bool       riding;      /* currently mounted */
     int        horse_wait_turns; /* turns horse has been waiting outside */
     int        beers_drunk; /* current drunkenness counter */
@@ -201,5 +203,21 @@ void game_update(GameState *gs);
 
 /* Initialize the dungeon map with a simple test layout. */
 void game_init_test_map(GameState *gs);
+
+/* Carry weight helpers */
+#define PLAYER_BODY_WEIGHT 700
+
+typedef enum {
+    ENC_UNENCUMBERED = 0,
+    ENC_ENCUMBERED,
+    ENC_HEAVY,
+    ENC_OVERLOADED
+} EncumbranceState;
+
+int  carry_total_items_weight(const GameState *gs);  /* inv+equipment, units x10 */
+int  carry_capacity(const GameState *gs);            /* player capacity, units x10 */
+EncumbranceState carry_encumbrance(const GameState *gs);
+int  carry_time_scale(EncumbranceState s);           /* multiplier numerator out of 1 */
+int  carry_scale_minutes(const GameState *gs, int minutes); /* scales by encumbrance */
 
 #endif /* GAME_H */

@@ -1633,6 +1633,55 @@ static Direction key_to_direction(int key) {
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* Carry weight system                                                 */
+/* ------------------------------------------------------------------ */
+
+int carry_total_items_weight(const GameState *gs) {
+    int total = 0;
+    for (int i = 0; i < gs->num_items; i++) {
+        if (gs->inventory[i].template_id >= 0)
+            total += gs->inventory[i].weight;
+    }
+    for (int s = 0; s < NUM_SLOTS; s++) {
+        if (gs->equipment[s].template_id >= 0)
+            total += gs->equipment[s].weight;
+    }
+    return total;
+}
+
+int carry_capacity(const GameState *gs) {
+    /* 50 + str*10 in weight units, stored x10 to match item weights */
+    return (50 + gs->str * 10) * 10;
+}
+
+EncumbranceState carry_encumbrance(const GameState *gs) {
+    int w = gs->weight;
+    int cap = carry_capacity(gs);
+    if (cap <= 0) return ENC_UNENCUMBERED;
+    if (w <= cap) return ENC_UNENCUMBERED;
+    if (w <= (cap * 3) / 2) return ENC_ENCUMBERED;
+    if (w <= cap * 2) return ENC_HEAVY;
+    return ENC_OVERLOADED;
+}
+
+int carry_scale_minutes(const GameState *gs, int minutes) {
+    EncumbranceState s = carry_encumbrance(gs);
+    if (s == ENC_ENCUMBERED) {
+        /* 1.5x, round up */
+        return (minutes * 3 + 1) / 2;
+    } else if (s == ENC_HEAVY) {
+        return minutes * 2;
+    }
+    return minutes;
+}
+
+/* Recompute cached weight/capacity fields on gs. Call after inventory change. */
+static void recompute_weight(GameState *gs) {
+    gs->weight = carry_total_items_weight(gs);
+    gs->max_weight = carry_capacity(gs);
+}
+
 /* Advance game clock by the given number of minutes */
 static void advance_time(GameState *gs, int minutes) {
     gs->turn++;
@@ -2817,10 +2866,18 @@ static void handle_overworld_input(GameState *gs, int key) {
         if (gs->has_cat) {
             gs->cat_pos = gs->player_pos; /* cat moves to where player was */
         }
+        /* Encumbrance check -- overloaded cannot move */
+        recompute_weight(gs);
+        if (carry_encumbrance(gs) == ENC_OVERLOADED) {
+            log_add(&gs->log, gs->turn, CP_RED,
+                    "You are too heavily laden to move. Drop something.");
+            return;
+        }
         gs->player_pos.x = nx;
         gs->player_pos.y = ny;
         TileType stepped_on = gs->overworld->map[ny][nx].type;
         int travel_mins = overworld_travel_time(gs, stepped_on);
+        if (!gs->riding) travel_mins = carry_scale_minutes(gs, travel_mins);
         int old_hour = gs->hour;
         advance_time(gs, travel_mins);
         check_lunar_events(gs, old_hour);
@@ -4374,12 +4431,25 @@ static void handle_overworld_input(GameState *gs, int key) {
 
     /* Mount/dismount horse */
     if (key == 'H' && gs->horse_type > 0) {
-        gs->riding = !gs->riding;
         if (gs->riding) {
-            log_add(&gs->log, gs->turn, CP_BROWN, "You mount your horse. Travel speed doubled!");
-        } else {
+            gs->riding = false;
             log_add(&gs->log, gs->turn, CP_BROWN, "You dismount.");
+            return;
         }
+        /* Mount: weight check */
+        recompute_weight(gs);
+        int total = PLAYER_BODY_WEIGHT + gs->weight;
+        if (total > gs->horse_max_carry) {
+            const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
+            log_add(&gs->log, gs->turn, CP_RED,
+                    "Your %s is not strong enough to bear you and your gear. (capacity %d.%d, you weigh %d.%d)",
+                    hnames[gs->horse_type],
+                    gs->horse_max_carry/10, gs->horse_max_carry%10,
+                    total/10, total%10);
+            return;
+        }
+        gs->riding = true;
+        log_add(&gs->log, gs->turn, CP_BROWN, "You mount your horse. Travel speed doubled!");
         return;
     }
 
@@ -5208,8 +5278,16 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 if (gs->gold >= cost) {
                     gs->gold -= cost;
                     gs->horse_type = htype;
+                    /* Roll horse STR and compute carry capacity */
+                    double mult = 1.0;
+                    if (htype == 1) { gs->horse_str = rng_range(6, 10);  mult = 0.7; }
+                    else if (htype == 2) { gs->horse_str = rng_range(9, 13);  mult = 1.0; }
+                    else if (htype == 3) { gs->horse_str = rng_range(12, 17); mult = 1.4; }
+                    /* x10 storage to match item weights and PLAYER_BODY_WEIGHT */
+                    gs->horse_max_carry = (int)(gs->horse_str * 25 * mult * 10);
                     log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                             "You buy a %s! It will be waiting outside for you.", hname);
+                             "You buy a %s! (STR %d, carry %d.%d) It will be waiting outside for you.",
+                             hname, gs->horse_str, gs->horse_max_carry/10, gs->horse_max_carry%10);
                     log_add(&gs->log, gs->turn, CP_WHITE,
                              "Press 'H' on the overworld to mount/dismount.");
                 } else {
@@ -7294,13 +7372,19 @@ static void handle_dungeon_input(GameState *gs, int key) {
 
             Tile *target = &tiles[ny][nx];
             if (target->passable) {
+                recompute_weight(gs);
+                if (carry_encumbrance(gs) == ENC_OVERLOADED) {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                            "You are too heavily laden to move. Drop something.");
+                    return;
+                }
                 /* Cat trails behind player in dungeons too */
                 if (gs->has_cat) {
                     gs->cat_pos = gs->player_pos;
                 }
                 gs->player_pos.x = nx;
                 gs->player_pos.y = ny;
-                advance_time(gs, 1);
+                advance_time(gs, carry_scale_minutes(gs, 1));
                 check_traps(gs);
                 check_chests(gs);
                 dungeon_update_fov(gs);
@@ -7744,14 +7828,14 @@ void game_handle_input(GameState *gs, int key) {
         gs->max_mp += mp_gain;
         gs->hp = gs->max_hp;
         gs->mp = gs->max_mp;
-        gs->max_weight += 2;
+        /* carry capacity now derived from STR via carry_capacity() */
 
         attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
         mvprintw(row++, 4, "=== Level Up! Level %d ===", gs->player_level);
         attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
         row++;
         attron(COLOR_PAIR(CP_GREEN));
-        mvprintw(row++, 6, "+%d max HP   +%d max MP   +2 carry capacity", hp_gain, mp_gain);
+        mvprintw(row++, 6, "+%d max HP   +%d max MP", hp_gain, mp_gain);
         attroff(COLOR_PAIR(CP_GREEN));
         row++;
 
@@ -8343,8 +8427,8 @@ void game_handle_input(GameState *gs, int key) {
 
             if (rotten) {
                 attron(COLOR_PAIR(CP_RED));
-                mvprintw(row++, 4, "%c) %s (ROTTEN!) [%s]",
-                         'a' + ii, it->name, item_type_name(it->type));
+                mvprintw(row++, 4, "%c) %s (ROTTEN!) [%s] (Wt %d.%d)",
+                         'a' + ii, it->name, item_type_name(it->type), it->weight/10, it->weight%10);
                 attroff(COLOR_PAIR(CP_RED));
             } else {
                 const char *disp_name = potion_display_name(gs, it);
@@ -8359,13 +8443,31 @@ void game_handle_input(GameState *gs, int key) {
                 if (it->buc_known && it->buc == 1) disp_color = CP_RED;
                 if (it->buc_known && it->buc == 3) disp_color = CP_YELLOW_BOLD;
                 attron(COLOR_PAIR(disp_color));
-                mvprintw(row++, 4, "%c) %s%s [%s] pow:%d val:%dg",
+                mvprintw(row++, 4, "%c) %s%s [%s] pow:%d val:%dg (Wt %d.%d)",
                          'a' + ii, buc_str, disp_name, item_type_name(it->type),
-                         it->power, it->value);
+                         it->power, it->value, it->weight/10, it->weight%10);
                 attroff(COLOR_PAIR(disp_color));
             }
         }
         row++;
+        {
+            recompute_weight(gs);
+            int tw = gs->weight;
+            int cap = carry_capacity(gs);
+            EncumbranceState es = carry_encumbrance(gs);
+            const char *state_name = "Unencumbered";
+            short scol = CP_GREEN;
+            switch (es) {
+            case ENC_UNENCUMBERED: state_name = "Unencumbered"; scol = CP_GREEN; break;
+            case ENC_ENCUMBERED:   state_name = "Encumbered";   scol = CP_YELLOW; break;
+            case ENC_HEAVY:        state_name = "Heavily Encumbered"; scol = CP_BROWN; break;
+            case ENC_OVERLOADED:   state_name = "Overloaded";   scol = CP_RED;    break;
+            }
+            attron(COLOR_PAIR(scol));
+            mvprintw(row++, 2, "Weight: %d.%d / %d.%d   [%s]",
+                     tw/10, tw%10, cap/10, cap%10, state_name);
+            attroff(COLOR_PAIR(scol));
+        }
         attron(COLOR_PAIR(CP_WHITE));
         mvprintw(row++, 2, "Press a-z to select, then: e=equip d=drop u=use | q=close");
         attroff(COLOR_PAIR(CP_WHITE));
@@ -10182,10 +10284,17 @@ static void game_render(GameState *gs) {
             mvaddch(y, map_view_width, ACS_VLINE);
         attroff(COLOR_PAIR(CP_GRAY));
 
+        recompute_weight(gs);
+        int hud_max_w = gs->max_weight;
+        if (gs->riding && gs->horse_max_carry > 0) {
+            /* show horse capacity (subtract player body weight, since HUD weight is items only) */
+            hud_max_w = gs->horse_max_carry - PLAYER_BODY_WEIGHT;
+            if (hud_max_w < 0) hud_max_w = 0;
+        }
         ui_render_sidebar(sidebar_col, gs->player_name, gs->player_level,
                           gs->hp, gs->max_hp, gs->mp, gs->max_mp,
                           gs->str, gs->def, gs->intel, gs->spd,
-                          gs->gold, gs->weight, gs->max_weight, gs->chivalry,
+                          gs->gold, gs->weight, hud_max_w, (int)carry_encumbrance(gs), gs->riding ? 1 : 0, gs->chivalry,
                           gs->turn, gs->day, gs->hour, gs->minute);
     }
 

@@ -122,7 +122,7 @@ void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
 
 void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
                        int mp, int max_mp, int str, int def, int intel, int spd,
-                       int gold, int weight, int max_weight, int chivalry,
+                       int gold, int weight, int max_weight, int encumbrance, int mounted, int chivalry,
                        int turn, int day, int hour, int minute) {
     int row = 0;
     attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
@@ -179,7 +179,22 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
     mvprintw(row++, col, " INT: %-3d", intel);
     mvprintw(row++, col, " SPD: %-3d", spd);
     row++;
-    mvprintw(row++, col, " Wt:  %d/%d", weight, max_weight);
+    {
+        short wcol = CP_WHITE;
+        const char *marker = "";
+        switch (encumbrance) {
+        case 0: wcol = CP_WHITE;       marker = "";    break;
+        case 1: wcol = CP_YELLOW;      marker = "*";   break;
+        case 2: wcol = CP_BROWN;       marker = "**";  break;
+        case 3: wcol = CP_RED;         marker = "!!!"; break;
+        }
+        attron(COLOR_PAIR(wcol));
+        if (mounted)
+            mvprintw(row++, col, " Wt: %d.%d/%d.%d%s ~", weight/10, weight%10, max_weight/10, max_weight%10, marker);
+        else
+            mvprintw(row++, col, " Wt: %d.%d/%d.%d%s", weight/10, weight%10, max_weight/10, max_weight%10, marker);
+        attroff(COLOR_PAIR(wcol));
+    }
 
     attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
     mvprintw(row++, col, " Gold: %-6d", gold);

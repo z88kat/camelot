@@ -25,7 +25,7 @@ void ui_render_map(Tile map[MAP_HEIGHT][MAP_WIDTH], Vec2 player_pos,
 /* Render the sidebar with character stats. */
 void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
                        int mp, int max_mp, int str, int def, int intel, int spd,
-                       int gold, int weight, int max_weight, int chivalry,
+                       int gold, int weight, int max_weight, int encumbrance, int mounted, int chivalry,
                        int turn, int day, int hour, int minute);
 
 /* Render the message log at the bottom. */
