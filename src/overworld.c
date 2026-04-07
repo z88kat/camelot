@@ -700,6 +700,7 @@ void overworld_init(Overworld *ow) {
     draw_road(ow, 312, 181, 238, 194);   /* London -> Winchester */
     draw_road(ow, 194, 188, 162, 175);   /* Glastonbury -> Bath */
     draw_road(ow, 138, 138, 112, 131);   /* Wales -> inner Wales */
+    draw_road(ow, 112, 131, 100, 122);   /* inner Wales -> Mount Draig (carves Snowdonia) */
     draw_road(ow, 100, 212, 69, 231);    /* Devon -> Cornwall */
     draw_road(ow, 194, 188, 100, 212);   /* Glastonbury -> Devon/Cornwall */
     draw_road(ow, 312, 181, 325, 125);   /* London -> east midlands */

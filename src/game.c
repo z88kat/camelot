@@ -321,11 +321,36 @@ static const char *potion_display_name(GameState *gs, Item *it) {
     static char buf[64];
     if (it->type != ITYPE_POTION || it->identified ||
         it->template_id < 0 || it->template_id >= 256 ||
-        gs->potions_identified[it->template_id]) {
+        gs->potions_identified[it->template_id] ||
+        strcmp(it->name, "Holy Water") == 0) {
         return it->name;
     }
     int ci = gs->potion_colour_map[it->template_id] % num_potion_colours;
     snprintf(buf, sizeof(buf), "%s Potion", potion_colours[ci]);
+    return buf;
+}
+
+/* Random scroll titles. Spell scrolls and unknown scrolls show one of these
+ * until identified. */
+static const char *scroll_titles[] = {
+    "FOOLOOM", "XYZZY", "ELBERETH", "PRATYAHARA", "ZELGO MER",
+    "VENZAR BORGAVVE", "GNIK SISI", "JUYED AWK", "NR 9", "ANDOVA BEGARIN",
+    "KIRJE", "ETAOIN SHRDLU", "LEP GEX", "PRIRUTSENIE", "HACKEM MUCHE",
+    "READ ME", "ZLORFIK", "GHOTI", "MAPIRO MAHAMA", "VAS CORP BET",
+    "ASHPD SODALG", "KLATU VERATA", "EIRIS SAZUN", "DAIYEN FOOELS",
+    "LOREM IPSUM", "TEMOV", "GARVEN DEH", "YUM YUM", "KERNOD WEL", "FOO BAR"
+};
+static const int num_scroll_titles = 30;
+
+static const char *scroll_display_name(GameState *gs, Item *it) {
+    static char buf[80];
+    if ((it->type != ITYPE_SCROLL && it->type != ITYPE_SPELL_SCROLL) ||
+        it->template_id < 0 || it->template_id >= 256 ||
+        gs->scrolls_identified[it->template_id]) {
+        return it->name;
+    }
+    int ti = gs->scroll_title_map[it->template_id] % num_scroll_titles;
+    snprintf(buf, sizeof(buf), "scroll labelled %s", scroll_titles[ti]);
     return buf;
 }
 
@@ -513,6 +538,17 @@ static int player_artifact_bonus(const GameState *gs, const char *stat) {
     }
     if (has_round_table) bonus += 1; /* +1 to all stats */
     if (has_merlin_staff && strcmp(stat, "mp") == 0) bonus += 10;
+
+    /* Gawain's Gauntlets: +2 DEF during daytime (on top of base armor +4) */
+    if (strcmp(stat, "def") == 0 &&
+        gs->equipment[SLOT_GLOVES].template_id >= 0 &&
+        strcmp(gs->equipment[SLOT_GLOVES].name, "Gawain's Gauntlets") == 0) {
+        TimeOfDay tod = game_get_tod(gs);
+        if (tod == TOD_DAWN || tod == TOD_MORNING ||
+            tod == TOD_MIDDAY || tod == TOD_AFTERNOON) {
+            bonus += 2;
+        }
+    }
     return bonus;
 }
 
@@ -1432,6 +1468,145 @@ static void dungeon_spawn_items(DungeonLevel *dl) {
     }
 }
 
+/* Populate special rooms with type-appropriate contents (items + monsters).
+ * Called after monster + item spawning so we can layer extras into the rooms. */
+static void populate_special_rooms(DungeonLevel *dl) {
+    int tcount;
+    const ItemTemplate *tmps = item_get_templates(&tcount);
+
+    for (int sri = 0; sri < dl->num_special_rooms; sri++) {
+        Vec2 c = dl->special_rooms[sri];
+        int rtype = dl->special_room_type[sri];
+
+        /* Helper: pick a random floor tile within the room (radius 3) */
+        #define PICK_ROOM_TILE(ox, oy) do { \
+            ox = -1; oy = -1; \
+            for (int t = 0; t < 30; t++) { \
+                int tx = c.x + rng_range(-3, 3); \
+                int ty = c.y + rng_range(-3, 3); \
+                if (tx < 1 || tx >= MAP_WIDTH-1 || ty < 1 || ty >= MAP_HEIGHT-1) continue; \
+                if (!dl->tiles[ty][tx].passable) continue; \
+                char gg = dl->tiles[ty][tx].glyph; \
+                if (gg != '.' && gg != ',' && gg != '~') continue; \
+                ox = tx; oy = ty; break; \
+            } \
+        } while (0)
+
+        if (rtype == 3) {
+            /* Treasure vault: 4-6 extra items biased gems/gold/treasure/potion */
+            int extra = rng_range(4, 6);
+            for (int e = 0; e < extra && dl->num_ground_items < MAX_GROUND_ITEMS; e++) {
+                int pick = -1;
+                ItemType wanted = ITYPE_GEM;
+                int roll = rng_range(0, 9);
+                if (roll < 4) wanted = ITYPE_GEM;
+                else if (roll < 6) wanted = ITYPE_TREASURE;
+                else if (roll < 9) wanted = ITYPE_GOLD;
+                else wanted = ITYPE_POTION;
+                for (int tries = 0; tries < 30; tries++) {
+                    int ti = rng_range(0, tcount - 1);
+                    if (tmps[ti].type == wanted &&
+                        tmps[ti].min_depth <= dl->depth &&
+                        (tmps[ti].max_depth == 0 || tmps[ti].max_depth >= dl->depth)) {
+                        pick = ti; break;
+                    }
+                }
+                if (pick < 0) continue;
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                dl->ground_items[dl->num_ground_items++] = item_create(pick, x, y);
+            }
+        } else if (rtype == 4) {
+            /* Monster lair: 3-5 extra monsters */
+            int extra = rng_range(3, 5);
+            for (int e = 0; e < extra; e++) {
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                Vec2 fake = { x, y };
+                entity_spawn_one(dl->monsters, &dl->num_monsters,
+                                 dl->tiles, dl->depth, fake, 0);
+            }
+        } else if (rtype == 0) {
+            /* Temple: altar already placed by map.c. Nothing extra needed. */
+        } else if (rtype == 5) {
+            /* Armoury: 2-3 weapons/armor of better quality */
+            int extra = rng_range(2, 3);
+            for (int e = 0; e < extra && dl->num_ground_items < MAX_GROUND_ITEMS; e++) {
+                int pick = -1;
+                for (int tries = 0; tries < 30; tries++) {
+                    int ti = rng_range(0, tcount - 1);
+                    ItemType tt = tmps[ti].type;
+                    if (tt != ITYPE_WEAPON && tt != ITYPE_ARMOR && tt != ITYPE_SHIELD &&
+                        tt != ITYPE_HELMET && tt != ITYPE_BOOTS && tt != ITYPE_GLOVES) continue;
+                    if (tmps[ti].min_depth > dl->depth) continue;
+                    if (tmps[ti].max_depth > 0 && tmps[ti].max_depth < dl->depth) continue;
+                    if (tmps[ti].rarity > 3) continue; /* prefer rarer */
+                    pick = ti; break;
+                }
+                if (pick < 0) continue;
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                dl->ground_items[dl->num_ground_items++] = item_create(pick, x, y);
+            }
+        } else if (rtype == 1) {
+            /* Library: 2-3 spell scrolls + 1 regular scroll */
+            for (int e = 0; e < 3 && dl->num_ground_items < MAX_GROUND_ITEMS; e++) {
+                int pick = -1;
+                for (int tries = 0; tries < 30; tries++) {
+                    int ti = rng_range(0, tcount - 1);
+                    if (tmps[ti].type != ITYPE_SPELL_SCROLL) continue;
+                    if (tmps[ti].min_depth > dl->depth) continue;
+                    if (tmps[ti].max_depth > 0 && tmps[ti].max_depth < dl->depth) continue;
+                    pick = ti; break;
+                }
+                if (pick < 0) continue;
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                dl->ground_items[dl->num_ground_items++] = item_create(pick, x, y);
+            }
+            /* one regular scroll */
+            int pick = -1;
+            for (int tries = 0; tries < 30; tries++) {
+                int ti = rng_range(0, tcount - 1);
+                if (tmps[ti].type != ITYPE_SCROLL) continue;
+                pick = ti; break;
+            }
+            if (pick >= 0 && dl->num_ground_items < MAX_GROUND_ITEMS) {
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x >= 0)
+                    dl->ground_items[dl->num_ground_items++] = item_create(pick, x, y);
+            }
+        } else if (rtype == 2) {
+            /* Crypt: 2-4 undead monsters + 1-2 treasure items */
+            int extra = rng_range(2, 4);
+            for (int e = 0; e < extra; e++) {
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                Vec2 fake = { x, y };
+                /* spawn_one is generic; relies on depth. The crypt vibe is cosmetic. */
+                entity_spawn_one(dl->monsters, &dl->num_monsters,
+                                 dl->tiles, dl->depth, fake, 0);
+            }
+            int loot = rng_range(1, 2);
+            for (int e = 0; e < loot && dl->num_ground_items < MAX_GROUND_ITEMS; e++) {
+                int pick = -1;
+                for (int tries = 0; tries < 30; tries++) {
+                    int ti = rng_range(0, tcount - 1);
+                    if (tmps[ti].type != ITYPE_TREASURE && tmps[ti].type != ITYPE_GEM) continue;
+                    pick = ti; break;
+                }
+                if (pick < 0) continue;
+                int x, y; PICK_ROOM_TILE(x, y);
+                if (x < 0) continue;
+                dl->ground_items[dl->num_ground_items++] = item_create(pick, x, y);
+            }
+        } else if (rtype == 6) {
+            /* Flooded: water already laid down by map.c. Nothing more to spawn. */
+        }
+        #undef PICK_ROOM_TILE
+    }
+}
+
 static void dungeon_update_fov(GameState *gs) {
     if (!gs->dungeon) return;
     DungeonLevel *dl = current_dungeon_level(gs);
@@ -1538,12 +1713,15 @@ static void advance_time(GameState *gs, int minutes) {
                     log_add(&gs->log, gs->turn, CP_RED,
                              "The sunlight sears your flesh! -%d HP. Seek shelter!", 3);
                 if (gs->hp <= 0) {
-                    gs->hp = 0;
-                    snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
-                             "Burned to ash by sunlight (Vampirism)");
-                    show_death_screen(gs);
-                    gs->running = false;
-                    return;
+                    if (player_try_revive(gs)) { /* reborn */ }
+                    else {
+                        gs->hp = 0;
+                        snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
+                                 "Burned to ash by sunlight (Vampirism)");
+                        show_death_screen(gs);
+                        gs->running = false;
+                        return;
+                    }
                 }
             }
         }
@@ -3337,9 +3515,9 @@ static void handle_overworld_input(GameState *gs, int key) {
 
             attroff(COLOR_PAIR(CP_WHITE));
             text_y++;
-            mvprintw(text_y, ox - 10, "Press any key to leave the cottage...");
+            mvprintw(text_y, ox - 10, "[ESC/q to leave the cottage]");
             ui_refresh();
-            ui_getkey();
+            { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
 
             log_add(&gs->log, gs->turn, CP_BROWN, "You leave the cottage.");
 
@@ -3556,9 +3734,9 @@ static void handle_overworld_input(GameState *gs, int key) {
 
             attroff(COLOR_PAIR(CP_WHITE));
             ct_y++;
-            mvprintw(ct_y, cox - 10, "Press any key to leave the cave...");
+            mvprintw(ct_y, cox - 10, "[ESC/q to leave the cave]");
             ui_refresh();
-            ui_getkey();
+            { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
 
             log_add(&gs->log, gs->turn, CP_GRAY, "You leave the cave.");
 
@@ -4187,10 +4365,19 @@ static void handle_overworld_input(GameState *gs, int key) {
         TileType here = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
         if (here == TILE_GRASS || here == TILE_ROAD || here == TILE_FOREST) {
             log_add(&gs->log, gs->turn, CP_GREEN,
-                     "You make camp and rest for several hours...");
-            /* Advance 8 hours */
+                     "You make camp and rest until morning...");
+            /* Advance time in 1-hour ticks until next morning (TOD_MORNING).
+               Always at least one tick, so camping during morning still
+               progresses to the following morning. Reuses advance_time so
+               regen, buffs, and time-based events all fire normally. */
             int old_hour = gs->hour;
-            advance_time(gs, 480);
+            int camp_ticks = 0;
+            do {
+                advance_time(gs, 60);
+                camp_ticks++;
+                /* Safety: never loop more than 36 hours */
+                if (camp_ticks > 36) break;
+            } while (game_get_tod(gs) != TOD_MORNING || camp_ticks == 0);
             /* Restore 50% HP/MP */
             gs->hp += gs->max_hp / 2;
             if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
@@ -4390,7 +4577,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             map_generate(dl, 0, num_levels);
             entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                    dl->tiles, 0, dl->stairs_up[0]);
-            dungeon_spawn_items(dl);
+            dungeon_spawn_items(dl); populate_special_rooms(dl);
             spawn_dungeon_boss(gs, dl, loc->name, 0, num_levels);
             log_add(&gs->log, gs->turn, CP_GRAY, "[%d items, %d monsters on this level]",
                      dl->num_ground_items, dl->num_monsters);
@@ -5569,7 +5756,8 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                                 int prize = prizes[round];
                                 gs->gold += prize;
                                 total_winnings += prize;
-                                gs->xp += 10 + round * 10;
+                                /* Aim choice modulates XP gain (head shot = bigger reward) */
+                                gs->xp += 10 + round * 10 + aim_dmg / 4;
                                 attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
                                 mvprintw(row++, 4, "You unhorse the %s! +%dg, +%d XP!",
                                          opponents[round], prize, 10 + round * 10);
@@ -5738,10 +5926,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             mvprintw(row++, 4, "You pay your respects to the fallen. (+1 chivalry)");
             attroff(COLOR_PAIR(CP_WHITE));
             attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row, 4, "Press any key to leave.");
+            mvprintw(row, 4, "[ESC/q to leave]");
             attroff(COLOR_PAIR(CP_GRAY));
             ui_refresh();
-            ui_getkey();
+            { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
         }
         break;
     case NPC_HOT_SPRINGS:
@@ -6283,11 +6471,11 @@ static void town_do_well(GameState *gs) {
     }
 
     text_y++;
-    mvprintw(text_y, ox - 5, "Press any key to climb back up...");
+    mvprintw(text_y, ox - 5, "[ESC/q to climb back up]");
     attroff(COLOR_PAIR(CP_WHITE));
 
     ui_refresh();
-    ui_getkey();
+    { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
 
     /* Apply rewards */
     gs->gold += gold_found;
@@ -6590,7 +6778,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 map_generate(dl, next, gs->dungeon->max_depth);
                 entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                        dl->tiles, next, dl->stairs_up[0]);
-                dungeon_spawn_items(dl);
+                dungeon_spawn_items(dl); populate_special_rooms(dl);
                 spawn_dungeon_boss(gs, dl, gs->dungeon->name, next, gs->dungeon->max_depth);
             }
             /* Land at matching stairs up */
@@ -7099,8 +7287,13 @@ static void handle_dungeon_input(GameState *gs, int key) {
                         for (int ii = 0; ii < dl_step->num_ground_items; ii++) {
                             Item *it = &dl_step->ground_items[ii];
                             if (it->on_ground && it->pos.x == nx && it->pos.y == ny) {
+                                {
+                                const char *dn = potion_display_name(gs, it);
+                                if (it->type == ITYPE_SCROLL || it->type == ITYPE_SPELL_SCROLL)
+                                    dn = scroll_display_name(gs, it);
                                 log_add(&gs->log, gs->turn, CP_CYAN,
-                                         "You see here: %s (press g to pick up)", it->name);
+                                         "You see here: %s (press g to pick up)", dn);
+                                }
                                 break;  /* only show first item */
                             }
                         }
@@ -7184,16 +7377,22 @@ static void handle_dungeon_input(GameState *gs, int key) {
                 }
 
                 /* Special room interactions */
-                /* Altar -- pray for blessing */
+                /* Altar -- pray for blessing (once per altar) */
                 if (tiles[ny][nx].glyph == '_' && tiles[ny][nx].color_pair == CP_YELLOW_BOLD) {
-                    int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
-                    const char *names[] = { "STR", "DEF", "INT", "SPD" };
-                    int pick = rng_range(0, 3);
-                    (*stats[pick])++;
-                    gs->hp = gs->max_hp;
-                    tiles[ny][nx].glyph = '.';  /* altar used up */
-                    log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
-                             "You kneel at the altar. A divine light! +1 %s, HP restored!", names[pick]);
+                    int heal = gs->max_hp / 3;
+                    gs->hp += heal;
+                    if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                    if (gs->dark_affinity == 0) {
+                        gs->chivalry += 1;
+                        if (gs->chivalry > 100) gs->chivalry = 100;
+                        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                                 "You kneel at the altar. A holy warmth fills you! +%d HP, +1 chivalry.", heal);
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "You kneel at the altar -- the holy power recoils from your darkness! Beware!");
+                    }
+                    tiles[ny][nx].glyph = '.';
+                    tiles[ny][nx].color_pair = CP_WHITE;
                 }
                 /* Gold pile -- pick up */
                 if (tiles[ny][nx].glyph == '$') {
@@ -8123,6 +8322,8 @@ void game_handle_input(GameState *gs, int key) {
                 attroff(COLOR_PAIR(CP_RED));
             } else {
                 const char *disp_name = potion_display_name(gs, it);
+                if (it->type == ITYPE_SCROLL || it->type == ITYPE_SPELL_SCROLL)
+                    disp_name = scroll_display_name(gs, it);
                 const char *buc_str = "";
                 if (it->buc_known) {
                     if (it->buc == 3) buc_str = "blessed ";
@@ -8305,6 +8506,9 @@ void game_handle_input(GameState *gs, int key) {
                         log_add(&gs->log, gs->turn, CP_YELLOW,
                                  "The horn blasts! %d weak foes flee in terror.", scared);
                     } else if (sel->type == ITYPE_SCROLL) {
+                        bool was_unknown_scroll = (sel->template_id >= 0 && !gs->scrolls_identified[sel->template_id]);
+                        if (sel->template_id >= 0)
+                            gs->scrolls_identified[sel->template_id] = true;
                         bool consume = true;
                         if (strcmp(sel->name, "Scroll of Identify") == 0) {
                             /* Pick another inventory item to identify BUC of */
@@ -8317,6 +8521,10 @@ void game_handle_input(GameState *gs, int key) {
                                     gs->inventory[ti].buc_known = true;
                                     if (gs->inventory[ti].type == ITYPE_POTION && gs->inventory[ti].template_id >= 0)
                                         gs->potions_identified[gs->inventory[ti].template_id] = true;
+                                    if ((gs->inventory[ti].type == ITYPE_SCROLL ||
+                                         gs->inventory[ti].type == ITYPE_SPELL_SCROLL) &&
+                                        gs->inventory[ti].template_id >= 0)
+                                        gs->scrolls_identified[gs->inventory[ti].template_id] = true;
                                     log_add(&gs->log, gs->turn, CP_WHITE,
                                              "You identify the %s.", gs->inventory[ti].name);
                                 } else { consume = false; }
@@ -8336,6 +8544,8 @@ void game_handle_input(GameState *gs, int key) {
                             log_add(&gs->log, gs->turn, CP_GRAY, "You read the %s but nothing happens here.", sel->name);
                         }
                         if (consume) {
+                            if (was_unknown_scroll)
+                                log_add(&gs->log, gs->turn, CP_WHITE, "It was a %s!", sel->name);
                             for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                             gs->inventory[--gs->num_items].template_id = -1;
                         }
@@ -8398,7 +8608,9 @@ void game_handle_input(GameState *gs, int key) {
                                      "The map is faded and unreadable. All treasures have been found.");
                         }
                     } else if (sel->type == ITYPE_SPELL_SCROLL) {
-                        /* Learn a spell from a scroll */
+                        /* Learn a spell from a scroll -- also identifies it */
+                        if (sel->template_id >= 0)
+                            gs->scrolls_identified[sel->template_id] = true;
                         int spell_id = sel->power;
                         const SpellDef *sp = spell_get(spell_id);
                         if (!sp) {
@@ -8746,7 +8958,7 @@ void game_handle_input(GameState *gs, int key) {
                 map_generate(dl, next, gs->dungeon->max_depth);
                 entity_spawn_monsters(dl->monsters, &dl->num_monsters,
                                        dl->tiles, next, dl->stairs_up[0]);
-                dungeon_spawn_items(dl);
+                dungeon_spawn_items(dl); populate_special_rooms(dl);
                 spawn_dungeon_boss(gs, dl, gs->dungeon->name, next, gs->dungeon->max_depth);
             }
             gs->player_pos = dl->stairs_up[0];
@@ -9572,6 +9784,26 @@ void game_init(GameState *gs) {
             gs->potion_colour_map[potion_ids[i]] = colours[i];
     }
 
+    /* Randomise scroll titles (regular + spell scrolls) */
+    {
+        int tcount;
+        const ItemTemplate *tmps = item_get_templates(&tcount);
+        int scroll_ids[64];
+        int num_scrolls = 0;
+        for (int i = 0; i < tcount && num_scrolls < 64; i++) {
+            if (tmps[i].type == ITYPE_SCROLL || tmps[i].type == ITYPE_SPELL_SCROLL)
+                scroll_ids[num_scrolls++] = i;
+        }
+        int titles[64];
+        for (int i = 0; i < num_scrolls; i++) titles[i] = i;
+        for (int i = num_scrolls - 1; i > 0; i--) {
+            int j = rng_range(0, i);
+            int tmp = titles[i]; titles[i] = titles[j]; titles[j] = tmp;
+        }
+        for (int i = 0; i < num_scrolls; i++)
+            gs->scroll_title_map[scroll_ids[i]] = titles[i];
+    }
+
     /* Start in character creation */
     gs->mode = MODE_CHARACTER_CREATE;
     gs->create_step = 0;
@@ -9584,6 +9816,28 @@ void game_update(GameState *gs) {
         if (gs->weather_turns_left <= 0) {
             change_weather(gs);
         }
+    }
+
+    /* Merlin's Staff: grants +10 max MP while carried/equipped. */
+    bool has_staff = false;
+    for (int i = 0; i < gs->num_items; i++) {
+        if (gs->inventory[i].template_id < 0) continue;
+        if (strcmp(gs->inventory[i].name, "Merlin's Staff") == 0) { has_staff = true; break; }
+    }
+    if (!has_staff) {
+        for (int s = 0; s < NUM_SLOTS; s++) {
+            if (gs->equipment[s].template_id < 0) continue;
+            if (strcmp(gs->equipment[s].name, "Merlin's Staff") == 0) { has_staff = true; break; }
+        }
+    }
+    if (has_staff && !gs->merlin_mp_bonus_applied) {
+        gs->max_mp += 10;
+        gs->merlin_mp_bonus_applied = true;
+    } else if (!has_staff && gs->merlin_mp_bonus_applied) {
+        gs->max_mp -= 10;
+        if (gs->max_mp < 1) gs->max_mp = 1;
+        if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+        gs->merlin_mp_bonus_applied = false;
     }
 }
 
@@ -9806,51 +10060,8 @@ static void game_render(GameState *gs) {
             ui_render_map_generic((Tile *)dtiles, MAP_WIDTH, MAP_HEIGHT,
                                   gs->player_pos, map_view_width, map_view_height);
 
-            /* Torch light effect -- tint visible tiles near player yellow */
-            if (gs->has_torch) {
-                int cam_x = gs->player_pos.x - map_view_width / 2;
-                int cam_y = gs->player_pos.y - map_view_height / 2;
-                if (cam_x < 0) cam_x = 0;
-                if (cam_y < 0) cam_y = 0;
-                if (cam_x + map_view_width > MAP_WIDTH) cam_x = MAP_WIDTH - map_view_width;
-                if (cam_y + map_view_height > MAP_HEIGHT) cam_y = MAP_HEIGHT - map_view_height;
-
-                int px = gs->player_pos.x - cam_x;
-                int py = gs->player_pos.y - cam_y;
-
-                for (int vy = 0; vy < map_view_height; vy++) {
-                    for (int vx = 0; vx < map_view_width; vx++) {
-                        int mx = cam_x + vx, my = cam_y + vy;
-                        if (mx < 0 || mx >= MAP_WIDTH || my < 0 || my >= MAP_HEIGHT) continue;
-                        Tile *t = &dtiles[my][mx];
-                        if (!t->visible) continue;
-
-                        int dx = vx - px, dy = vy - py;
-                        /* Aspect correction for terminal chars */
-                        int adx = dx / 2;
-                        int dist_sq = adx * adx + dy * dy;
-
-                        /* Inner glow: bright yellow close to player */
-                        if (dist_sq <= 4) {
-                            chtype ch = mvinch(vy, vx);
-                            if ((ch & A_CHARTEXT) != '@') {
-                                mvaddch(vy, vx, (ch & A_CHARTEXT) | COLOR_PAIR(CP_YELLOW) | A_BOLD);
-                            }
-                        }
-                        /* Warm tint in mid range */
-                        else if (dist_sq <= 25) {
-                            chtype ch = mvinch(vy, vx);
-                            if ((ch & A_CHARTEXT) != '@') {
-                                mvaddch(vy, vx, (ch & A_CHARTEXT) | COLOR_PAIR(CP_YELLOW));
-                            }
-                        }
-                        /* Outer edge: dimmer */
-                        else if (dist_sq <= FOV_RADIUS * FOV_RADIUS) {
-                            /* Leave as-is -- normal colour at edge of torchlight */
-                        }
-                    }
-                }
-            }
+            /* Torch light: extends FOV radius (handled elsewhere); tiles
+             * keep their original colours so they remain readable. */
 
             /* Render ground items (visible in FOV) */
             {

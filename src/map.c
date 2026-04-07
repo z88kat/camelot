@@ -404,7 +404,7 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                 }
             if (open < 16) continue;  /* needs to be in a real room */
 
-            int room_type = rng_range(0, 3);
+            int room_type = rng_range(0, 6);
 
             /* Record this as a special room for first-discovery messaging */
             if (level->num_special_rooms < MAX_SPECIAL_ROOMS) {
@@ -469,7 +469,7 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                     }
                 }
                 decorated++;
-            } else {
+            } else if (room_type == 3) {
                 /* Treasure room -- gold piles and a chest */
                 level->tiles[ry][rx].glyph = '=';
                 level->tiles[ry][rx].color_pair = CP_YELLOW_BOLD;
@@ -483,6 +483,55 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
                             level->tiles[gy][gx].glyph == '.' && rng_chance(50)) {
                             level->tiles[gy][gx].glyph = '$';
                             level->tiles[gy][gx].color_pair = CP_YELLOW;
+                        }
+                    }
+                decorated++;
+            } else if (room_type == 4) {
+                /* Monster lair -- scatter bones */
+                for (int dy = -2; dy <= 2; dy++)
+                    for (int dx = -2; dx <= 2; dx++) {
+                        int bx = rx + dx, by = ry + dy;
+                        if (bx < 1 || bx >= MAP_WIDTH-1 || by < 1 || by >= MAP_HEIGHT-1) continue;
+                        if (level->tiles[by][bx].type != TILE_FLOOR) continue;
+                        if (level->tiles[by][bx].glyph != '.') continue;
+                        if (rng_chance(20)) {
+                            level->tiles[by][bx].glyph = ',';
+                            level->tiles[by][bx].color_pair = CP_GRAY;
+                        }
+                    }
+                decorated++;
+            } else if (room_type == 5) {
+                /* Armoury -- weapon racks (cosmetic |) along walls */
+                for (int dy = -3; dy <= 3; dy++)
+                    for (int dx = -3; dx <= 3; dx++) {
+                        int bx = rx + dx, by = ry + dy;
+                        if (bx < 1 || bx >= MAP_WIDTH-1 || by < 1 || by >= MAP_HEIGHT-1) continue;
+                        if (level->tiles[by][bx].type != TILE_FLOOR) continue;
+                        if (level->tiles[by][bx].glyph != '.') continue;
+                        bool adj_wall = false;
+                        for (int d = 0; d < 4; d++) {
+                            int wx = bx + dir_dx[d*2], wy = by + dir_dy[d*2];
+                            if (wx >= 0 && wx < MAP_WIDTH && wy >= 0 && wy < MAP_HEIGHT &&
+                                level->tiles[wy][wx].type == TILE_WALL) adj_wall = true;
+                        }
+                        if (adj_wall && rng_chance(35)) {
+                            level->tiles[by][bx].glyph = '|';
+                            level->tiles[by][bx].color_pair = CP_GRAY;
+                        }
+                    }
+                decorated++;
+            } else {
+                /* Flooded chamber -- shallow water across most floor tiles */
+                for (int dy = -3; dy <= 3; dy++)
+                    for (int dx = -3; dx <= 3; dx++) {
+                        int bx = rx + dx, by = ry + dy;
+                        if (bx < 1 || bx >= MAP_WIDTH-1 || by < 1 || by >= MAP_HEIGHT-1) continue;
+                        if (level->tiles[by][bx].type != TILE_FLOOR) continue;
+                        if (level->tiles[by][bx].glyph != '.') continue;
+                        if (dx*dx + dy*dy > 9) continue;
+                        if (rng_chance(75)) {
+                            level->tiles[by][bx].glyph = '~';
+                            level->tiles[by][bx].color_pair = CP_BLUE;
                         }
                     }
                 decorated++;

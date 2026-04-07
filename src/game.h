@@ -111,6 +111,13 @@ typedef struct GameState {
     bool       potions_identified[256];   /* potions_identified[template_id] = true */
     int        potion_colour_map[256];    /* maps template_id -> colour description index */
 
+    /* Scroll identification system */
+    bool       scrolls_identified[256];   /* scrolls_identified[template_id] = true */
+    int        scroll_title_map[256];     /* maps template_id -> title index */
+
+    /* Tracks whether Merlin's Staff +10 max_mp bonus is currently applied */
+    bool       merlin_mp_bonus_applied;
+
     /* Curses and special states */
     bool       has_lycanthropy;      /* werewolf curse */
     bool       has_vampirism;       /* vampire curse */
