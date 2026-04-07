@@ -14,7 +14,7 @@ Sherwood,inn+equip+pawn+well+food,5,2,Sherwood Stout
 Tintagel,inn+church+equip+well+food,6,2,Tintagel Dark
 # Smaller towns
 Cornwall,inn+pawn+mystic+equip+food,5,2,Cornish Scrumpy
-Wales,inn+church+equip+well+food,5,2,Welsh Mead
+Caernarfon,inn+church+equip+well+food,5,2,Welsh Mead
 Whitby,inn+church+pawn+potion+food,12,3,Whitby Stout
 Llanthony,inn+church+potion,4,1,Monk's Brew
 Carbonek,inn+church+pawn+food,6,2,Grail Ale

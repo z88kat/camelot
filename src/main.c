@@ -78,7 +78,12 @@ int main(int argc, char *argv[]) {
                 gs.dungeon = NULL;
                 gs.current_town = NULL;
 
-                /* Force overworld mode (dungeon/town state not preserved) */
+                /* Force overworld mode (dungeon/town state not preserved).
+                 * If the player saved inside a dungeon or town, player_pos
+                 * holds those local coordinates -- restore overworld pos. */
+                if (gs.mode != MODE_OVERWORLD) {
+                    gs.player_pos = gs.ow_player_pos;
+                }
                 gs.mode = MODE_OVERWORLD;
                 gs.running = true;
 

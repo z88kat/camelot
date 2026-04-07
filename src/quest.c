@@ -67,7 +67,7 @@ static void quest_init_builtin(QuestLog *ql) {
 
     add_quest(ql, "Welsh Ore",
         "Bring Welsh mountain ore to the blacksmith in London.",
-        QTYPE_DELIVERY, "Wales", "London", "",
+        QTYPE_DELIVERY, "Caernarfon", "London", "",
         70, 0, 35, 0);
 
     add_quest(ql, "Grandfather's Shield",
@@ -106,8 +106,8 @@ static void quest_init_builtin(QuestLog *ql) {
         150, 1, 120, 25);
 
     add_quest(ql, "Troll Bridge",
-        "A troll lurks under a bridge near Wales. Slay it.",
-        QTYPE_KILL, "Wales", "", "",
+        "A troll lurks under a bridge near Caernarfon. Slay it.",
+        QTYPE_KILL, "Caernarfon", "", "",
         80, 0, 60, 0);
 }
 

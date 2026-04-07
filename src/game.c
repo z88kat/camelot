@@ -1646,6 +1646,29 @@ static void advance_time(GameState *gs, int minutes) {
         }
     }
 
+    /* Fatigue: after 16 hours awake, lose 1 HP per additional hour. */
+    if (minutes > 0) {
+        int prev_awake = gs->awake_minutes;
+        gs->awake_minutes += minutes;
+        const int FATIGUE_THRESHOLD = 16 * 60;
+        if (gs->awake_minutes >= FATIGUE_THRESHOLD) {
+            if (prev_awake < FATIGUE_THRESHOLD) {
+                log_add(&gs->log, gs->turn, CP_YELLOW,
+                        "You are exhausted. You need to rest soon.");
+            }
+            int prev_over_hours = (prev_awake - FATIGUE_THRESHOLD) / 60;
+            int curr_over_hours = (gs->awake_minutes - FATIGUE_THRESHOLD) / 60;
+            if (prev_awake < FATIGUE_THRESHOLD) prev_over_hours = -1;
+            int dmg = curr_over_hours - prev_over_hours;
+            if (dmg > 0 && gs->hp > 1) {
+                gs->hp -= dmg;
+                if (gs->hp < 1) gs->hp = 1;
+                log_add(&gs->log, gs->turn, CP_RED,
+                        "Exhaustion saps your strength. -%d HP", dmg);
+            }
+        }
+    }
+
     /* Tick spell buff durations */
     if (gs->buff_str_turns > 0) {
         gs->buff_str_turns--;
@@ -4383,6 +4406,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
             gs->mp += gs->max_mp / 2;
             if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+            gs->awake_minutes = 0;
             log_add(&gs->log, gs->turn, CP_GREEN,
                      "You feel rested. HP and MP partially restored.");
             /* Night ambush chance -- spawn and fight an enemy */
@@ -6010,6 +6034,7 @@ static void town_do_inn_rest(GameState *gs) {
     advance_time(gs, 0);
     check_lunar_events(gs, old_hour);
 
+    gs->awake_minutes = 0;
     log_add(&gs->log, gs->turn, CP_GREEN,
              "You rest at the inn. A warm bed and a good meal. HP and MP fully restored.");
 }
@@ -6096,6 +6121,7 @@ static void town_do_inn(GameState *gs) {
         gs->minute = 0;
         advance_time(gs, 0);
         check_lunar_events(gs, old_hour);
+        gs->awake_minutes = 0;
         log_add(&gs->log, gs->turn, CP_GREEN,
                  "You rest until nightfall. HP and MP fully restored.");
     }
@@ -9703,7 +9729,7 @@ static void handle_character_create(GameState *gs, int key) {
                 const char *towns[] = {
                     "Camelot", "London", "York", "Winchester", "Canterbury",
                     "Glastonbury", "Bath", "Sherwood", "Tintagel", "Cornwall",
-                    "Wales", "Whitby"
+                    "Caernarfon", "Whitby"
                 };
                 attron(COLOR_PAIR(CP_CYAN));
                 for (int ti = 0; ti < 12; ti++) {

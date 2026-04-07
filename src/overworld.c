@@ -763,7 +763,7 @@ void overworld_init(Overworld *ow) {
             ow_add_location(ow, "Cornwall",     LOC_TOWN,  60, 231, '*', CP_WHITE);
             ow_add_location(ow, "Sherwood",     LOC_TOWN, 262, 119, '*', CP_GREEN_BOLD);
             ow_add_location(ow, "York",         LOC_TOWN, 275, 94,  '*', CP_WHITE_BOLD);
-            ow_add_location(ow, "Wales",        LOC_TOWN, 125, 135, '*', CP_RED);
+            ow_add_location(ow, "Caernarfon",   LOC_TOWN, 125, 135, '*', CP_RED);
             ow_add_location(ow, "Whitby",       LOC_TOWN, 331, 88,  '*', CP_GRAY);
             ow_add_location(ow, "Llanthony",    LOC_TOWN, 119, 148, '*', CP_WHITE);
             ow_add_location(ow, "Carbonek",     LOC_TOWN, 219, 138, '*', CP_YELLOW);

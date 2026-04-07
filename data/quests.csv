@@ -8,7 +8,7 @@ Healing Herbs,Carry these healing herbs to the mystic in Cornwall.,delivery,Sher
 King's Message,Deliver a royal decree from Camelot to Castle Lothian.,delivery,Camelot,Castle Lothian,  ,80,0,40,10
 Pilgrim's Offering,Carry an offering from Bath to Canterbury cathedral.,delivery,Bath,Canterbury,  ,45,-1,30,0
 Wine for the King,Deliver fine wine from Castle Gaul to Camelot Castle.,delivery,Castle Gaul,Camelot Castle,  ,100,-1,50,20
-Welsh Ore,Bring Welsh mountain ore to the blacksmith in London.,delivery,Wales,London,  ,70,0,35,0
+Welsh Ore,Bring Welsh mountain ore to the blacksmith in London.,delivery,Caernarfon,London,  ,70,0,35,0
 Grandfather's Shield,Find my grandfather's shield in the Camelot Catacombs.,fetch,Camelot,  ,Camelot Catacombs,80,1,50,0
 Ancient Tome,Retrieve the ancient tome from Tintagel Caves.,fetch,Tintagel,  ,Tintagel Caves,90,2,60,0
 Dragon Scale,Bring me a Dragon scale from Mount Draig.,fetch,Winchester,  ,Mount Draig,150,0,100,20
@@ -16,4 +16,4 @@ Ghost of Sherwood,A ghost haunts Sherwood Depths. Put it to rest.,kill,Sherwood,
 Bandit Hideout,Bandits have a hideout in the Catacombs. Clear them out.,kill,Camelot,  ,Camelot Catacombs,70,-1,50,0
 The Black Knight,The Black Knight blocks the road to York. Defeat him.,kill,York,  ,  ,120,0,100,15
 Whitby Vampire,A vampire terrorizes Whitby at night. Destroy it.,kill,Whitby,  ,Whitby Abbey,150,1,120,25
-Troll Bridge,A troll lurks under a bridge near Wales. Slay it.,kill,Wales,  ,  ,80,0,60,0
+Troll Bridge,A troll lurks under a bridge near Caernarfon. Slay it.,kill,Caernarfon,  ,  ,80,0,60,0

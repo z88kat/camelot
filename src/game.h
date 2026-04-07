@@ -56,6 +56,7 @@ typedef struct GameState {
     /* Player */
     Vec2       player_pos;
     Vec2       ow_player_pos;
+    int        awake_minutes;        /* minutes since last rest -- fatigue >16h */
     char       player_name[MAX_NAME];
     PlayerClass player_class;
     PlayerGender player_gender;

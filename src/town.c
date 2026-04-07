@@ -73,7 +73,7 @@ static void town_init_builtin(void) {
     add_town("Cornwall",
         SVC_INN | SVC_PAWN_SHOP | SVC_MYSTIC | SVC_EQUIP_SHOP,
         5, 2, "Cornish Scrumpy");
-    add_town("Wales",
+    add_town("Caernarfon",
         SVC_INN | SVC_CHURCH | SVC_EQUIP_SHOP | SVC_WELL,
         5, 2, "Welsh Mead");
     add_town("Whitby",
