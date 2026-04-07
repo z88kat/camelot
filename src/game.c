@@ -2833,7 +2833,11 @@ static void handle_overworld_input(GameState *gs, int key) {
         if (gs->witch_geas_turns == 0 && gs->turn % 500 == 250 &&
             (ow_terrain == TILE_SWAMP || ow_terrain == TILE_FOREST || ow_terrain == TILE_MARSH) &&
             rng_chance(25)) {
-            const char *tasks[] = {
+            static char wt_desc[16][96];
+            static int  wt_type[16];
+            static int  wt_turns[16];
+            static int  wt_count = -1;
+            static const char *builtin_tasks[] = {
                 "Bring me a gem from a dungeon",
                 "Slay a wolf for me",
                 "Stand in a stone circle at midnight",
@@ -2841,14 +2845,43 @@ static void handle_overworld_input(GameState *gs, int key) {
                 "Fetch me a mushroom from the forest",
                 "Deliver an offering to Canterbury"
             };
-            int task = rng_range(0, 5);
-            int turns = 60 + task * 15;
+            if (wt_count < 0) {
+                wt_count = 0;
+                FILE *wf = fopen("data/witch_tasks.csv", "r");
+                if (wf) {
+                    char line[192];
+                    while (fgets(line, sizeof(line), wf) && wt_count < 16) {
+                        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+                        line[strcspn(line, "\n\r")] = 0;
+                        if (!line[0]) continue;
+                        char d[96]; int ty, tu;
+                        if (sscanf(line, "%95[^,],%d,%d", d, &ty, &tu) == 3) {
+                            snprintf(wt_desc[wt_count], sizeof(wt_desc[0]), "%s", d);
+                            wt_type[wt_count] = ty;
+                            wt_turns[wt_count] = tu;
+                            wt_count++;
+                        }
+                    }
+                    fclose(wf);
+                }
+            }
+            int task; int turns; const char *desc;
+            if (wt_count > 0) {
+                int idx = rng_range(0, wt_count - 1);
+                task = wt_type[idx];
+                turns = wt_turns[idx];
+                desc = wt_desc[idx];
+            } else {
+                task = rng_range(0, 5);
+                turns = 60 + task * 15;
+                desc = builtin_tasks[task];
+            }
             gs->witch_geas_type = task;
             gs->witch_geas_turns = turns;
             log_add(&gs->log, gs->turn, CP_MAGENTA_BOLD,
                      "A witch appears from the shadows! \"You owe me a task, mortal!\"");
             log_add(&gs->log, gs->turn, CP_MAGENTA,
-                     "Geas: %s (%d turns)", tasks[task], turns);
+                     "Geas: %s (%d turns)", desc, turns);
             log_add(&gs->log, gs->turn, CP_RED,
                      "Complete the task or be cursed! The witch vanishes...");
             gs->dark_affinity += 1;
@@ -7353,8 +7386,26 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     log_add(&gs->log, gs->turn, CP_BLUE,
                              "Deep water blocks your path. You cannot swim across.");
                 } else if (target->glyph == '%') {
-                    log_add(&gs->log, gs->turn, CP_BROWN,
-                             "Rubble blocks the passage. You'd need a pickaxe to clear it.");
+                    /* Check for pickaxe in inventory */
+                    bool has_pickaxe = false;
+                    for (int pi = 0; pi < gs->num_items; pi++) {
+                        if (strcmp(gs->inventory[pi].name, "Pickaxe") == 0) {
+                            has_pickaxe = true; break;
+                        }
+                    }
+                    if (has_pickaxe) {
+                        target->glyph = '.';
+                        target->color_pair = CP_GRAY;
+                        target->passable = true;
+                        target->type = TILE_FLOOR;
+                        log_add(&gs->log, gs->turn, CP_BROWN,
+                                 "You break through the rubble.");
+                        advance_time(gs, 1);
+                        dungeon_update_fov(gs);
+                    } else {
+                        log_add(&gs->log, gs->turn, CP_BROWN,
+                                 "Rubble blocks the passage. You'd need a pickaxe to clear it.");
+                    }
                 } else {
                     log_add(&gs->log, gs->turn, CP_GRAY, "You bump into a wall.");
                 }
@@ -8800,6 +8851,15 @@ void game_handle_input(GameState *gs, int key) {
             "- Camp (c) restores 50% HP/MP but risks ambush.\n"
             "- Tournament timing: press SPACE at the right\n"
             "  moment for a perfect hit!\n"
+            "- BUC: items are blessed/uncursed/cursed.\n"
+            "  Blessed = better, cursed = worse and stuck\n"
+            "  on you. Pray or read Identify to reveal.\n"
+            "- Holy Water or Scroll of Remove Curse will\n"
+            "  free you from cursed equipment.\n"
+            "- Carry a Pickaxe to smash rubble (%) blocking\n"
+            "  dungeon corridors -- just bump into it.\n"
+            "- Legendary artifacts of Camelot lie in the\n"
+            "  deep dungeons -- seek Excalibur and more.\n"
         };
         int num_pages = 4;
         int page = 0;

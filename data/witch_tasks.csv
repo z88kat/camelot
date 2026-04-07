@@ -1,0 +1,13 @@
+# Witch tasks (geas)
+# Columns: description,type,turns
+# type: 0=fetch_gem 1=slay_kill 2=stone_circle 3=fetch_potion 4=fetch_mushroom 5=offering
+Bring me a gem from a dungeon,0,60
+Slay a wolf for me,1,75
+Stand in a stone circle at midnight,2,90
+Bring me a potion from a shop,3,105
+Fetch me a mushroom from the forest,4,120
+Deliver an offering to Canterbury,5,135
+Fetch a glowing gem from deep below,0,80
+Bring me three mushrooms from the wild,4,100
+Slay a dire beast and bring proof,1,90
+Fetch a magical elixir,3,110

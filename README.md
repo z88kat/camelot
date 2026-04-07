@@ -529,6 +529,8 @@ A horse is one of the best early investments -- it makes exploring the large ove
 - Press `M` for a **dungeon minimap**.
 - Levels are **persistent** -- items stay where you left them.
 - **Level feelings** on entry warn you of danger: "This seems quiet" to "This level is DEADLY!"
+- **Rubble** `%` (brown) blocks some corridors. Carry a **Pickaxe** and bump into the rubble to break through and clear the path.
+- **Special rooms** -- treasure vaults, monster lairs, temples, armouries, libraries, crypts, and flooded chambers can be discovered. The first time you enter one, a flavour message announces it.
 
 #### Torches & Lanterns
 Dungeons are dark -- without a light source your vision radius is only **2 tiles**. Press **`T`** to light a torch or lantern from your inventory.
@@ -570,14 +572,22 @@ Press **`f`** in a dungeon to fire your ranged weapon at the nearest visible ene
 - Buy ammo from Blacksmiths, find in dungeons
 
 #### Blessed / Cursed / Uncursed (BUC)
-Every item has a hidden BUC state: **Blessed** (10%), **Uncursed** (75%), or **Cursed** (15%). BUC is unknown until identified.
+Every item has a hidden BUC state: **Blessed** (10%), **Uncursed** (75%), or **Cursed** (15%). BUC is unknown until identified -- once known, the prefix ("blessed", "cursed", "uncursed") is shown next to the item name in your inventory.
 
-**Identify BUC**: pray at a church (`p`) -- the holy light reveals the BUC state of all carried items.
+**Identify BUC**:
+- Pray at a church (`p`) -- the holy light reveals the BUC state of all carried items.
+- Read a **Scroll of Identify** -- reveals BUC and identifies unknown potions.
 
 **Effects**:
-- **Blessed** (shown in yellow): weapons +2 damage, potions heal more, armor +1 DEF
-- **Cursed** (shown in red): weapons -2 damage, armor -1 DEF
+- **Blessed** (shown in yellow): weapons +2 damage, each piece of armor/shield/helm/boots/gloves grants +1 DEF, potions heal/restore 50% more
+- **Cursed** (shown in red): weapons -2 damage, each piece of armor -1 DEF, potions heal/restore 50% less
 - **Uncursed**: normal effects
+
+**Cursed equipment cannot be unequipped** until the curse is lifted. Ways to remove curses:
+- **Holy Water** potion -- quaffing uncurses every cursed item you currently have equipped
+- **Scroll of Remove Curse** -- uncurses all equipped gear
+- **Church cure** (`u`, 30 gold) or **Purify** spell
+- **Bath hot springs** -- free, cures all curses
 
 #### Wandering Spirits
 At **night** on the overworld, spectral presences may drain your MP (1-3 MP, ~7% chance per 15 turns). Stay indoors or carry holy items to avoid them.
@@ -695,6 +705,25 @@ Magical rings and amulets enhance your stats when equipped. Each has a **power b
 - Advanced: Amulet of Valour, Endurance, the Arcane, the Hunter (+2, level 4-5)
 - Legendary: Amulet of the Crusader, the Mage, the Dragon (+3, level 7-8)
 - Unique: Amulet of the Lake (+4, level 10), Amulet of Eternity (+4, level 12)
+
+#### Legendary Artifacts of Camelot
+Scattered through the deepest dungeons are unique artifacts tied to the Round Table legend. Each one is found at most once per game and is far more powerful than ordinary loot.
+
+**Equippable artifacts:**
+- **Excalibur** -- the legendary sword, gifted by the Lady of the Lake (power 14, +2 STR)
+- **Lancelot's Sword** -- peerless blade of the greatest knight
+- **Merlin's Staff** -- channels arcane power, prized by Wizards
+- **Galahad's Helm** -- helm of the purest knight
+- **Bors' Shield** -- shield of the steadfast companion
+- **Gawain's Gauntlets** -- gauntlets that grow stronger as the day wears on
+
+**Carried / used artifacts:**
+- **Round Table Fragment** -- passive **+1 to all stats** while carried
+- **Tristan's Harp** -- use (`u`) to entrance every enemy on the level
+- **Questing Beast's Horn** -- use (`u`) to frighten weaker enemies into flight
+- **Cauldron of Rebirth** -- consumed on death to fully revive you, once
+- **Ring of Rebirth** -- consumed on death to fully revive you, once
+- **Siege Perilous** -- collectible story relic of the Round Table
 
 ### Shops
 Bump into shop NPCs to buy/sell:
