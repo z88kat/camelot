@@ -19,7 +19,8 @@ typedef enum {
     LOC_CAVE,
     LOC_VOLCANO,
     LOC_MAGIC_CIRCLE,
-    LOC_ABBEY
+    LOC_ABBEY,
+    LOC_SIGNPOST
 } LocationType;
 
 /* A named location on the overworld */

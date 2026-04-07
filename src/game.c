@@ -2366,6 +2366,7 @@ static int overworld_travel_time(GameState *gs, TileType type) {
     int base;
     switch (type) {
     case TILE_ROAD:    base = 5;  break;
+    case TILE_YELLOW_ROAD: base = 4; break;
     case TILE_BRIDGE:  base = 5;  break;
     case TILE_GRASS:   base = 10; break;
     case TILE_FOREST:  base = 20; break;
@@ -2398,6 +2399,7 @@ static int overworld_travel_time(GameState *gs, TileType type) {
 static const char *terrain_name(TileType type) {
     switch (type) {
     case TILE_ROAD:   return "Road";
+    case TILE_YELLOW_ROAD: return "Yellow Brick Road";
     case TILE_GRASS:  return "Grassland";
     case TILE_FOREST: return "Forest";
     case TILE_HILLS:    return "Hills";
@@ -2895,7 +2897,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             if (terrain == TILE_FOREST)      ambush_chance = 4;
             else if (terrain == TILE_HILLS)  ambush_chance = 3;
             else if (terrain == TILE_MARSH || terrain == TILE_SWAMP) ambush_chance = 5;
-            else if (terrain == TILE_ROAD)   ambush_chance = 1;
+            else if (terrain == TILE_ROAD || terrain == TILE_YELLOW_ROAD)   ambush_chance = 1;
             else if (terrain == TILE_GRASS)  ambush_chance = 2;
 
             /* Higher at night */
@@ -3337,6 +3339,40 @@ static void handle_overworld_input(GameState *gs, int key) {
                 log_add(&gs->log, gs->turn, CP_WHITE,
                          "You arrive at %s. Press Enter to enter.", loc->name);
                 break;
+            case LOC_SIGNPOST: {
+                /* Compute nearest hub in each cardinal direction and log */
+                const char *dnames[4] = { "N", "E", "S", "W" };
+                int best_idx[4] = { -1, -1, -1, -1 };
+                int best_d[4] = { 999999, 999999, 999999, 999999 };
+                int px = loc->pos.x, py = loc->pos.y;
+                for (int k = 0; k < gs->overworld->num_locations; k++) {
+                    Location *L = &gs->overworld->locations[k];
+                    if (L->type != LOC_TOWN && L->type != LOC_CASTLE_ACTIVE &&
+                        L->type != LOC_CASTLE_ABANDONED && L->type != LOC_ABBEY)
+                        continue;
+                    int dx = L->pos.x - px;
+                    int dy = L->pos.y - py;
+                    int d = dx*dx + dy*dy;
+                    int dir;
+                    if (abs(dx) > abs(dy)) dir = (dx > 0) ? 1 : 3;
+                    else                   dir = (dy > 0) ? 2 : 0;
+                    if (d < best_d[dir]) { best_d[dir] = d; best_idx[dir] = k; }
+                }
+                char buf[160];
+                int bp = 0;
+                bp += snprintf(buf + bp, sizeof(buf) - bp, "Sign post:");
+                bool first = true;
+                for (int d = 0; d < 4; d++) {
+                    if (best_idx[d] < 0) continue;
+                    bp += snprintf(buf + bp, sizeof(buf) - bp, "%s %s -> %s",
+                                   first ? "" : " |",
+                                   dnames[d],
+                                   gs->overworld->locations[best_idx[d]].name);
+                    first = false;
+                }
+                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "%s", buf);
+                break;
+            }
             default:
                 /* Check for player home by name */
                 if (loc && strcmp(loc->name, "Your Home") == 0) {

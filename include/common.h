@@ -86,6 +86,7 @@ typedef enum {
     TILE_DENSE_WOODS,
     TILE_PORTAL,
     TILE_GRAIL_PEDESTAL,
+    TILE_YELLOW_ROAD,
     TILE_NONE
 } TileType;
 

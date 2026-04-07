@@ -558,6 +558,8 @@ static int ow_add_location(Overworld *ow, const char *name, LocationType type,
 /* Main initialization                                                 */
 /* ------------------------------------------------------------------ */
 
+static void build_yellow_brick_network(Overworld *ow);
+
 void overworld_init(Overworld *ow) {
     memset(ow, 0, sizeof(*ow));
 
@@ -863,6 +865,9 @@ void overworld_init(Overworld *ow) {
             attempts++;
         }
     }
+
+    /* Yellow Brick Road network connecting towns/castles/abbeys */
+    build_yellow_brick_network(ow);
 }
 
 Location *overworld_location_at(Overworld *ow, int x, int y) {
@@ -887,6 +892,270 @@ Location *overworld_location_at(Overworld *ow, int x, int y) {
 int overworld_add_location(Overworld *ow, const char *name, LocationType type,
                            int x, int y, char glyph, short color) {
     return ow_add_location(ow, name, type, x, y, glyph, color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Yellow Brick Road network                                           */
+/* ------------------------------------------------------------------ */
+
+static void set_yellow_road(Tile *t) {
+    /* Only upgrade passable non-water, non-bridge tiles */
+    t->type = TILE_YELLOW_ROAD;
+    t->glyph = '.';
+    t->color_pair = CP_YELLOW_BOLD;
+    t->passable = true;
+    t->blocks_sight = false;
+}
+
+/* Can this tile be carved into yellow brick road? */
+static bool ybr_can_carve(Overworld *ow, int x, int y) {
+    if (x < 0 || x >= OW_WIDTH || y < 0 || y >= OW_HEIGHT) return false;
+    Tile *t = &ow->map[y][x];
+    if (t->type == TILE_WATER || t->type == TILE_LAKE || t->type == TILE_RIVER)
+        return false;
+    if (t->type == TILE_BRIDGE) return false;
+    if (overworld_location_at(ow, x, y)) return false;
+    return true;
+}
+
+/* Would the line from (x0,y0)->(x1,y1) cross a river? (sampled) */
+static bool ybr_line_crosses_river(Overworld *ow, int x0, int y0, int x1, int y1) {
+    int x = x0, y = y0;
+    int guard = 0;
+    while ((x != x1 || y != y1) && guard++ < 2000) {
+        if (x >= 0 && x < OW_WIDTH && y >= 0 && y < OW_HEIGHT) {
+            TileType tt = ow->map[y][x].type;
+            if (tt == TILE_RIVER || tt == TILE_WATER || tt == TILE_LAKE)
+                return true;
+        }
+        int adx = abs(x1 - x), ady = abs(y1 - y);
+        int sdx = (x1 > x) ? 1 : (x1 < x) ? -1 : 0;
+        int sdy = (y1 > y) ? 1 : (y1 < y) ? -1 : 0;
+        if (adx >= ady) x += sdx; else y += sdy;
+    }
+    return false;
+}
+
+/* Carve a straight-ish road from (x0,y0) to (x1,y1), respecting constraints.
+   Will NOT overwrite locations, rivers, water, or bridges. Will carve when
+   adjacent walking around obstacles. */
+static void ybr_carve_segment(Overworld *ow, int x0, int y0, int x1, int y1) {
+    int x = x0, y = y0;
+    int guard = 0;
+    while ((x != x1 || y != y1) && guard++ < 3000) {
+        if (x >= 0 && x < OW_WIDTH && y >= 0 && y < OW_HEIGHT) {
+            Tile *t = &ow->map[y][x];
+            if (ybr_can_carve(ow, x, y)) {
+                /* Don't overwrite mountains unless needed -- allow it (draw_road does) */
+                set_yellow_road(t);
+            } else if (t->type == TILE_BRIDGE) {
+                /* pass through bridge, leave intact */
+            } else if (t->type == TILE_RIVER || t->type == TILE_WATER ||
+                       t->type == TILE_LAKE) {
+                /* Can't cross; abort this segment */
+                return;
+            }
+            /* If it's a location tile, skip placing glyph but continue */
+        }
+        int adx = abs(x1 - x), ady = abs(y1 - y);
+        int sdx = (x1 > x) ? 1 : (x1 < x) ? -1 : 0;
+        int sdy = (y1 > y) ? 1 : (y1 < y) ? -1 : 0;
+        if (adx >= ady) x += sdx; else y += sdy;
+    }
+}
+
+/* Find the bridge tile minimising dist(A,bridge)+dist(bridge,B). */
+static bool ybr_find_nearest_bridge(Overworld *ow, int ax, int ay, int bx, int by,
+                                    int *out_x, int *out_y) {
+    int best = 999999;
+    int bxr = -1, byr = -1;
+    for (int y = 0; y < OW_HEIGHT; y++) {
+        for (int x = 0; x < OW_WIDTH; x++) {
+            if (ow->map[y][x].type != TILE_BRIDGE) continue;
+            int d1 = abs(x - ax) + abs(y - ay);
+            int d2 = abs(x - bx) + abs(y - by);
+            int d = d1 + d2;
+            if (d < best) { best = d; bxr = x; byr = y; }
+        }
+    }
+    if (bxr < 0) return false;
+    *out_x = bxr; *out_y = byr;
+    return true;
+}
+
+static void ybr_draw_road(Overworld *ow, int x0, int y0, int x1, int y1) {
+    if (ybr_line_crosses_river(ow, x0, y0, x1, y1)) {
+        int bx, by;
+        if (!ybr_find_nearest_bridge(ow, x0, y0, x1, y1, &bx, &by)) return;
+        ybr_carve_segment(ow, x0, y0, bx, by);
+        ybr_carve_segment(ow, bx, by, x1, y1);
+    } else {
+        ybr_carve_segment(ow, x0, y0, x1, y1);
+    }
+}
+
+/* Union-find for MST */
+static int ybr_uf_find(int *p, int i) {
+    while (p[i] != i) { p[i] = p[p[i]]; i = p[i]; }
+    return i;
+}
+static void ybr_uf_union(int *p, int a, int b) {
+    int ra = ybr_uf_find(p, a), rb = ybr_uf_find(p, b);
+    if (ra != rb) p[ra] = rb;
+}
+
+typedef struct { int a, b, d; } YbrEdge;
+
+static int ybr_edge_cmp(const void *x, const void *y) {
+    const YbrEdge *ea = (const YbrEdge*)x;
+    const YbrEdge *eb = (const YbrEdge*)y;
+    return ea->d - eb->d;
+}
+
+static void build_yellow_brick_network(Overworld *ow) {
+    /* Collect hubs */
+    int hubs[MAX_LOCATIONS];
+    int nhubs = 0;
+    for (int i = 0; i < ow->num_locations; i++) {
+        LocationType t = ow->locations[i].type;
+        if (t == LOC_TOWN || t == LOC_CASTLE_ACTIVE ||
+            t == LOC_CASTLE_ABANDONED || t == LOC_ABBEY) {
+            hubs[nhubs++] = i;
+        }
+    }
+    if (nhubs < 2) return;
+
+    /* Build edge list */
+    int max_edges = nhubs * (nhubs - 1) / 2;
+    YbrEdge *edges = (YbrEdge*)malloc(sizeof(YbrEdge) * max_edges);
+    if (!edges) return;
+    int ne = 0;
+    for (int i = 0; i < nhubs; i++) {
+        for (int j = i + 1; j < nhubs; j++) {
+            int dx = ow->locations[hubs[i]].pos.x - ow->locations[hubs[j]].pos.x;
+            int dy = ow->locations[hubs[i]].pos.y - ow->locations[hubs[j]].pos.y;
+            int d = dx*dx + dy*dy;
+            edges[ne++] = (YbrEdge){ i, j, d };
+        }
+    }
+    qsort(edges, ne, sizeof(YbrEdge), ybr_edge_cmp);
+
+    /* Kruskal MST, skipping edges whose distance > threshold (avoid
+       islands/overseas silliness). */
+    int parent[MAX_LOCATIONS];
+    for (int i = 0; i < nhubs; i++) parent[i] = i;
+
+    int added = 0;
+    const int max_sqdist = 120 * 120;   /* don't try to road across oceans */
+
+    for (int e = 0; e < ne && added < nhubs - 1; e++) {
+        if (edges[e].d > max_sqdist) break;
+        int a = edges[e].a, b = edges[e].b;
+        if (ybr_uf_find(parent, a) == ybr_uf_find(parent, b)) continue;
+        int ax = ow->locations[hubs[a]].pos.x;
+        int ay = ow->locations[hubs[a]].pos.y;
+        int bx = ow->locations[hubs[b]].pos.x;
+        int by = ow->locations[hubs[b]].pos.y;
+        ybr_draw_road(ow, ax, ay, bx, by);
+        ybr_uf_union(parent, a, b);
+        added++;
+    }
+
+    /* A few redundancy edges: short ones not already in MST */
+    int extra = 0;
+    for (int e = 0; e < ne && extra < 8; e++) {
+        if (edges[e].d > 35 * 35) break;
+        int a = edges[e].a, b = edges[e].b;
+        /* Already connected through MST; add direct road anyway for crossroads */
+        int ax = ow->locations[hubs[a]].pos.x;
+        int ay = ow->locations[hubs[a]].pos.y;
+        int bx = ow->locations[hubs[b]].pos.x;
+        int by = ow->locations[hubs[b]].pos.y;
+        ybr_draw_road(ow, ax, ay, bx, by);
+        extra++;
+    }
+
+    free(edges);
+
+    /* ---- Place sign posts at crossroads ---- */
+    /* Scan for TILE_YELLOW_ROAD tiles with >=3 orthogonal yellow neighbours. */
+    typedef struct { int x, y, score; } Junction;
+    Junction jlist[256];
+    int nj = 0;
+    for (int y = 1; y < OW_HEIGHT - 1 && nj < 256; y++) {
+        for (int x = 1; x < OW_WIDTH - 1 && nj < 256; x++) {
+            if (ow->map[y][x].type != TILE_YELLOW_ROAD) continue;
+            if (overworld_location_at(ow, x, y)) continue;
+            int nbrs = 0;
+            if (ow->map[y-1][x].type == TILE_YELLOW_ROAD) nbrs++;
+            if (ow->map[y+1][x].type == TILE_YELLOW_ROAD) nbrs++;
+            if (ow->map[y][x-1].type == TILE_YELLOW_ROAD) nbrs++;
+            if (ow->map[y][x+1].type == TILE_YELLOW_ROAD) nbrs++;
+            if (nbrs >= 3) {
+                jlist[nj].x = x; jlist[nj].y = y; jlist[nj].score = nbrs;
+                nj++;
+            }
+        }
+    }
+
+    /* Thin out: don't place signposts too close to each other or to locations */
+    int placed = 0;
+    const int max_signposts = 20;
+    const int min_sep = 10;
+    int sp_x[32], sp_y[32];
+    for (int i = 0; i < nj && placed < max_signposts; i++) {
+        /* distance to existing signposts */
+        bool too_close = false;
+        for (int k = 0; k < placed; k++) {
+            int dx = jlist[i].x - sp_x[k];
+            int dy = jlist[i].y - sp_y[k];
+            if (dx*dx + dy*dy < min_sep * min_sep) { too_close = true; break; }
+        }
+        if (too_close) continue;
+        /* Too close to a hub */
+        bool near_hub = false;
+        for (int k = 0; k < nhubs; k++) {
+            int dx = jlist[i].x - ow->locations[hubs[k]].pos.x;
+            int dy = jlist[i].y - ow->locations[hubs[k]].pos.y;
+            if (dx*dx + dy*dy < 6*6) { near_hub = true; break; }
+        }
+        if (near_hub) continue;
+
+        /* Find 4 nearest hubs in distinct cardinal directions */
+        const char *dir_names[4] = { "N", "E", "S", "W" };
+        int best_idx[4] = { -1, -1, -1, -1 };
+        int best_d[4]   = { 999999, 999999, 999999, 999999 };
+        for (int k = 0; k < nhubs; k++) {
+            int hx = ow->locations[hubs[k]].pos.x;
+            int hy = ow->locations[hubs[k]].pos.y;
+            int dx = hx - jlist[i].x;
+            int dy = hy - jlist[i].y;
+            int d = dx*dx + dy*dy;
+            int dir;
+            if (abs(dx) > abs(dy)) dir = (dx > 0) ? 1 : 3;
+            else                   dir = (dy > 0) ? 2 : 0;
+            if (d < best_d[dir]) { best_d[dir] = d; best_idx[dir] = k; }
+        }
+
+        char name[MAX_NAME];
+        int pos = 0;
+        pos += snprintf(name + pos, MAX_NAME - pos, "Sign:");
+        for (int d = 0; d < 4 && pos < MAX_NAME - 1; d++) {
+            if (best_idx[d] < 0) continue;
+            const char *hname = ow->locations[hubs[best_idx[d]]].name;
+            int w = snprintf(name + pos, MAX_NAME - pos, " %s->%s",
+                             dir_names[d], hname);
+            if (w < 0) break;
+            pos += w;
+        }
+
+        if (ow_add_location(ow, name, LOC_SIGNPOST, jlist[i].x, jlist[i].y,
+                            'T', CP_YELLOW_BOLD) >= 0) {
+            sp_x[placed] = jlist[i].x;
+            sp_y[placed] = jlist[i].y;
+            placed++;
+        }
+    }
 }
 
 bool overworld_is_passable(Overworld *ow, int x, int y) {
