@@ -1,0 +1,13 @@
+# Knights of Camelot - ranged ammunition
+# Used by the ranged attack code (f-key) in src/game.c to look up damage
+# bonus and recovery chance for the matching ammo type.
+#
+# Columns:
+#   name,glyph,color,damage_bonus,weight,value,recovery_chance
+# recovery_chance: % chance ammo is recovered after each shot
+Arrows,/,brown,1,5,3,50
+Bolts,/,gray,2,5,5,50
+Stones,/,gray,0,3,1,0
+Throwing Knives,/,white,2,3,8,40
+Silver Arrows,/,white,3,5,15,60
+Fire Arrows,/,red,2,5,12,30

@@ -2,6 +2,8 @@
 #include "ui.h"
 #include "rng.h"
 #include "save.h"
+#include "loot.h"
+#include "ammo.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -61,6 +63,9 @@ int main(int argc, char *argv[]) {
                 entity_init();
                 item_init();
                 trap_init();
+                loot_init();
+                ammo_init();
+                weather_init();
                 spell_init();
                 town_init();
 

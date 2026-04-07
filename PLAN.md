@@ -26,13 +26,13 @@
 - [x] `data/creatures.csv` -- 12 overworld creature types
 - [x] `data/spells.csv` -- 50 spells across 4 schools
 - [x] `data/names.csv` -- 48 random character names
-- [ ] `data/traps.csv` -- 12 trap types with damage, effects, messages (currently hardcoded in game.c)
-- [ ] `data/weather.csv` -- 6 weather types with regional weights (currently hardcoded in game.c)
-- [ ] `data/events.csv` -- 11 lunar cycle events (currently hardcoded in game.c)
-- [ ] `data/loot_tables.csv` -- monster drop ranges (currently hardcoded in game.c)
-- [ ] `data/dialogue.csv` -- NPC dialogue lines (feature not yet built)
-- [ ] `data/ammo.csv` -- ranged ammo types (feature not yet built)
-- [ ] `data/witch_tasks.csv` -- witch encounter tasks (feature not yet built)
+- [x] `data/traps.csv` -- 12 trap types with damage, effects, messages (loaded from data/traps.csv)
+- [x] `data/weather.csv` -- 6 weather types (metadata loaded from data/weather.csv; regional weights remain in game.c)
+- [ ] `data/events.csv` -- 11 lunar cycle events (reference only; bespoke per-day effects remain in game.c)
+- [x] `data/loot_tables.csv` -- monster drop ranges (loaded from data/loot_tables.csv)
+- [x] `data/dialogue.csv` -- NPC dialogue lines (loaded from data/dialogue.csv)
+- [x] `data/ammo.csv` -- ranged ammo types (loaded from data/ammo.csv; drives ranged damage bonus and recovery chance)
+- [x] `data/witch_tasks.csv` -- witch encounter tasks (loaded from data/witch_tasks.csv)
 *Note: potions, food, rings, amulets, gems, and treasures are all rows in `data/items.csv` with appropriate type columns. Terrain and time-of-day are simple enums that don't warrant separate CSV files.*
 
 ## Context

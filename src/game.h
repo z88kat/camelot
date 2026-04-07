@@ -177,6 +177,7 @@ int game_get_moon_day(const GameState *gs);
 
 /* Get weather name string. */
 const char *weather_name(WeatherType w);
+void weather_init(void);
 
 /* Initialize a new game state. */
 void game_init(GameState *gs);

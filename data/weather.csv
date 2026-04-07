@@ -1,20 +1,15 @@
 # Knights of Camelot - weather definitions
-# Reference data for the weather system in src/game.c (weather_name,
-# weather_icon, get_regional_weather, change_weather). The hardcoded
-# WeatherType enum order in src/game.h must match the first 6 rows here.
+# Rows MUST be in WeatherType enum order (src/game.h): Clear, Rain, Storm,
+# Fog, Snow, Wind. Loaded into a WeatherMeta[] array; the hardcoded regional
+# weight tables and gameplay rules still live in src/game.c.
 #
 # Columns:
-#   name,glyph_overlay,vis_mod,speed_mod,encounter_mod,duration_min,duration_max,region_weights
-# vis_mod:    multiplier x100 applied to FOV radius (100 = no change)
-# speed_mod:  flat penalty added to overworld step minutes
-# encounter_mod: percent change to monster encounter chance
-# duration_*: turns the weather lasts (range)
-# region_weights: comma-free hint of where it favours (free text)
-Clear,*,100,0,0,80,250,everywhere
-Light Rain,/,90,2,5,80,200,Wales/Whitby/North
-Heavy Rain,/,75,4,10,60,150,Wales/Whitby
-Fog,~,50,1,15,80,200,Wales/lowlands/coast
-Snow,+,75,4,5,80,200,Scotland/north
-Storm,!,50,5,20,40,120,coast/north
-Mist,~,80,1,5,60,150,marshes/lakes
-Hail,*,70,3,10,30,80,north/storms
+#   name,glyph,fov_percent,speed_penalty,duration_min,duration_max,description
+# fov_percent: % of normal FOV radius (100 = no change, 50 = half)
+# speed_penalty: flat minutes added to overworld step cost
+Clear,*,100,0,80,250,The skies are clear. The sun shines warmly.
+Rain,/,75,2,80,200,Dark clouds gather. Rain begins to fall.
+Storm,!,50,5,40,150,Thunder rumbles! A fierce storm breaks overhead.
+Fog,~,50,1,80,200,A thick fog rolls in. Visibility is poor.
+Snow,+,75,4,80,200,Snow begins to fall. The land turns white.
+Wind,>,100,1,60,150,A strong wind picks up, howling across the land.

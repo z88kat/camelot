@@ -3,6 +3,8 @@
 #include "rng.h"
 #include "pathfind.h"
 #include "save.h"
+#include "loot.h"
+#include "ammo.h"
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
@@ -729,14 +731,33 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
                 }
             }
 
-            if (drop == DROP_GOLD) {
-                int gold = rng_range(3, 15);
+            int depth = gs->dungeon ? gs->dungeon->current_level : 0;
+            const LootRow *row = loot_lookup(drop, depth);
+
+            if (drop == DROP_GOLD || drop == DROP_GOLD_LARGE) {
+                int gmin = row ? row->gold_min : (drop == DROP_GOLD ? 3 : 15);
+                int gmax = row ? row->gold_max : (drop == DROP_GOLD ? 15 : 50);
+                int gold = rng_range(gmin, gmax);
                 gs->gold += gold;
-                log_add(&gs->log, gs->turn, CP_YELLOW, "You find %d gold.", gold);
-            } else if (drop == DROP_GOLD_LARGE) {
-                int gold = rng_range(15, 50);
-                gs->gold += gold;
-                log_add(&gs->log, gs->turn, CP_YELLOW_BOLD, "You find %d gold!", gold);
+                log_add(&gs->log, gs->turn,
+                         drop == DROP_GOLD_LARGE ? CP_YELLOW_BOLD : CP_YELLOW,
+                         drop == DROP_GOLD_LARGE ? "You find %d gold!" : "You find %d gold.",
+                         gold);
+                /* Bonus item chance from loot table */
+                if (row && row->item_chance > 0 && rng_chance(row->item_chance) &&
+                    dl->num_ground_items < MAX_GROUND_ITEMS) {
+                    int itcount;
+                    const ItemTemplate *itms = item_get_templates(&itcount);
+                    for (int tries = 0; tries < 20; tries++) {
+                        int ti = rng_range(0, itcount - 1);
+                        if (itms[ti].type != ITYPE_POTION && itms[ti].type != ITYPE_FOOD) continue;
+                        dl->ground_items[dl->num_ground_items++] =
+                            item_create(ti, target->pos.x, target->pos.y);
+                        log_add(&gs->log, gs->turn, CP_CYAN,
+                                 "The %s also drops: %s!", target->name, itms[ti].name);
+                        break;
+                    }
+                }
             } else if (drop >= DROP_ITEM_WEAPON && dl->num_ground_items < MAX_GROUND_ITEMS) {
                 /* Drop a themed item on the monster's death tile */
                 ItemType wanted = ITYPE_WEAPON;
@@ -746,16 +767,21 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
 
                 int itcount;
                 const ItemTemplate *itms = item_get_templates(&itcount);
-                /* Find a matching item */
-                for (int tries = 0; tries < 30; tries++) {
-                    int ti = rng_range(0, itcount - 1);
-                    if (itms[ti].type != wanted) continue;
-                    dl->ground_items[dl->num_ground_items] =
-                        item_create(ti, target->pos.x, target->pos.y);
-                    dl->num_ground_items++;
+                int rolls = (row && row->rare_chance > 0 && rng_chance(row->rare_chance)) ? 2 : 1;
+                int best_ti = -1, best_val = -1;
+                for (int r2 = 0; r2 < rolls; r2++) {
+                    for (int tries = 0; tries < 30; tries++) {
+                        int ti = rng_range(0, itcount - 1);
+                        if (itms[ti].type != wanted) continue;
+                        if (itms[ti].value > best_val) { best_val = itms[ti].value; best_ti = ti; }
+                        break;
+                    }
+                }
+                if (best_ti >= 0) {
+                    dl->ground_items[dl->num_ground_items++] =
+                        item_create(best_ti, target->pos.x, target->pos.y);
                     log_add(&gs->log, gs->turn, CP_CYAN,
-                             "The %s drops: %s!", target->name, itms[ti].name);
-                    break;
+                             "The %s drops: %s!", target->name, itms[best_ti].name);
                 }
             }
         }
@@ -1902,28 +1928,60 @@ static void check_lunar_events(GameState *gs, int old_hour) {
 /* Weather                                                             */
 /* ------------------------------------------------------------------ */
 
-const char *weather_name(WeatherType w) {
-    switch (w) {
-    case WEATHER_CLEAR: return "Clear";
-    case WEATHER_RAIN:  return "Rain";
-    case WEATHER_STORM: return "Storm";
-    case WEATHER_FOG:   return "Fog";
-    case WEATHER_SNOW:  return "Snow";
-    case WEATHER_WIND:  return "Wind";
-    default:            return "Clear";
+/* Weather metadata - defaults mirror legacy hardcoded values; overridden
+ * by data/weather.csv in weather_init() (rows must match WeatherType order). */
+typedef struct {
+    char name[16];
+    char glyph[4];
+    int  fov_percent;
+    int  speed_penalty;
+    int  duration_min;
+    int  duration_max;
+    char description[96];
+} WeatherMeta;
+
+static WeatherMeta weather_meta[6] = {
+    { "Clear", "*", 100, 0, 80, 250, "The skies clear. The sun shines warmly." },
+    { "Rain",  "/",  75, 2, 80, 200, "Dark clouds gather. Rain begins to fall." },
+    { "Storm", "!",  50, 5, 40, 150, "Thunder rumbles! A fierce storm breaks overhead." },
+    { "Fog",   "~",  50, 1, 80, 200, "A thick fog rolls in. Visibility is poor." },
+    { "Snow",  "+",  75, 4, 80, 200, "Snow begins to fall. The land turns white." },
+    { "Wind",  ">", 100, 1, 60, 150, "A strong wind picks up, howling across the land." },
+};
+
+void weather_init(void) {
+    FILE *f = fopen("data/weather.csv", "r");
+    if (!f) return;
+    char line[256];
+    int idx = 0;
+    while (fgets(line, sizeof(line), f) && idx < 6) {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+        line[strcspn(line, "\n\r")] = 0;
+        char name[16], glyph[4], desc[96];
+        int fovp, sp, dmin, dmax;
+        int n = sscanf(line, "%15[^,],%3[^,],%d,%d,%d,%d,%95[^\n]",
+                       name, glyph, &fovp, &sp, &dmin, &dmax, desc);
+        if (n < 7) continue;
+        WeatherMeta *m = &weather_meta[idx++];
+        snprintf(m->name, sizeof(m->name), "%s", name);
+        snprintf(m->glyph, sizeof(m->glyph), "%s", glyph);
+        m->fov_percent = fovp;
+        m->speed_penalty = sp;
+        m->duration_min = dmin;
+        m->duration_max = dmax;
+        snprintf(m->description, sizeof(m->description), "%s", desc);
     }
+    fclose(f);
+}
+
+const char *weather_name(WeatherType w) {
+    if ((int)w < 0 || (int)w >= 6) return "Clear";
+    return weather_meta[w].name;
 }
 
 static const char *weather_icon(WeatherType w) {
-    switch (w) {
-    case WEATHER_CLEAR: return "*";
-    case WEATHER_RAIN:  return "/";
-    case WEATHER_STORM: return "!";
-    case WEATHER_FOG:   return "~";
-    case WEATHER_SNOW:  return "+";
-    case WEATHER_WIND:  return ">";
-    default:            return "*";
-    }
+    if ((int)w < 0 || (int)w >= 6) return "*";
+    return weather_meta[w].glyph;
 }
 
 /* Get regional weather weights based on player position.
@@ -1986,7 +2044,8 @@ static void change_weather(GameState *gs) {
         }
     }
 
-    gs->weather_turns_left = rng_range(80, 250);
+    gs->weather_turns_left = rng_range(weather_meta[gs->weather].duration_min,
+                                        weather_meta[gs->weather].duration_max);
 
     if (gs->weather != old && gs->mode == MODE_OVERWORLD) {
         switch (gs->weather) {
@@ -2048,14 +2107,8 @@ static void change_weather(GameState *gs) {
 
 /* Weather speed modifier (added to travel time) */
 static int weather_speed_penalty(WeatherType w) {
-    switch (w) {
-    case WEATHER_RAIN:  return 2;
-    case WEATHER_STORM: return 5;
-    case WEATHER_FOG:   return 1;
-    case WEATHER_SNOW:  return 4;
-    case WEATHER_WIND:  return 1;
-    default:            return 0;
-    }
+    if ((int)w < 0 || (int)w >= 6) return 0;
+    return weather_meta[w].speed_penalty;
 }
 
 /* Get travel time in minutes for stepping onto an overworld tile */
@@ -6735,14 +6788,27 @@ static void handle_dungeon_input(GameState *gs, int key) {
                                      best_target->name, dmg);
                         }
 
-                        /* Consume ammo (50% recovery for non-stones) */
-                        bool recovered = (strcmp(bow_ammo, "Stones") != 0 && rng_chance(50));
-                        if (!recovered) {
-                            for (int j = ammo_idx; j < gs->num_items - 1; j++)
-                                gs->inventory[j] = gs->inventory[j + 1];
-                            gs->inventory[--gs->num_items].template_id = -1;
-                        } else {
+                        /* Consume ammo - recovery chance driven by data/ammo.csv */
+                        const AmmoDef *adef = ammo_find(gs->inventory[ammo_idx].name);
+                        int rec_chance = adef ? adef->recovery_chance : 50;
+                        int ammo_tid = gs->inventory[ammo_idx].template_id;
+                        bool recovered = rng_chance(rec_chance);
+                        /* Remove from inventory */
+                        for (int j = ammo_idx; j < gs->num_items - 1; j++)
+                            gs->inventory[j] = gs->inventory[j + 1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                        if (recovered) {
                             log_add(&gs->log, gs->turn, CP_GRAY, "(Ammo recovered)");
+                            /* Re-add one copy to inventory if space */
+                            if (gs->num_items < MAX_INVENTORY && ammo_tid >= 0) {
+                                gs->inventory[gs->num_items] = item_create(ammo_tid, -1, -1);
+                                gs->inventory[gs->num_items].on_ground = false;
+                                gs->num_items++;
+                            }
+                        } else if (dl_r->num_ground_items < MAX_GROUND_ITEMS && ammo_tid >= 0) {
+                            /* Drop spent ammo on the target tile so it can be picked up */
+                            dl_r->ground_items[dl_r->num_ground_items++] =
+                                item_create(ammo_tid, best_target->pos.x, best_target->pos.y);
                         }
 
                         if (best_target->hp <= 0) {
@@ -9459,6 +9525,9 @@ void game_init(GameState *gs) {
     entity_init();
     item_init();
     trap_init();
+    loot_init();
+    ammo_init();
+    weather_init();
     spell_init();
 
     /* Default state */
@@ -9634,10 +9703,10 @@ static void game_render(GameState *gs) {
             default:            sight_radius = 20; break;
             }
             /* Weather reduces sight */
-            if (gs->weather == WEATHER_FOG) sight_radius = sight_radius / 2;
-            else if (gs->weather == WEATHER_RAIN) sight_radius = sight_radius * 3 / 4;
-            else if (gs->weather == WEATHER_STORM) sight_radius = sight_radius / 2;
-            else if (gs->weather == WEATHER_SNOW) sight_radius = sight_radius * 3 / 4;
+            {
+                int fp = weather_meta[gs->weather].fov_percent;
+                if (fp > 0 && fp != 100) sight_radius = (sight_radius * fp) / 100;
+            }
 
             /* Friendly creatures visible slightly further, hostiles harder to spot */
             for (int i = 0; i < gs->overworld->num_creatures; i++) {
