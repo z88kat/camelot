@@ -87,6 +87,23 @@ int main(int argc, char *argv[]) {
                 gs.mode = MODE_OVERWORLD;
                 gs.running = true;
 
+                /* Defensive fallback: if ow_player_pos is invalid (e.g.
+                 * a pre-fix save left it at 0,0 in the sea), drop player
+                 * at Camelot. */
+                {
+                    int px = gs.player_pos.x, py = gs.player_pos.y;
+                    bool bad = (px <= 0 || py <= 0 ||
+                                px >= OW_WIDTH - 1 || py >= OW_HEIGHT - 1);
+                    if (!bad) {
+                        TileType tt = gs.overworld->map[py][px].type;
+                        if (tt == TILE_WATER || tt == TILE_MOUNTAIN) bad = true;
+                    }
+                    if (bad) {
+                        gs.player_pos = (Vec2){ 212, 162 }; /* Camelot */
+                        gs.ow_player_pos = gs.player_pos;
+                    }
+                }
+
                 /* Reinitialize message log */
                 log_init(&gs.log);
                 log_add(&gs.log, gs.turn, CP_WHITE,

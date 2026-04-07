@@ -173,12 +173,14 @@ There are 9 named dungeons spread across England, each with a randomised depth:
 | Camelot Catacombs | Near Camelot | 3-6 levels |
 | Tintagel Caves | Near Tintagel | 5-10 levels |
 | Sherwood Depths | Near Sherwood | 5-10 levels |
-| Mount Draig | Wales volcano | 4-8 levels |
+| Mount Draig | Caernarfon (Snowdonia) volcano at (100,122) | 4-8 levels (fire dungeon -- Red Dragon at the bottom) |
 | Glastonbury Tor | Near Glastonbury | 8-15 levels |
 | White Cliffs Cave | Dover coast | 3-6 levels |
 | Whitby Abbey | Near Whitby | 2-4 levels |
 | Avalon Shrine | Avalon island | 3-5 levels |
 | Orkney Barrows | Orkney island | 2-4 levels |
+
+**Mount Draig** is reached via a road that carves through Snowdonia from inner Caernarfon to the volcano at **(100,122)**. Stand on the volcano tile and press **`>`** (an on-screen prompt is shown) to descend into the fire dungeon. Bring **fire resistance**.
 
 **Abandoned Castles** can also be explored as mini-dungeons (press `>` while standing on one):
 
@@ -217,7 +219,7 @@ Creation flow: Class -> Gender -> Name -> Appearance -> Stats -> Story
 |-----|--------|
 | `Enter` | Enter a town, castle, or interact with landmark |
 | `>` | Descend into a dungeon entrance or abandoned castle |
-| `c` | Camp (rest 8 hours, restore 50% HP/MP, risk of ambush) |
+| `c` | Camp (rest until next morning -- regen ticks normally, risk of night ambush, clears fatigue) |
 | `f` | Fish from a shore tile (must be adjacent to water) |
 | `F` | Forage for food (forests, grassland, hills) |
 | `x` | Dig for buried treasure (must be near marked spot) |
@@ -318,7 +320,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | `D` | Disarm an adjacent revealed trap (INT+SPD check) |
 | `R` | Rest to recover HP/MP (interrupted if monster approaches) |
 | `M` | Dungeon minimap (full level overview) |
-| `T` | Light/extinguish torch or lantern (uses fuel) |
+| `T` | Light/extinguish torch or lantern (uses fuel -- extends FOV radius without tinting tile colours) |
 | `q` | Quit game |
 
 ### UI (all modes)
@@ -444,10 +446,11 @@ Press **`@`** at any time to view your full character sheet, including:
 - **Overworld movement**: varies by terrain. Roads (5 min), grassland (10 min), forest (20 min), hills (25 min), swamp (35 min). **Riding a horse halves all travel times.**
 - **Stick to roads** when possible -- they are 7x faster than swamps. Buy a horse early for even faster travel.
 - **Day/night cycle**: shops close at night, castles lock their gates, visibility drops. Time shown on status bar: [Dawn], [Morning], [Midday], [Afternoon], [Dusk], [Evening], [Night].
-- **Weather** changes as you travel. Affects visibility and travel speed. Scotland is colder, Wales is foggy, Whitby is always raining.
+- **Weather** changes as you travel. Affects visibility and travel speed. Scotland is colder, Caernarfon is foggy, Whitby is always raining.
+- **Fatigue**: after **16 hours awake**, your knight tires and loses **1 HP per additional hour** of activity (warning fires when you cross the 16-hour threshold). Fatigue HP loss never kills you (clamps at 1 HP). Resting at an inn or camping resets the fatigue counter.
 
 ### Camping
-Press `c` on grassland, road, or forest to camp for 8 hours. Restores 50% HP/MP.
+Press `c` on grassland, road, or forest to camp. Camping **always rests you until the next morning**, advancing time hour-by-hour with regen and buffs ticking normally. There is a chance of a **night ambush** while you sleep. Camping also clears your fatigue counter.
 
 ### Boats & Lakes
 Walk onto a `B` tile to board a boat. Sail across lake water freely. Step onto land to disembark -- the boat is left at the water's edge behind you for later use.
@@ -490,7 +493,7 @@ Navigate to the marked spot on the overworld and press **`x`** to dig. You must 
 5-8 treasure maps are scattered across the game's dungeons. Each map reveals the nearest unfound treasure to your current position.
 
 ### Cottages & Caves
-**Cottages** (`n` brown) and **caves** (`O` gray) are scattered across the map. Press Enter to explore. Each has a random encounter inside:
+**Cottages** (`n` brown) and **caves** (`O` gray) are scattered across the map. Press Enter to explore. Each has a random encounter inside. Press **ESC** or **`q`** to leave the flavour screen (other keys are ignored). The same applies to **wells** and the **Canterbury Graveyard**.
 
 **Cottages** (4 outcomes):
 - **Empty** (30%): abandoned shelter, rest for +25% HP/MP
@@ -999,7 +1002,7 @@ When you launch the game, you see the title screen with an ASCII art banner and 
 - **[Q] Quit**
 
 ### Saving & Permadeath
-Press **`S`** on the overworld to save your game to `~/.camelot/save.dat`. Only one save slot exists -- no save scumming!
+Press **`S`** on the overworld to save your game to `~/.camelot/save.dat`. Only one save slot exists -- no save scumming! Saving while inside a dungeon is supported -- on continue, you are returned to the **overworld at your last overworld position** (with a defensive fallback to Camelot if the saved overworld position is invalid).
 
 **Permadeath**: when you die, your save is **deleted**. Your character is gone forever. But your legacy lives on:
 - Your **score** is added to the high score table

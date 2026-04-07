@@ -3262,7 +3262,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                 break;
             case LOC_VOLCANO:
                 log_add(&gs->log, gs->turn, CP_RED,
-                         "Mount Draig! Smoke rises from the volcano.");
+                         "Mount Draig! Smoke rises from the volcano. Press > to descend.");
                 break;
             case LOC_COTTAGE:
                 log_add(&gs->log, gs->turn, CP_BROWN,
@@ -9059,7 +9059,7 @@ void game_handle_input(GameState *gs, int key) {
             "OVERWORLD:\n"
             "  Enter   Enter town/castle/landmark\n"
             "  >       Enter dungeon or abandoned castle\n"
-            "  c       Camp (rest 8 hours)\n"
+            "  c       Camp (rest until morning)\n"
             "  f       Fish (next to water)\n"
             "  F       Forage for food\n"
             "  K       Cook raw food\n"
@@ -9152,7 +9152,12 @@ void game_handle_input(GameState *gs, int key) {
             "- Travellers may pickpocket you (5% chance).\n"
             "- The Grail is in a random dungeon each game.\n"
             "- Rescue the princess for the TRUE ending.\n"
-            "- Camp (c) restores 50% HP/MP but risks ambush.\n"
+            "- Camping always rests you until morning.\n"
+            "- Travel for too long without rest and you will\n"
+            "  tire and lose HP. Camp or rest at an inn to\n"
+            "  recover.\n"
+            "- Mount Draig (Welsh volcano) is a fire dungeon\n"
+            "  -- bring fire resistance.\n"
             "- Tournament timing: press SPACE at the right\n"
             "  moment for a perfect hit!\n"
             "- BUC: items are blessed/uncursed/cursed.\n"
