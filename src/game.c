@@ -908,8 +908,12 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
                  "Lancelot's Shield blazes! The blow is reflected!");
         if (attacker->hp <= 0) {
             attacker->alive = false;
+            gs->xp += attacker->xp_reward;
+            gs->kills++;
             log_add(&gs->log, gs->turn, CP_GREEN,
-                     "The %s is slain by its own reflected fury!", attacker->name);
+                     "The %s is slain by its own reflected fury! +%d XP",
+                     attacker->name, attacker->xp_reward);
+            ai_explode_on_death(gs, attacker);
         }
     }
 
@@ -4828,6 +4832,7 @@ static void handle_overworld_input(GameState *gs, int key) {
             }
 
             gs->mode = MODE_DUNGEON;
+            gs->girdle_used_this_level = false;
             if (gs->riding) {
                 gs->riding = false;
                 log_add(&gs->log, gs->turn, CP_BROWN, "You dismount and leave your horse at the entrance.");
