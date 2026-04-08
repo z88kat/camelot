@@ -69,33 +69,38 @@ int main(int argc, char *argv[]) {
                 spell_init();
                 town_init();
 
-                /* Recreate overworld (heap allocated, can't be saved) */
+                /* Recreate overworld (heap allocated, can't be saved).
+                 * Always rebuild it -- the player will need it when they
+                 * eventually leave the dungeon. */
                 gs.overworld = calloc(1, sizeof(Overworld));
                 overworld_init(gs.overworld);
                 overworld_spawn_creatures(gs.overworld);
 
-                /* Clear invalid pointers from save */
-                gs.dungeon = NULL;
+                /* Town interior state is not preserved across saves. */
                 gs.current_town = NULL;
 
-                /* Force overworld mode (dungeon/town state not preserved).
-                 * If the player saved inside a dungeon or town, player_pos
-                 * holds those local coordinates -- restore overworld pos. */
-                if (gs.mode != MODE_OVERWORLD) {
-                    gs.player_pos = gs.ow_player_pos;
-                }
-                gs.mode = MODE_OVERWORLD;
                 gs.running = true;
 
                 /* Boats are regenerated on overworld init, so the saved
                  * sailing flag is stale -- drop it. */
                 gs.in_boat = false;
 
-                /* Defensive fallback: if ow_player_pos is invalid (e.g.
-                 * a pre-fix save left it at 0,0 in the sea, or the player
-                 * saved while sailing), find the nearest passable land
-                 * tile, falling back to Camelot. */
-                {
+                if (gs.dungeon != NULL && gs.mode == MODE_DUNGEON) {
+                    /* Player saved inside a dungeon. Keep mode + position
+                     * as-is; the restored dungeon holds tiles, monsters,
+                     * items, and explored state. Skip the overworld
+                     * fallback below. */
+                } else {
+                    /* No dungeon to restore (or saved in town/overworld).
+                     * Force overworld mode and validate the position. */
+                    if (gs.mode != MODE_OVERWORLD) {
+                        gs.player_pos = gs.ow_player_pos;
+                    }
+                    gs.mode = MODE_OVERWORLD;
+
+                    /* Defensive fallback: if ow_player_pos is invalid
+                     * (sea, mountain, edge of map), find the nearest
+                     * passable land tile, falling back to Camelot. */
                     int px = gs.player_pos.x, py = gs.player_pos.y;
                     bool bad = (px <= 0 || py <= 0 ||
                                 px >= OW_WIDTH - 1 || py >= OW_HEIGHT - 1);
@@ -105,7 +110,6 @@ int main(int argc, char *argv[]) {
                             tt == TILE_RIVER || tt == TILE_MOUNTAIN) bad = true;
                     }
                     if (bad) {
-                        /* Spiral outward from current pos for nearest land */
                         bool found = false;
                         for (int r = 1; r < 40 && !found; r++) {
                             for (int dy = -r; dy <= r && !found; dy++) {
