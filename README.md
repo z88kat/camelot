@@ -1109,7 +1109,40 @@ make              # Build the game
 make clean        # Clean build files
 ```
 
-Requires: C compiler (clang/gcc), ncurses library.
+Requires: C compiler (clang/gcc), ncurses library, a 256-colour terminal.
+
+### macOS
+
+Xcode command-line tools include clang and ncurses out of the box:
+
+```bash
+xcode-select --install
+make
+```
+
+### Linux
+
+Install a C compiler, `make`, and the ncurses development headers, then build:
+
+```bash
+# Debian / Ubuntu
+sudo apt install build-essential libncurses-dev
+make
+
+# Fedora / RHEL
+sudo dnf install gcc make ncurses-devel
+make
+
+# Arch
+sudo pacman -S base-devel ncurses
+make
+```
+
+If your terminal renders colours oddly, ensure 256-colour support:
+
+```bash
+export TERM=xterm-256color
+```
 
 ## Data Files
 

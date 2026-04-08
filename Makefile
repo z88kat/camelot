@@ -1,4 +1,9 @@
-CC       = clang
+# Auto-detect a C compiler if CC is not set on the command line.
+# Prefer clang if present, fall back to gcc, finally cc.
+ifeq ($(origin CC),default)
+  CC := $(shell command -v clang 2>/dev/null || command -v gcc 2>/dev/null || echo cc)
+endif
+
 CFLAGS   = -Wall -Wextra -std=c11 -Isrc -Iinclude -g
 LDFLAGS  = -lncurses
 SRC      = $(wildcard src/*.c)
