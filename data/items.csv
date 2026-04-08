@@ -153,9 +153,9 @@ Silver Arrows,/,white,tool,3,5,15,2,0,1
 Fire Arrows,/,red,tool,2,5,12,3,0,1
 #
 # power field for light sources: fuel in turns (torch=200, lantern=500)
-Torch,(,yellow,tool,200,15,5,0,0,5
-Lantern,(,yellow,tool,500,20,25,0,0,3
-Oil Flask,(,brown,tool,300,10,10,0,0,4
+Torch,(,yellow,tool,500,15,5,0,0,5
+Lantern,(,yellow,tool,1500,20,25,0,0,3
+Oil Flask,(,brown,tool,750,10,10,0,0,4
 Lockpick,(,gray,tool,1,5,20,1,0,3
 Tinderbox,(,brown,tool,1,10,10,0,0,3
 Tattered Map,&,brown,tool,0,2,30,1,0,1

@@ -76,7 +76,7 @@ static const ItemTemplate builtin_templates[] = {
     { "Scroll of Teleport",'?', CP_CYAN,     ITYPE_SCROLL,     1,  5,  40, 3, 0, 2, 0 },
 
     /* Tools */
-    { "Torch",             '(', CP_YELLOW,   ITYPE_TOOL,       1, 15,   5, 0, 0, 5, 0 },
+    { "Torch",             '(', CP_YELLOW,   ITYPE_TOOL,     500, 15,   5, 0, 0, 5, 0 },
     { "Lockpick",          '(', CP_GRAY,     ITYPE_TOOL,       1,  5,  20, 1, 0, 3, 0 },
 };
 static const int num_builtin = sizeof(builtin_templates) / sizeof(builtin_templates[0]);

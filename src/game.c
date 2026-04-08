@@ -4625,22 +4625,30 @@ static void handle_overworld_input(GameState *gs, int key) {
                regen, buffs, and time-based events all fire normally. */
             int old_hour = gs->hour;
             int camp_ticks = 0;
+            bool ambushed = false;
             do {
                 advance_time(gs, 60);
                 camp_ticks++;
+                /* Each night-time hour has a chance of an ambush. */
+                if (!ambushed && is_night(gs->hour) && rng_chance(15)) {
+                    ambushed = true;
+                    break;
+                }
                 /* Safety: never loop more than 36 hours */
                 if (camp_ticks > 36) break;
             } while (game_get_tod(gs) != TOD_MORNING || camp_ticks == 0);
-            /* Restore 50% HP/MP */
-            gs->hp += gs->max_hp / 2;
-            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
-            gs->mp += gs->max_mp / 2;
-            if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
-            gs->awake_minutes = 0;
-            log_add(&gs->log, gs->turn, CP_GREEN,
-                     "You feel rested. HP and MP partially restored.");
-            /* Night ambush chance -- spawn and fight an enemy */
-            if (is_night(gs->hour) && rng_chance(15)) {
+            /* Restore HP/MP only if you slept the whole night undisturbed. */
+            if (!ambushed) {
+                gs->hp += gs->max_hp / 2;
+                if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+                gs->mp += gs->max_mp / 2;
+                if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
+                gs->awake_minutes = 0;
+                log_add(&gs->log, gs->turn, CP_GREEN,
+                         "You feel rested. HP and MP partially restored.");
+            }
+            /* Night ambush -- spawn and fight an enemy */
+            if (ambushed) {
                 TileType camp_terrain = gs->overworld->map[gs->player_pos.y][gs->player_pos.x].type;
                 const char *ename; int ehp, estr, edef, exp_r;
                 if (camp_terrain == TILE_FOREST) {
@@ -7414,13 +7422,16 @@ static void handle_dungeon_input(GameState *gs, int key) {
             }
             if (interrupted) break;
 
-            /* Random chance of monster appearing (3% per turn) */
+            /* Random chance of monster appearing (3% per turn). If one
+             * actually spawns, your rest is over -- you're not safe. */
             if (dl && rng_chance(3)) {
                 int radius = (gs->has_torch || gs->has_vampirism || gs->has_lycanthropy) ? FOV_RADIUS : 0;
                 if (entity_spawn_one(dl->monsters, &dl->num_monsters,
                                       dl->tiles, dl->depth, gs->player_pos, radius)) {
-                    log_add(&gs->log, gs->turn, CP_YELLOW,
-                             "You hear something stirring in the darkness...");
+                    log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                             "Something stirs in the darkness! Your rest is broken.");
+                    interrupted = true;
+                    break;
                 }
             }
         }
