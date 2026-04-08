@@ -1149,7 +1149,7 @@ static void dungeon_enemy_turns(GameState *gs) {
 
     /* Timed spawning: every ~80 turns, spawn a new monster outside FOV */
     if (gs->turn % 80 == 0) {
-        int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
+        int radius = (gs->has_torch || gs->has_vampirism || gs->has_lycanthropy) ? FOV_RADIUS : 0;
         if (entity_spawn_one(dl->monsters, &dl->num_monsters,
                               dl->tiles, dl->depth, gs->player_pos, radius)) {
             /* Spawned silently -- player won't know */
@@ -1662,7 +1662,7 @@ static void dungeon_update_fov(GameState *gs) {
     if (!gs->dungeon) return;
     DungeonLevel *dl = current_dungeon_level(gs);
     if (!dl) return;
-    int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
+    int radius = (gs->has_torch || gs->has_vampirism || gs->has_lycanthropy) ? FOV_RADIUS : 0;
     fov_compute((Tile *)dl->tiles, MAP_WIDTH, MAP_HEIGHT, gs->player_pos, radius);
 }
 
@@ -7358,7 +7358,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
 
             /* Random chance of monster appearing (3% per turn) */
             if (dl && rng_chance(3)) {
-                int radius = (gs->has_torch || gs->has_vampirism) ? FOV_RADIUS : 2;
+                int radius = (gs->has_torch || gs->has_vampirism || gs->has_lycanthropy) ? FOV_RADIUS : 0;
                 if (entity_spawn_one(dl->monsters, &dl->num_monsters,
                                       dl->tiles, dl->depth, gs->player_pos, radius)) {
                     log_add(&gs->log, gs->turn, CP_YELLOW,
