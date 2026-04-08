@@ -14,6 +14,8 @@
 static void ai_explode_on_death(GameState *gs, Entity *e);
 static bool player_try_revive(GameState *gs);
 static int player_artifact_bonus(const GameState *gs, const char *stat);
+static bool player_carries_artifact(const GameState *gs, const char *name);
+static bool player_try_girdle(GameState *gs);
 static void handle_character_create(GameState *gs, int key);
 static void render_character_create(GameState *gs);
 static void dungeon_update_fov(GameState *gs);
@@ -525,11 +527,13 @@ static int player_artifact_bonus(const GameState *gs, const char *stat) {
     int bonus = 0;
     bool has_round_table = false;
     bool has_merlin_staff = false;
+    bool has_scabbard = false;
     for (int i = 0; i < gs->num_items; i++) {
         const Item *it = &gs->inventory[i];
         if (it->template_id < 0) continue;
         if (strcmp(it->name, "Round Table Fragment") == 0) has_round_table = true;
         if (strcmp(it->name, "Merlin's Staff") == 0) has_merlin_staff = true;
+        if (strcmp(it->name, "Excalibur's Scabbard") == 0) has_scabbard = true;
     }
     for (int s = 0; s < NUM_SLOTS; s++) {
         const Item *it = &gs->equipment[s];
@@ -538,6 +542,7 @@ static int player_artifact_bonus(const GameState *gs, const char *stat) {
     }
     if (has_round_table) bonus += 1; /* +1 to all stats */
     if (has_merlin_staff && strcmp(stat, "mp") == 0) bonus += 10;
+    if (has_scabbard && strcmp(stat, "regen") == 0) bonus += 1;
 
     /* Gawain's Gauntlets: +2 DEF during daytime (on top of base armor +4) */
     if (strcmp(stat, "def") == 0 &&
@@ -550,6 +555,28 @@ static int player_artifact_bonus(const GameState *gs, const char *stat) {
         }
     }
     return bonus;
+}
+
+/* Returns true if the player carries the named artifact in inventory. */
+static bool player_carries_artifact(const GameState *gs, const char *name) {
+    for (int i = 0; i < gs->num_items; i++) {
+        const Item *it = &gs->inventory[i];
+        if (it->template_id < 0) continue;
+        if (strcmp(it->name, name) == 0) return true;
+    }
+    return false;
+}
+
+/* Green Knight's Girdle: if player would die, save them at 1 HP once per level.
+ * Returns true if the girdle absorbed the killing blow. */
+static bool player_try_girdle(GameState *gs) {
+    if (gs->girdle_used_this_level) return false;
+    if (!player_carries_artifact(gs, "Green Knight's Girdle")) return false;
+    gs->girdle_used_this_level = true;
+    gs->hp = 1;
+    log_add(&gs->log, gs->turn, CP_GREEN,
+             "*** The Girdle blazes green and you survive a killing blow! ***");
+    return true;
 }
 
 /* If the player has a Cauldron of Rebirth or Ring of Rebirth in inventory,
@@ -870,6 +897,22 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     log_add(&gs->log, gs->turn, CP_RED,
              "The %s hits you for %d damage!", attacker->name, damage);
 
+    /* Lancelot's Shield: 25% chance to reflect 50% damage back at attacker */
+    if (gs->equipment[SLOT_SHIELD].template_id >= 0 &&
+        strcmp(gs->equipment[SLOT_SHIELD].name, "Lancelot's Shield") == 0 &&
+        rng_chance(25)) {
+        int reflected = damage / 2;
+        if (reflected < 1) reflected = 1;
+        attacker->hp -= reflected;
+        log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                 "Lancelot's Shield blazes! The blow is reflected!");
+        if (attacker->hp <= 0) {
+            attacker->alive = false;
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                     "The %s is slain by its own reflected fury!", attacker->name);
+        }
+    }
+
     /* Werewolf bite: 10% chance of lycanthropy (20% for Alpha) */
     if (!gs->has_lycanthropy &&
         (strstr(attacker->name, "Werewolf") || strstr(attacker->name, "werewolf"))) {
@@ -904,6 +947,7 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
     }
 
     if (gs->hp <= 0) {
+        if (player_try_girdle(gs)) return;
         if (player_try_revive(gs)) return;
         gs->hp = 0;
         snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
@@ -1785,7 +1829,8 @@ static void advance_time(GameState *gs, int minutes) {
                     log_add(&gs->log, gs->turn, CP_RED,
                              "The sunlight sears your flesh! -%d HP. Seek shelter!", 3);
                 if (gs->hp <= 0) {
-                    if (player_try_revive(gs)) { /* reborn */ }
+                    if (player_try_girdle(gs)) { /* saved */ }
+                    else if (player_try_revive(gs)) { /* reborn */ }
                     else {
                         gs->hp = 0;
                         snprintf(gs->cause_of_death, sizeof(gs->cause_of_death),
@@ -1860,7 +1905,7 @@ static void advance_time(GameState *gs, int minutes) {
             }
         }
 
-        gs->witch_geas_turns--;
+        if (gs->witch_geas_turns > 0) gs->witch_geas_turns--;
         if (gs->witch_geas_turns == 10) {
             log_add(&gs->log, gs->turn, CP_MAGENTA,
                      "The witch's geas burns! Only 10 turns left to complete the task!");
@@ -1964,6 +2009,15 @@ static void advance_time(GameState *gs, int minutes) {
     /* Slow MP regeneration: 1 MP per 20 turns */
     if (gs->turn % 20 == 0 && gs->mp < gs->max_mp) {
         gs->mp++;
+    }
+
+    /* Excalibur's Scabbard: passive HP regen (1 HP every 5 turns) while carried */
+    {
+        int regen_bonus = player_artifact_bonus(gs, "regen");
+        if (regen_bonus > 0 && gs->turn % 5 == 0 && gs->hp < gs->max_hp) {
+            gs->hp += regen_bonus;
+            if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
+        }
     }
 
     /* XP level-up check */
@@ -5187,7 +5241,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                             int si = rng_range(0, num_shop - 1);
                             if (shop_qty[si] > 0) { steal_idx = si; break; }
                         }
-                        if (steal_idx >= 0 && rng_chance(steal_chance)) {
+                        if (steal_idx >= 0 && gs->num_items >= MAX_INVENTORY) {
+                            snprintf(shop_msg, sizeof(shop_msg), "Your inventory is full!");
+                            shop_msg_color = CP_RED;
+                        } else if (steal_idx >= 0 && rng_chance(steal_chance)) {
                             /* Success! */
                             const ItemTemplate *it = &tmps[shop_items[steal_idx]];
                             gs->inventory[gs->num_items] = item_create(shop_items[steal_idx], -1, -1);
@@ -6915,6 +6972,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     gs->player_pos = upper->stairs_down[stair_idx];
                 else
                     gs->player_pos = upper->stairs_down[0];
+                gs->girdle_used_this_level = false;
                 log_add(&gs->log, gs->turn, CP_WHITE,
                          "You ascend to level %d.", gs->dungeon->current_level + 1);
                 dungeon_update_fov(gs);
@@ -6968,6 +7026,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     break;
                 }
             }
+            gs->girdle_used_this_level = false;
             log_add(&gs->log, gs->turn, CP_WHITE,
                      "You descend to level %d of %d.", next + 1, gs->dungeon->max_depth);
             dungeon_update_fov(gs);
@@ -8719,6 +8778,37 @@ void game_handle_input(GameState *gs, int key) {
                         }
                         log_add(&gs->log, gs->turn, CP_YELLOW,
                                  "The horn blasts! %d weak foes flee in terror.", scared);
+                    } else if (strcmp(sel->name, "Morgan le Fay's Mirror") == 0) {
+                        if (gs->mode != MODE_DUNGEON) {
+                            log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                     "The mirror's surface clouds -- it sees only dungeons.");
+                        } else {
+                            DungeonLevel *dl = current_dungeon_level(gs);
+                            if (dl) {
+                                for (int yy = 0; yy < MAP_HEIGHT; yy++)
+                                    for (int xx = 0; xx < MAP_WIDTH; xx++)
+                                        dl->tiles[yy][xx].revealed = true;
+                            }
+                            if (gs->light_affinity >= gs->dark_affinity) {
+                                gs->chivalry -= 5;
+                                if (gs->chivalry < 0) gs->chivalry = 0;
+                                log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                         "Morgan's mirror reveals all -- but its dark power chills your soul. -5 chivalry.");
+                            } else {
+                                log_add(&gs->log, gs->turn, CP_MAGENTA,
+                                         "Morgan's mirror reveals the entire level to your sight.");
+                            }
+                        }
+                    } else if (strcmp(sel->name, "Excalibur's Scabbard") == 0) {
+                        log_add(&gs->log, gs->turn, CP_YELLOW,
+                                 "The Scabbard's power flows while you carry it. (passive: regen and bleed immunity)");
+                    } else if (strcmp(sel->name, "Green Knight's Girdle") == 0) {
+                        if (gs->girdle_used_this_level)
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "The Girdle is dim -- its power will return on a new dungeon level.");
+                        else
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "The Girdle pulses with green light. It will save you from one killing blow.");
                     } else if (sel->type == ITYPE_SCROLL) {
                         bool was_unknown_scroll = (sel->template_id >= 0 && !gs->scrolls_identified[sel->template_id]);
                         if (sel->template_id >= 0)

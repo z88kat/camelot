@@ -121,6 +121,9 @@ typedef struct GameState {
     /* Tracks whether Merlin's Staff +10 max_mp bonus is currently applied */
     bool       merlin_mp_bonus_applied;
 
+    /* Green Knight's Girdle: prevents one fatal hit per dungeon level */
+    bool       girdle_used_this_level;
+
     /* Curses and special states */
     bool       has_lycanthropy;      /* werewolf curse */
     bool       has_vampirism;       /* vampire curse */

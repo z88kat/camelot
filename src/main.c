@@ -156,11 +156,6 @@ int main(int argc, char *argv[]) {
     /* Shutdown */
     ui_shutdown();
 
-    if (play && load) {
-        printf("DEBUG: Game exited after continue. running=%d mode=%d\n", 0, 0);
-        printf("If this happened immediately, the save may be corrupt.\n");
-        printf("Delete ~/.camelot/save.dat and try again.\n");
-    }
     printf("Thanks for playing Knights of Camelot!\n");
     printf("Game seed: %llu\n", (unsigned long long)rng_get_seed());
     return 0;

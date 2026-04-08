@@ -721,6 +721,7 @@ Scattered through the deepest dungeons are unique artifacts tied to the Round Ta
 - **Galahad's Helm** -- helm of the purest knight
 - **Bors' Shield** -- shield of the steadfast companion
 - **Gawain's Gauntlets** -- gauntlets that grow stronger as the day wears on
+- **Lancelot's Shield** -- +5 DEF, 25% chance to reflect 50% of incoming melee damage back at attackers
 
 **Carried / used artifacts:**
 - **Round Table Fragment** -- passive **+1 to all stats** while carried
@@ -729,6 +730,9 @@ Scattered through the deepest dungeons are unique artifacts tied to the Round Ta
 - **Cauldron of Rebirth** -- consumed on death to fully revive you, once
 - **Ring of Rebirth** -- consumed on death to fully revive you, once
 - **Siege Perilous** -- collectible story relic of the Round Table
+- **Excalibur's Scabbard** -- passive +1 HP regen every 5 turns while carried; the legends say no bleed can kill its bearer
+- **Morgan le Fay's Mirror** -- use (`u`) in a dungeon to reveal the entire level's map. Costs 5 chivalry per use unless you walk a dark path
+- **Green Knight's Girdle** -- once per dungeon level, automatically saves you from a killing blow (HP set to 1 instead of dying)
 
 ### Shops
 Bump into shop NPCs to buy/sell:
