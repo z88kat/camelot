@@ -111,3 +111,27 @@ Griffin,G,yellow,32,10,6,6,38,6,10,boss,1,single,ranged,gold_large
 Basilisk,B,green,28,9,5,3,32,6,10,boss,1,single,none,gold_large
 Chimera,C,red,38,13,6,4,48,8,12,boss,1,single,ranged,gold_large
 Mordred,M,magenta,60,18,12,4,100,12,15,boss,1,single,ranged|doors|chase|fear_aura|summon,gold_large
+#
+# ===== High-tier (deep dungeon, L20+) =====
+Wight Lord,W,cyan,70,14,9,3,120,10,15,undead,1,single,doors|fear_aura,gold_large
+Lich,L,magenta,90,15,8,3,200,11,15,undead,1,single,ranged|summon|doors,gold_large
+Adamant Golem,I,white,180,20,18,1,300,12,15,dark_knight,1,single,doors,armor
+Frost Wyrm,D,cyan,150,18,12,3,350,12,15,dragon,1,single,ranged|breathe,gold_large
+Storm Giant,H,blue,160,22,10,2,320,12,15,troll,1,single,ranged,gold_large
+Hellhound Alpha,h,red,80,16,6,7,140,10,15,magical,1,single,ranged|chase,none
+Black Knight Captain,K,red,100,17,12,3,180,11,15,dark_knight,1,single,doors|chase,weapon
+Dread Knight,K,magenta,120,18,13,3,220,11,15,dark_knight,1,single,doors|fear_aura,weapon
+Deep Troll,T,cyan,130,16,9,2,180,11,15,troll,1,single,doors,gold_large
+Cave Lord,O,brown,140,19,10,2,220,12,15,troll,1,single,doors,gold_large
+Shadow Drake,d,magenta,100,16,8,5,200,11,15,dragon,1,single,ranged|breathe,gold_large
+Greater Demon,&,red,160,20,12,4,360,13,15,magical,1,single,ranged|doors|fear_aura|summon,gold_large
+Pit Fiend,&,magenta,200,22,14,3,500,14,15,magical,1,single,ranged|doors|fear_aura|summon,gold_large
+Vampire Count,V,red,110,17,10,5,240,12,15,undead,1,single,doors|chase|debuff,gold_large
+Ancient Wraith,W,magenta,90,15,6,6,200,12,15,undead,1,single,erratic|ghost|debuff,gold_large
+Mind Flayer,m,magenta,85,14,7,4,220,12,15,magical,1,single,ranged|debuff|fear_aura,gold_large
+Magma Lord,H,red,170,21,13,2,380,13,15,troll,1,single,ranged|breathe,gold_large
+Void Stalker,F,magenta,95,17,8,6,240,12,15,magical,1,single,erratic|chase,gold_large
+Elder Dragon,D,yellow,280,26,18,3,1200,14,15,dragon,1,single,ranged|breathe|fear_aura,gold_large
+Bone Colossus,Z,white,220,22,14,1,450,13,15,undead,1,single,doors|fear_aura,gold_large
+Dark Archmage,S,magenta,90,13,6,4,260,12,15,magical,1,single,ranged|summon|flee,gold_large
+Bone Lord,R,white,140,18,11,3,300,12,15,undead,1,single,doors|summon,gold_large

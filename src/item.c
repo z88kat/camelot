@@ -11,73 +11,73 @@
 /*                        name                glyph color       type         pow  wt  val min max rar */
 static const ItemTemplate builtin_templates[] = {
     /* Weapons -- Swords */
-    { "Rusty Sword",       '|', CP_GRAY,     ITYPE_WEAPON,     3,  50,  10, 0, 3, 5 },
-    { "Dagger",            '|', CP_WHITE,    ITYPE_WEAPON,     2,  20,  15, 0, 4, 5 },
-    { "Short Sword",       '|', CP_WHITE,    ITYPE_WEAPON,     4,  40,  30, 1, 5, 4 },
-    { "Longsword",         '|', CP_CYAN,     ITYPE_WEAPON,     6,  50,  60, 2, 8, 3 },
-    { "Broadsword",        '|', CP_CYAN,     ITYPE_WEAPON,     7,  60,  80, 3, 9, 3 },
-    { "Claymore",          '|', CP_WHITE,    ITYPE_WEAPON,     9,  80, 120, 5, 12, 2 },
-    { "Bastard Sword",     '|', CP_YELLOW,   ITYPE_WEAPON,     8,  70, 100, 4, 10, 2 },
-    { "Silver Dagger",     '|', CP_WHITE,    ITYPE_WEAPON,     3,  20,  50, 2, 8, 2 },
+    { "Rusty Sword",       '|', CP_GRAY,     ITYPE_WEAPON,     3,  50,  10, 0, 3, 5, 0 },
+    { "Dagger",            '|', CP_WHITE,    ITYPE_WEAPON,     2,  20,  15, 0, 4, 5, 0 },
+    { "Short Sword",       '|', CP_WHITE,    ITYPE_WEAPON,     4,  40,  30, 1, 5, 4, 0 },
+    { "Longsword",         '|', CP_CYAN,     ITYPE_WEAPON,     6,  50,  60, 2, 8, 3, 0 },
+    { "Broadsword",        '|', CP_CYAN,     ITYPE_WEAPON,     7,  60,  80, 3, 9, 3, 0 },
+    { "Claymore",          '|', CP_WHITE,    ITYPE_WEAPON,     9,  80, 120, 5, 12, 2, 0 },
+    { "Bastard Sword",     '|', CP_YELLOW,   ITYPE_WEAPON,     8,  70, 100, 4, 10, 2, 0 },
+    { "Silver Dagger",     '|', CP_WHITE,    ITYPE_WEAPON,     3,  20,  50, 2, 8, 2, 0 },
 
     /* Weapons -- Axes & Maces */
-    { "Hand Axe",          '|', CP_BROWN,    ITYPE_WEAPON,     4,  40,  25, 1, 5, 4 },
-    { "Battle Axe",        '|', CP_BROWN,    ITYPE_WEAPON,     7,  70,  70, 3, 8, 3 },
-    { "Mace",              '|', CP_GRAY,     ITYPE_WEAPON,     5,  60,  40, 2, 7, 3 },
-    { "War Hammer",        '|', CP_GRAY,     ITYPE_WEAPON,     8,  80,  90, 4, 10, 2 },
+    { "Hand Axe",          '|', CP_BROWN,    ITYPE_WEAPON,     4,  40,  25, 1, 5, 4, 0 },
+    { "Battle Axe",        '|', CP_BROWN,    ITYPE_WEAPON,     7,  70,  70, 3, 8, 3, 0 },
+    { "Mace",              '|', CP_GRAY,     ITYPE_WEAPON,     5,  60,  40, 2, 7, 3, 0 },
+    { "War Hammer",        '|', CP_GRAY,     ITYPE_WEAPON,     8,  80,  90, 4, 10, 2, 0 },
 
     /* Weapons -- Staves */
-    { "Wooden Staff",      '|', CP_BROWN,    ITYPE_WEAPON,     3,  30,  15, 0, 4, 4 },
+    { "Wooden Staff",      '|', CP_BROWN,    ITYPE_WEAPON,     3,  30,  15, 0, 4, 4, 0 },
 
     /* Armor -- Body */
-    { "Tattered Robes",    '[', CP_BROWN,    ITYPE_ARMOR,      1,  20,   5, 0, 2, 5 },
-    { "Leather Armor",     '[', CP_BROWN,    ITYPE_ARMOR,      3,  50,  30, 0, 5, 4 },
-    { "Studded Leather",   '[', CP_BROWN,    ITYPE_ARMOR,      4,  60,  50, 2, 6, 3 },
-    { "Chainmail",         '[', CP_GRAY,     ITYPE_ARMOR,      5, 100,  80, 3, 8, 3 },
-    { "Scale Mail",        '[', CP_GRAY,     ITYPE_ARMOR,      6, 120, 100, 4, 9, 2 },
-    { "Plate Armor",       '[', CP_WHITE,    ITYPE_ARMOR,      8, 150, 200, 6, 12, 1 },
+    { "Tattered Robes",    '[', CP_BROWN,    ITYPE_ARMOR,      1,  20,   5, 0, 2, 5, 0 },
+    { "Leather Armor",     '[', CP_BROWN,    ITYPE_ARMOR,      3,  50,  30, 0, 5, 4, 0 },
+    { "Studded Leather",   '[', CP_BROWN,    ITYPE_ARMOR,      4,  60,  50, 2, 6, 3, 0 },
+    { "Chainmail",         '[', CP_GRAY,     ITYPE_ARMOR,      5, 100,  80, 3, 8, 3, 0 },
+    { "Scale Mail",        '[', CP_GRAY,     ITYPE_ARMOR,      6, 120, 100, 4, 9, 2, 0 },
+    { "Plate Armor",       '[', CP_WHITE,    ITYPE_ARMOR,      8, 150, 200, 6, 12, 1, 0 },
 
     /* Armor -- Shields */
-    { "Buckler",           ')', CP_BROWN,    ITYPE_SHIELD,     1,  30,  15, 0, 4, 4 },
-    { "Round Shield",      ')', CP_BROWN,    ITYPE_SHIELD,     2,  50,  35, 1, 6, 3 },
-    { "Kite Shield",       ')', CP_GRAY,     ITYPE_SHIELD,     3,  60,  60, 3, 8, 2 },
-    { "Tower Shield",      ')', CP_WHITE,    ITYPE_SHIELD,     4,  80, 100, 5, 10, 1 },
+    { "Buckler",           ')', CP_BROWN,    ITYPE_SHIELD,     1,  30,  15, 0, 4, 4, 0 },
+    { "Round Shield",      ')', CP_BROWN,    ITYPE_SHIELD,     2,  50,  35, 1, 6, 3, 0 },
+    { "Kite Shield",       ')', CP_GRAY,     ITYPE_SHIELD,     3,  60,  60, 3, 8, 2, 0 },
+    { "Tower Shield",      ')', CP_WHITE,    ITYPE_SHIELD,     4,  80, 100, 5, 10, 1, 0 },
 
     /* Armor -- Helmets */
-    { "Leather Cap",       '^', CP_BROWN,    ITYPE_HELMET,     1,  15,  10, 0, 4, 4 },
-    { "Iron Helm",         '^', CP_GRAY,     ITYPE_HELMET,     2,  30,  30, 2, 7, 3 },
-    { "Great Helm",        '^', CP_WHITE,    ITYPE_HELMET,     3,  40,  60, 4, 10, 2 },
+    { "Leather Cap",       '^', CP_BROWN,    ITYPE_HELMET,     1,  15,  10, 0, 4, 4, 0 },
+    { "Iron Helm",         '^', CP_GRAY,     ITYPE_HELMET,     2,  30,  30, 2, 7, 3, 0 },
+    { "Great Helm",        '^', CP_WHITE,    ITYPE_HELMET,     3,  40,  60, 4, 10, 2, 0 },
 
     /* Armor -- Boots */
-    { "Leather Boots",     ']', CP_BROWN,    ITYPE_BOOTS,      1,  15,  10, 0, 4, 4 },
-    { "Iron Boots",        ']', CP_GRAY,     ITYPE_BOOTS,      2,  40,  30, 2, 7, 3 },
+    { "Leather Boots",     ']', CP_BROWN,    ITYPE_BOOTS,      1,  15,  10, 0, 4, 4, 0 },
+    { "Iron Boots",        ']', CP_GRAY,     ITYPE_BOOTS,      2,  40,  30, 2, 7, 3, 0 },
 
     /* Armor -- Gloves */
-    { "Leather Gloves",    ']', CP_BROWN,    ITYPE_GLOVES,     1,  10,   8, 0, 4, 4 },
-    { "Gauntlets",         ']', CP_GRAY,     ITYPE_GLOVES,     2,  25,  25, 2, 7, 3 },
+    { "Leather Gloves",    ']', CP_BROWN,    ITYPE_GLOVES,     1,  10,   8, 0, 4, 4, 0 },
+    { "Gauntlets",         ']', CP_GRAY,     ITYPE_GLOVES,     2,  25,  25, 2, 7, 3, 0 },
 
     /* Potions */
-    { "Healing Potion",    '!', CP_RED,      ITYPE_POTION,    15,  10,  20, 0, 0, 4 },
-    { "Greater Healing",   '!', CP_RED,      ITYPE_POTION,    40,  10,  50, 3, 0, 2 },
-    { "Mana Potion",       '!', CP_BLUE,     ITYPE_POTION,    10,  10,  20, 0, 0, 4 },
-    { "Greater Mana",      '!', CP_BLUE,     ITYPE_POTION,    30,  10,  50, 3, 0, 2 },
-    { "Strength Potion",   '!', CP_YELLOW,   ITYPE_POTION,     3,  10,  40, 2, 0, 2 },
-    { "Speed Potion",      '!', CP_CYAN,     ITYPE_POTION,     3,  10,  40, 2, 0, 2 },
+    { "Healing Potion",    '!', CP_RED,      ITYPE_POTION,    15,  10,  20, 0, 0, 4, 0 },
+    { "Greater Healing",   '!', CP_RED,      ITYPE_POTION,    40,  10,  50, 3, 0, 2, 0 },
+    { "Mana Potion",       '!', CP_BLUE,     ITYPE_POTION,    10,  10,  20, 0, 0, 4, 0 },
+    { "Greater Mana",      '!', CP_BLUE,     ITYPE_POTION,    30,  10,  50, 3, 0, 2, 0 },
+    { "Strength Potion",   '!', CP_YELLOW,   ITYPE_POTION,     3,  10,  40, 2, 0, 2, 0 },
+    { "Speed Potion",      '!', CP_CYAN,     ITYPE_POTION,     3,  10,  40, 2, 0, 2, 0 },
 
     /* Food */
-    { "Bread",             '%', CP_BROWN,    ITYPE_FOOD,       15, 10,   3, 0, 0, 5 },
-    { "Cheese",            '%', CP_YELLOW,   ITYPE_FOOD,       12, 10,   5, 0, 0, 4 },
-    { "Dried Meat",        '%', CP_BROWN,    ITYPE_FOOD,       18, 15,   8, 0, 0, 4 },
-    { "Roast Chicken",     '%', CP_YELLOW,   ITYPE_FOOD,       25, 15,  12, 0, 0, 3 },
-    { "Apple",             '%', CP_GREEN,    ITYPE_FOOD,        8,  5,   2, 0, 0, 5 },
+    { "Bread",             '%', CP_BROWN,    ITYPE_FOOD,       15, 10,   3, 0, 0, 5, 0 },
+    { "Cheese",            '%', CP_YELLOW,   ITYPE_FOOD,       12, 10,   5, 0, 0, 4, 0 },
+    { "Dried Meat",        '%', CP_BROWN,    ITYPE_FOOD,       18, 15,   8, 0, 0, 4, 0 },
+    { "Roast Chicken",     '%', CP_YELLOW,   ITYPE_FOOD,       25, 15,  12, 0, 0, 3, 0 },
+    { "Apple",             '%', CP_GREEN,    ITYPE_FOOD,        8,  5,   2, 0, 0, 5, 0 },
 
     /* Scrolls */
-    { "Scroll of Mapping", '?', CP_YELLOW,   ITYPE_SCROLL,     1,  5,  30, 2, 0, 2 },
-    { "Scroll of Teleport",'?', CP_CYAN,     ITYPE_SCROLL,     1,  5,  40, 3, 0, 2 },
+    { "Scroll of Mapping", '?', CP_YELLOW,   ITYPE_SCROLL,     1,  5,  30, 2, 0, 2, 0 },
+    { "Scroll of Teleport",'?', CP_CYAN,     ITYPE_SCROLL,     1,  5,  40, 3, 0, 2, 0 },
 
     /* Tools */
-    { "Torch",             '(', CP_YELLOW,   ITYPE_TOOL,       1, 15,   5, 0, 0, 5 },
-    { "Lockpick",          '(', CP_GRAY,     ITYPE_TOOL,       1,  5,  20, 1, 0, 3 },
+    { "Torch",             '(', CP_YELLOW,   ITYPE_TOOL,       1, 15,   5, 0, 0, 5, 0 },
+    { "Lockpick",          '(', CP_GRAY,     ITYPE_TOOL,       1,  5,  20, 1, 0, 3, 0 },
 };
 static const int num_builtin = sizeof(builtin_templates) / sizeof(builtin_templates[0]);
 
@@ -133,12 +133,13 @@ void item_init(void) {
         /* name,glyph,color,type,power,weight,value,min_depth,max_depth,rarity */
         char name[48], color[16], type_str[16];
         char glyph;
-        int power, weight, value, min_d, max_d, rarity;
+        int power, weight, value, min_d, max_d, rarity, min_lvl = 0;
 
-        int n = sscanf(line, "%47[^,],%c,%15[^,],%15[^,],%d,%d,%d,%d,%d,%d",
+        int n = sscanf(line, "%47[^,],%c,%15[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d",
                        name, &glyph, color, type_str, &power, &weight, &value,
-                       &min_d, &max_d, &rarity);
+                       &min_d, &max_d, &rarity, &min_lvl);
         if (n < 10) continue;
+        if (n < 11) min_lvl = 0;
         if (num_loaded >= MAX_ITEM_TEMPLATES) break;
 
         ItemTemplate *it = &loaded_templates[num_loaded];
@@ -152,6 +153,7 @@ void item_init(void) {
         it->min_depth = min_d;
         it->max_depth = max_d;
         it->rarity = rarity;
+        it->min_level = min_lvl;
         num_loaded++;
     }
     fclose(f);
@@ -181,6 +183,7 @@ Item item_create(int template_id, int x, int y) {
     it.power = t->power;
     it.weight = t->weight;
     it.value = t->value;
+    it.min_level = t->min_level;
     it.pos = (Vec2){ x, y };
     it.on_ground = true;
     /* Assign BUC state: 10% blessed, 15% cursed, 75% uncursed */

@@ -46,9 +46,10 @@ typedef struct {
     int             range;          /* tiles, 0 = self */
     int             aoe;            /* radius, 0 = single target */
     int             level_required;
+    int             min_level;  /* additional player level gate (0 = none) */
 } SpellDef;
 
-#define MAX_SPELL_DEFS 60
+#define MAX_SPELL_DEFS 96
 
 /* Initialize spell definitions (load from CSV). */
 void spell_init(void);

@@ -67,7 +67,7 @@ static const MonsterTemplate templates[] = {
 static const int num_builtin_templates = sizeof(templates) / sizeof(templates[0]);
 
 /* Dynamic templates loaded from CSV */
-static MonsterTemplate loaded_templates[128];
+static MonsterTemplate loaded_templates[160];
 static int num_loaded = 0;
 static bool csv_loaded = false;
 

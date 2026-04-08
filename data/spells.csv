@@ -5,56 +5,72 @@
 # class_restrict: none,knight,wizard,ranger
 #
 # === Universal Spells ===
-Magic Missile,universal,0,3,8,damage,0,5,0,none,1
-Detect Traps,universal,0,2,0,detect,20,0,0,none,1
-Light,universal,0,2,0,reveal,20,0,0,none,1
-Shield,universal,0,4,0,shield,15,0,0,none,1
-Teleport,universal,0,12,0,teleport,0,0,0,none,3
-Identify,universal,0,3,0,detect,0,1,0,none,2
-Slow,universal,0,5,0,debuff,10,4,0,none,3
-Haste,universal,0,6,0,buff_spd,5,0,0,none,4
-Blink,universal,0,4,0,teleport,0,5,0,none,2
-Map,universal,0,8,0,reveal,0,0,0,none,5
-Fireball,universal,0,10,15,damage,0,5,3,none,6
+Magic Missile,universal,0,3,8,damage,0,5,0,none,1,1
+Detect Traps,universal,0,2,0,detect,20,0,0,none,1,1
+Light,universal,0,2,0,reveal,20,0,0,none,1,1
+Shield,universal,0,4,0,shield,15,0,0,none,1,1
+Teleport,universal,0,12,0,teleport,0,0,0,none,3,5
+Identify,universal,0,3,0,detect,0,1,0,none,2,2
+Slow,universal,0,5,0,debuff,10,4,0,none,3,4
+Haste,universal,0,6,0,buff_spd,5,0,0,none,4,6
+Blink,universal,0,4,0,teleport,0,5,0,none,2,3
+Map,universal,0,8,0,reveal,0,0,0,none,5,8
+Fireball,universal,0,10,15,damage,0,5,3,none,6,10
 # === Light Spells ===
-Heal,light,10,4,0,heal,0,0,0,none,1
-Greater Heal,light,25,10,0,heal,0,0,0,none,5
-Holy Strike,light,15,5,12,damage,0,1,0,none,3
-Divine Shield,light,20,6,0,buff_def,10,0,0,none,4
-Purify,light,15,5,0,cure,0,0,0,none,3
-Smite,light,20,6,10,damage,0,4,0,none,4
-Sanctuary,light,30,8,0,shield,3,0,1,none,6
-Resurrect,light,50,25,0,heal,0,0,0,none,10
-Turn Undead,light,20,5,0,fear,5,0,3,none,4
-Blessing,light,25,7,0,buff_str,20,0,0,none,5
-Holy Light,light,30,10,0,reveal,0,0,0,none,7
-Sacred Flame,light,35,8,10,drain,0,3,0,none,8
-Aura of Protection,light,40,12,0,buff_def,15,0,2,none,9
+Heal,light,10,4,0,heal,0,0,0,none,1,1
+Greater Heal,light,25,10,0,heal,0,0,0,none,5,8
+Holy Strike,light,15,5,12,damage,0,1,0,none,3,5
+Divine Shield,light,20,6,0,buff_def,10,0,0,none,4,6
+Purify,light,15,5,0,cure,0,0,0,none,3,4
+Smite,light,20,6,10,damage,0,4,0,none,4,6
+Sanctuary,light,30,8,0,shield,3,0,1,none,6,10
+Resurrect,light,50,25,0,heal,0,0,0,none,10,18
+Turn Undead,light,20,5,0,fear,5,0,3,none,4,6
+Blessing,light,25,7,0,buff_str,20,0,0,none,5,8
+Holy Light,light,30,10,0,reveal,0,0,0,none,7,12
+Sacred Flame,light,35,8,10,drain,0,3,0,none,8,14
+Aura of Protection,light,40,12,0,buff_def,15,0,2,none,9,16
 # === Dark Spells ===
-Drain Life,dark,10,5,8,drain,0,3,0,none,2
-Shadow Step,dark,15,4,0,teleport,0,3,0,none,3
-Curse,dark,15,5,0,debuff,15,4,0,none,3
-Summon Undead,dark,20,8,0,summon,10,0,0,none,4
-Fear,dark,20,5,0,fear,5,0,3,none,4
-Dark Bolt,dark,25,7,14,damage,0,5,0,none,5
-Wither,dark,20,6,4,dot,10,4,0,none,4
-Soul Steal,dark,30,8,0,drain,0,3,0,none,6
-Darkness,dark,25,6,0,debuff,5,0,4,none,5
-Animate Dead,dark,35,12,0,summon,20,3,0,none,8
-Hex,dark,30,7,0,debuff,5,4,0,none,7
-Nightmare,dark,35,10,0,fear,3,0,3,none,8
-Blood Pact,dark,40,0,0,drain,0,0,0,none,9
+Drain Life,dark,10,5,8,drain,0,3,0,none,2,3
+Shadow Step,dark,15,4,0,teleport,0,3,0,none,3,4
+Curse,dark,15,5,0,debuff,15,4,0,none,3,5
+Summon Undead,dark,20,8,0,summon,10,0,0,none,4,7
+Fear,dark,20,5,0,fear,5,0,3,none,4,6
+Dark Bolt,dark,25,7,14,damage,0,5,0,none,5,9
+Wither,dark,20,6,4,dot,10,4,0,none,4,6
+Soul Steal,dark,30,8,0,drain,0,3,0,none,6,11
+Darkness,dark,25,6,0,debuff,5,0,4,none,5,9
+Animate Dead,dark,35,12,0,summon,20,3,0,none,8,14
+Hex,dark,30,7,0,debuff,5,4,0,none,7,12
+Nightmare,dark,35,10,0,fear,3,0,3,none,8,14
+Blood Pact,dark,40,0,0,drain,0,0,0,none,9,16
 # === Nature Spells ===
-Entangle,nature,10,4,0,root,5,4,0,none,2
-Lightning,nature,15,7,10,damage,0,5,2,none,3
-Beast Form,nature,25,8,0,buff_str,10,0,0,none,5
-Poison Cloud,nature,20,6,3,dot,5,4,2,none,4
-Bark Skin,nature,20,5,0,buff_def,15,0,0,none,4
-Earthquake,nature,40,20,12,damage,0,0,0,none,9
-Summon Wolf,nature,25,8,0,summon,10,0,0,none,5
-Thorns,nature,20,5,0,shield,15,0,0,none,4
-Regrowth,nature,15,5,0,heal,10,0,0,none,3
-Gust,nature,15,4,0,push,0,4,0,none,3
-Camouflage,nature,25,4,0,invisible,20,0,0,none,5
-Vine Whip,nature,20,5,6,damage,0,4,0,none,4
-Walk on Water,nature,30,6,0,water_walk,50,0,0,none,6
+Entangle,nature,10,4,0,root,5,4,0,none,2,3
+Lightning,nature,15,7,10,damage,0,5,2,none,3,5
+Beast Form,nature,25,8,0,buff_str,10,0,0,none,5,8
+Poison Cloud,nature,20,6,3,dot,5,4,2,none,4,7
+Bark Skin,nature,20,5,0,buff_def,15,0,0,none,4,6
+Earthquake,nature,40,20,12,damage,0,0,0,none,9,16
+Summon Wolf,nature,25,8,0,summon,10,0,0,none,5,8
+Thorns,nature,20,5,0,shield,15,0,0,none,4,6
+Regrowth,nature,15,5,0,heal,10,0,0,none,3,5
+Gust,nature,15,4,0,push,0,4,0,none,3,4
+Camouflage,nature,25,4,0,invisible,20,0,0,none,5,8
+Vine Whip,nature,20,5,6,damage,0,4,0,none,4,6
+Walk on Water,nature,30,6,0,water_walk,50,0,0,none,6,10
+# === High-tier Spells (L20+) ===
+Meteor Swarm,universal,0,60,40,damage,0,6,3,none,15,30
+Time Stop,universal,0,80,0,buff_spd,3,0,0,none,20,40
+Invoke Avalon,light,60,90,0,heal,0,0,2,none,25,45
+Hand of Doom,dark,50,75,35,damage,0,5,0,none,20,35
+Earthshatter,nature,50,60,30,damage,0,0,3,none,18,30
+Frost Aura,universal,0,40,0,buff_def,15,0,2,none,15,25
+Mass Heal,light,45,65,0,heal,0,0,3,none,18,30
+Banish Undead,light,40,50,0,fear,10,0,4,none,15,28
+Soul Drain,dark,45,55,20,drain,0,4,0,none,18,32
+Wildgrowth,nature,40,50,0,heal,15,0,2,none,15,28
+Stoneskin Mass,universal,0,45,0,buff_def,20,0,2,none,15,27
+Lightning Storm,nature,50,70,25,damage,0,6,3,none,20,33
+Word of Recall,universal,0,35,0,teleport,0,0,0,none,14,25
+Astral Sight,universal,0,50,0,reveal,0,0,0,none,18,35
+Resurrect Greater,light,70,95,0,heal,0,0,0,none,25,42

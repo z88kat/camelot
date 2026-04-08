@@ -50,12 +50,13 @@ void spell_init(void) {
 
         /* name,affiliation,threshold,mp_cost,damage,effect,duration,range,aoe,class_restrict,level_req */
         char name[48], aff_str[16], eff_str[24], class_str[16];
-        int threshold, mp, dmg, dur, rng, aoe, lvl;
+        int threshold, mp, dmg, dur, rng, aoe, lvl, min_lvl = 0;
 
-        int n = sscanf(line, "%47[^,],%15[^,],%d,%d,%d,%23[^,],%d,%d,%d,%15[^,],%d",
+        int n = sscanf(line, "%47[^,],%15[^,],%d,%d,%d,%23[^,],%d,%d,%d,%15[^,],%d,%d",
                        name, aff_str, &threshold, &mp, &dmg, eff_str,
-                       &dur, &rng, &aoe, class_str, &lvl);
+                       &dur, &rng, &aoe, class_str, &lvl, &min_lvl);
         if (n < 11) continue;
+        if (n < 12) min_lvl = 0;
 
         SpellDef *sp = &spell_defs[num_spells];
         snprintf(sp->name, MAX_NAME, "%s", name);
@@ -68,6 +69,7 @@ void spell_init(void) {
         sp->range = rng;
         sp->aoe = aoe;
         sp->level_required = lvl;
+        sp->min_level = min_lvl;
         num_spells++;
     }
     fclose(f);

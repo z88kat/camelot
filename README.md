@@ -12,7 +12,7 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 
 **Implemented (Phases 1-14):**
 - Character creation: class (Knight/Wizard/Ranger), gender, name, stat rolling, random gold (30-200)
-- 50-spell system with Light, Dark, Nature, and Universal schools
+- 65-spell system with Light, Dark, Nature, and Universal schools (15 high-tier spells unlock at L25-45)
 - A* pathfinding and FSM AI for monsters (IDLE/CHASE/FLEE states)
 - Monster special abilities: breath weapons, summoning, healing, debuffs, explode-on-death, fear auras
 - Overworld map of England (500x250 tiles) with procedural terrain, coastlines, rivers, lakes, mountains, islands
@@ -21,11 +21,11 @@ Knights of Camelot is a full-featured roguelike game written in C using ncurses.
 - Town services: Inn, Church, Blacksmith, Apothecary, Baker, Jeweller, Pawnbroker, Mystic, Bank, Well, Stable
 - BSP-generated dungeons (160x80 tiles, scrollable) with multiple levels
 - 85+ monster types, bump-to-attack combat with hit/miss rolls and critical hits
-- 280+ items: weapons, armor, potions, food, scrolls, spell scrolls, tools, 25 rings, 25 amulets, 20 gems, 25 treasures
+- 310+ items: weapons, armor, potions, food, scrolls, spell scrolls, tools, 25 rings, 25 amulets, 20 gems, 25 treasures (30 new high-tier items L12-50: Drakeslayer, Soulreaver, Mithril Hauberk, Dragonplate, Crown of Stars, Ring of Aeons, Tome of the Ancients, Phoenix Feather, and more)
 - Weight-based inventory with encumbrance and 9 equipment slots (including amulet)
 - Quest system with 15 side quests and the Holy Grail main quest
 - Dungeon bosses on deepest levels (12 unique bosses + Mordred as Grail guardian)
-- Leveling system with 20 levels and class-based HP/MP progression
+- Leveling system with 50 levels and class-based HP/MP progression (cubic XP curve; 22 new high-tier monsters at depths 10-15)
 - Chivalry system (0-100) with titles from Knave to Paragon of Virtue
 - Title screen with ASCII art, continue/new game/high scores/fallen heroes
 - Save/load with permadeath (save deleted on death)
@@ -413,10 +413,11 @@ When a spell is replaced: "The new magic pushes an old spell from your mind... y
 
 #### Leveling Up
 Gain XP by killing monsters and completing quests. When you reach the next XP threshold, a **level-up screen** appears where you **choose +1 to any stat** (STR, DEF, INT, or SPD):
-- HP and MP increase based on your class (Knight: +3 HP/+1 MP, Wizard: +1 HP/+4 MP, Ranger: +2 HP/+2 MP)
+- HP and MP increase based on your class (per-level grants were halved from earlier versions to keep combat math sane at high levels)
 - Full HP/MP restore on level-up
 - Carry capacity increases (+2 per level)
-- Max level: 20
+- **Max level: 50**
+- **XP curve is cubic**: `xp(n) = 50 x n^3`. Level 2 = 400 XP, level 10 = 50,000, level 25 = 781,250, level 50 = 6,250,000. It's a long climb -- pace yourself.
 
 **Class perks at milestone levels:**
 
@@ -429,7 +430,23 @@ Gain XP by killing monsters and completing quests. When you reach the next XP th
 
 Knights also gain an extra +2 max HP per level from level 6 onwards.
 
-**XP thresholds:** 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600, 5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000
+**High-level class perks (all classes):**
+
+| Level | Perk |
+|-------|------|
+| 20 | **Mastery** -- +2 to your class's primary stat |
+| 25 | +1 spell capacity |
+| 30 | **Veteran** -- +5 max HP, +5 max MP |
+| 35 | Class **second wind** ability |
+| 40 | **Hero of the Realm** -- +10 chivalry, +5 HP |
+| 45 | +2 to two random stats |
+| 50 | **Legendary** -- +5 HP, +5 MP, +1 to all stats |
+
+**Item level gating:** many items now require a minimum player level to equip or use. If you try to use one too early, the inventory refuses: *"You need to be level X to use this item."* Most consumables (potions, food, scrolls) are **not** gated.
+
+**Spell level gating:** high-tier spells require a minimum player level to cast or to learn from a spell scroll. Drinking a scroll you cannot yet comprehend fails harmlessly.
+
+**New high-tier spells (L25-45):** Meteor Swarm, Time Stop, Invoke Avalon, Mass Heal, Astral Sight, and more -- 15 in total.
 
 #### Appearance
 During character creation you customise your appearance (hair colour, eye colour, build, and distinguishing feature). These are purely cosmetic. Press number keys to cycle options or `r` to randomise.
@@ -1143,6 +1160,35 @@ If your terminal renders colours oddly, ensure 256-colour support:
 ```bash
 export TERM=xterm-256color
 ```
+
+### Windows (via WSL)
+
+Knights of Camelot is not built natively for Windows, but it runs perfectly under the Windows Subsystem for Linux. Install WSL, then follow the Linux build steps inside it.
+
+1. Open PowerShell as Administrator and run:
+
+   ```powershell
+   wsl --install
+   ```
+
+   This installs WSL and Ubuntu by default. Reboot if prompted, then launch "Ubuntu" from the Start menu and create your user account.
+
+2. Inside the Ubuntu shell, install the build dependencies and compile:
+
+   ```bash
+   sudo apt update
+   sudo apt install build-essential libncurses-dev git
+   git clone <repo-url> camelot
+   cd camelot
+   make
+   ./camelot
+   ```
+
+3. For the best experience, run from [Windows Terminal](https://aka.ms/terminal) (free from the Microsoft Store) -- it supports 256 colours and renders the map cleanly. If colours look wrong, set:
+
+   ```bash
+   export TERM=xterm-256color
+   ```
 
 ## Data Files
 

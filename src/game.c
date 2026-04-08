@@ -481,10 +481,13 @@ static bool monster_at_pos(DungeonLevel *dl, int x, int y) {
     return false;
 }
 
-/* XP thresholds for leveling (20 levels) */
+/* XP thresholds for leveling: cubic curve xp = 50 * n^3 */
 static const int xp_table[MAX_LEVELS] = {
-    0, 50, 120, 250, 450, 750, 1200, 1800, 2600, 3600,
-    5000, 6800, 9000, 12000, 15500, 20000, 25000, 31000, 38000, 46000
+    0,        400,      1350,     3200,     6250,     10800,    17150,    25600,    36450,    50000,
+    66550,    86400,    109850,   137200,   168750,   204800,   245650,   291600,   342950,   400000,
+    463050,   532400,   608350,   691200,   781250,   878800,   984150,   1097600,  1219450,  1350000,
+    1489550,  1638400,  1796850,  1965200,  2143750,  2332800,  2532650,  2743600,  2965950,  3200000,
+    3446050,  3704400,  3975350,  4259200,  4556250,  4866800,  5191150,  5529600,  5882450,  6250000
 };
 
 /* ------------------------------------------------------------------ */
@@ -7953,9 +7956,9 @@ void game_handle_input(GameState *gs, int key) {
         /* HP/MP gains by class */
         int hp_gain = 0, mp_gain = 0;
         switch (gs->player_class) {
-        case CLASS_KNIGHT: hp_gain = 3; mp_gain = 1; break;
-        case CLASS_WIZARD: hp_gain = 1; mp_gain = 4; break;
-        case CLASS_RANGER: hp_gain = 2; mp_gain = 2; break;
+        case CLASS_KNIGHT: hp_gain = 2; mp_gain = 1; break;
+        case CLASS_WIZARD: hp_gain = 1; mp_gain = 2; break;
+        case CLASS_RANGER: hp_gain = 1; mp_gain = 1; break;
         }
         gs->max_hp += hp_gain;
         gs->max_mp += mp_gain;
@@ -7995,10 +7998,41 @@ void game_handle_input(GameState *gs, int key) {
             case CLASS_RANGER: perk_msg = "Ranger mastery: Always act first in combat!"; break;
             case CLASS_WIZARD: perk_msg = "Wizard mastery: One free spell per turn (0 MP if INT > 10)!"; break;
             }
+        } else if (gs->player_level == 20) {
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: gs->str += 2; perk_msg = "Mastery: +2 STR!"; break;
+            case CLASS_WIZARD: gs->intel += 2; perk_msg = "Mastery: +2 INT!"; break;
+            case CLASS_RANGER: gs->spd += 2; perk_msg = "Mastery: +2 SPD!"; break;
+            }
+        } else if (gs->player_level == 25) {
+            gs->max_spells_capacity++;
+            perk_msg = "Spell capacity +1!";
+        } else if (gs->player_level == 30) {
+            gs->max_hp += 5; gs->max_mp += 5;
+            perk_msg = "Veteran: +5 max HP, +5 max MP!";
+        } else if (gs->player_level == 35) {
+            switch (gs->player_class) {
+            case CLASS_KNIGHT: gs->str++; gs->def++; gs->intel++; gs->spd++; perk_msg = "Second wind: +1 to all stats!"; break;
+            case CLASS_WIZARD: gs->intel += 2; perk_msg = "Second wind: +2 INT!"; break;
+            case CLASS_RANGER: gs->spd += 2; perk_msg = "Second wind: +2 SPD!"; break;
+            }
+        } else if (gs->player_level == 40) {
+            gs->chivalry += 10; gs->max_hp += 5;
+            perk_msg = "Hero of the Realm: +10 chivalry, +5 max HP!";
+        } else if (gs->player_level == 45) {
+            int *stats[4] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
+            int a = rand() % 4, b = rand() % 4;
+            while (b == a) b = rand() % 4;
+            (*stats[a]) += 2; (*stats[b]) += 2;
+            perk_msg = "Stat surge: +2 to two random stats!";
+        } else if (gs->player_level == 50) {
+            gs->max_hp += 5; gs->max_mp += 5;
+            gs->str++; gs->def++; gs->intel++; gs->spd++;
+            perk_msg = "LEGENDARY! +5 HP, +5 MP, +1 to all stats. Your name shall echo through the ages!";
         }
-        /* Extra +2 HP for knights at level 5+ */
+        /* Extra +1 HP for knights at level 6+ (halved from previous +2) */
         if (gs->player_level >= 6 && gs->player_class == CLASS_KNIGHT) {
-            gs->max_hp += 2;
+            gs->max_hp += 1;
             gs->hp = gs->max_hp;
         }
 
@@ -8007,7 +8041,10 @@ void game_handle_input(GameState *gs, int key) {
             mvprintw(row++, 6, "%s", perk_msg);
             attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
             row++;
+            log_add(&gs->log, gs->turn, CP_CYAN_BOLD, "%s", perk_msg);
         }
+        gs->hp = gs->max_hp;
+        gs->mp = gs->max_mp;
 
         attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         mvprintw(row++, 4, "Choose a stat to increase by +1:");
@@ -8098,6 +8135,9 @@ void game_handle_input(GameState *gs, int key) {
                 const SpellDef *sp = spell_get(gs->spells_known[si]);
                 if (!sp) {
                     log_add(&gs->log, gs->turn, CP_RED, "Invalid spell.");
+                } else if (gs->player_level < sp->min_level) {
+                    log_add(&gs->log, gs->turn, CP_RED,
+                             "You need to be level %d to cast this spell.", sp->min_level);
                 } else if (gs->mp < sp->mp_cost) {
                     log_add(&gs->log, gs->turn, CP_RED, "Not enough mana! (need %d MP)", sp->mp_cost);
                 } else {
@@ -8618,6 +8658,9 @@ void game_handle_input(GameState *gs, int key) {
                     EquipSlot slot = item_get_slot(sel->type);
                     if (slot == SLOT_NONE) {
                         log_add(&gs->log, gs->turn, CP_GRAY, "You can't equip that.");
+                    } else if (sel->min_level > gs->player_level) {
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "You need to be level %d to use this item.", sel->min_level);
                     } else if (gs->equipment[slot].template_id >= 0 &&
                                gs->equipment[slot].buc == 1 && gs->equipment[slot].buc_known) {
                         log_add(&gs->log, gs->turn, CP_RED,
@@ -8659,7 +8702,10 @@ void game_handle_input(GameState *gs, int key) {
                         gs->inventory[--gs->num_items].template_id = -1;
                     }
                 } else if (akey == 'u') {
-                    if (sel->type == ITYPE_POTION) {
+                    if (sel->min_level > gs->player_level) {
+                        log_add(&gs->log, gs->turn, CP_RED,
+                                 "You need to be level %d to use this item.", sel->min_level);
+                    } else if (sel->type == ITYPE_POTION) {
                         /* Identify this potion type */
                         bool was_unknown = (sel->template_id >= 0 && !gs->potions_identified[sel->template_id]);
                         if (sel->template_id >= 0)
@@ -8935,6 +8981,9 @@ void game_handle_input(GameState *gs, int key) {
                             } else if (gs->player_level < sp->level_required) {
                                 log_add(&gs->log, gs->turn, CP_RED,
                                          "You cannot comprehend the magic within... (need level %d)", sp->level_required);
+                            } else if (gs->player_level < sp->min_level) {
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "This scroll's lore is beyond your understanding... (need level %d)", sp->min_level);
                             } else if (gs->num_spells < gs->max_spells_capacity) {
                                 /* Learn directly */
                                 gs->spells_known[gs->num_spells++] = spell_id;
@@ -9452,6 +9501,12 @@ void game_handle_input(GameState *gs, int key) {
             "  dungeon corridors -- just bump into it.\n"
             "- Legendary artifacts of Camelot lie in the\n"
             "  deep dungeons -- seek Excalibur and more.\n"
+            "- Max level is 50. The XP climb is cubic\n"
+            "  (50 x n^3) -- pace yourself.\n"
+            "- Powerful items and spells require a minimum\n"
+            "  player level to use.\n"
+            "- Class perks unlock at levels 3, 5, 10, 15,\n"
+            "  20, 25, 30, 35, 40, 45, 50.\n"
         };
         int num_pages = 4;
         int page = 0;

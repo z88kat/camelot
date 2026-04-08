@@ -51,6 +51,7 @@ typedef struct {
     int      min_depth;   /* min dungeon depth to find (0 = any) */
     int      max_depth;   /* max dungeon depth (0 = any) */
     int      rarity;      /* 1=very rare, 3=normal, 5=common */
+    int      min_level;   /* min player level to use/equip (0 = no req) */
 } ItemTemplate;
 
 /* A concrete item instance (on the ground or in inventory) */
@@ -69,9 +70,10 @@ typedef struct {
     bool     identified;   /* for potions: true if player knows what it is */
     int      buc;          /* 0=unknown, 1=cursed, 2=uncursed, 3=blessed */
     bool     buc_known;    /* has BUC state been identified? */
+    int      min_level;    /* min player level to use/equip */
 } Item;
 
-#define MAX_ITEM_TEMPLATES 256
+#define MAX_ITEM_TEMPLATES 384
 #define MAX_GROUND_ITEMS   64   /* items on a dungeon level */
 
 /* Initialize items (load from CSV or use defaults) */

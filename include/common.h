@@ -25,7 +25,7 @@
 #define LOG_BUFFER     200
 
 /* Game limits */
-#define MAX_LEVELS     20
+#define MAX_LEVELS     50
 #define MAX_ENTITIES   256
 #define MAX_ITEMS      512
 #define MAX_INVENTORY  26   /* a-z */
