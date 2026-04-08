@@ -1972,10 +1972,16 @@ static void advance_time(GameState *gs, int minutes) {
     /* Torch/lantern fuel consumption */
     if (gs->has_torch && gs->torch_fuel > 0) {
         gs->torch_fuel--;
+        const char *_lname = gs->torch_type == 2 ? "lantern" : "torch";
         if (gs->torch_fuel == 20) {
-            log_add(&gs->log, gs->turn, CP_YELLOW,
-                     "Your %s flickers... running low on fuel!",
-                     gs->torch_type == 2 ? "lantern" : "torch");
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "Your %s flickers... running low on fuel! (20 turns left)", _lname);
+        } else if (gs->torch_fuel == 10) {
+            log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
+                     "Your %s gutters! (10 turns left)", _lname);
+        } else if (gs->torch_fuel == 5) {
+            log_add(&gs->log, gs->turn, CP_RED_BOLD,
+                     "Your %s is almost spent! (5 turns left)", _lname);
         }
         if (gs->torch_fuel <= 0) {
             gs->has_torch = false;
@@ -1989,8 +1995,19 @@ static void advance_time(GameState *gs, int minutes) {
                          "Your %s goes out.",
                          gs->torch_type == 2 ? "lantern" : "torch");
             }
-            /* Lantern remains usable with oil refuel, torch is consumed */
-            if (gs->torch_type == 1) gs->torch_type = 0;
+            /* Lantern remains usable with oil refuel; torch is consumed
+             * (remove the burnt-out torch from inventory). */
+            if (gs->torch_type == 1) {
+                for (int ii = 0; ii < gs->num_items; ii++) {
+                    if (strcmp(gs->inventory[ii].name, "Torch") == 0) {
+                        for (int j = ii; j < gs->num_items - 1; j++)
+                            gs->inventory[j] = gs->inventory[j + 1];
+                        gs->inventory[--gs->num_items].template_id = -1;
+                        break;
+                    }
+                }
+                gs->torch_type = 0;
+            }
         }
     }
 
@@ -5095,6 +5112,11 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                      tmps[ti].type == ITYPE_BOOTS || tmps[ti].type == ITYPE_GLOVES)) {
                     match = true;
                 }
+                /* Equip shops and pawn shops always carry torches */
+                if ((npc->type == NPC_EQUIP_SHOP || npc->type == NPC_PAWN_SHOP) &&
+                    strcmp(tmps[ti].name, "Torch") == 0) {
+                    match = true;
+                }
                 if (npc->type == NPC_POTION_SHOP &&
                     (tmps[ti].type == ITYPE_POTION || tmps[ti].type == ITYPE_SCROLL)) {
                     match = true;
@@ -5143,6 +5165,29 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 shop_qty[num_shop] = (tmps[ti].rarity >= 4) ? rng_range(3, 5) :
                                      (tmps[ti].rarity >= 3) ? rng_range(2, 3) : rng_range(1, 2);
                 num_shop++;
+            }
+
+            /* Equip shops and pawn shops always stock at least 5 torches */
+            if ((npc->type == NPC_EQUIP_SHOP || npc->type == NPC_PAWN_SHOP) && num_shop < 20) {
+                int torch_id = -1;
+                for (int ti = 0; ti < tcount; ti++) {
+                    if (strcmp(tmps[ti].name, "Torch") == 0) { torch_id = ti; break; }
+                }
+                if (torch_id >= 0) {
+                    bool already = false;
+                    for (int si = 0; si < num_shop; si++) {
+                        if (shop_items[si] == torch_id) {
+                            if (shop_qty[si] < 5) shop_qty[si] = 5;
+                            already = true;
+                            break;
+                        }
+                    }
+                    if (!already) {
+                        shop_items[num_shop] = torch_id;
+                        shop_qty[num_shop] = 5;
+                        num_shop++;
+                    }
+                }
             }
 
             int term_rows2, term_cols2;
@@ -7433,10 +7478,8 @@ static void handle_dungeon_input(GameState *gs, int key) {
                     const char *lname = found_type == 2 ? "Lantern" : "Torch";
                     log_add(&gs->log, gs->turn, CP_YELLOW_BOLD,
                              "You light the %s. (%d turns of fuel)", lname, found_fuel);
-                    /* Consume the item from inventory */
-                    for (int j = found_idx; j < gs->num_items - 1; j++)
-                        gs->inventory[j] = gs->inventory[j + 1];
-                    gs->inventory[--gs->num_items].template_id = -1;
+                    /* Leave the lit item in inventory so the player can see it.
+                     * Fuel is tracked on gs->torch_fuel, not on the inventory entry. */
                 } else if (found_idx != -2) {
                     log_add(&gs->log, gs->turn, CP_GRAY,
                              "You have no torch, lantern, or oil to light.");
