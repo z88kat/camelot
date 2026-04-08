@@ -259,6 +259,7 @@ Ring of the Wolf,o,gray,ring,3,1,200,7,0,1,16
 Ring of Fire Resist,o,red,ring,2,1,100,3,0,2,6
 Ring of Frost Resist,o,cyan,ring,2,1,100,3,0,2,6
 Ring of Poison Resist,o,green,ring,2,1,100,3,0,2,6
+Ring of No-Poison,o,green,ring,1,1,180,5,0,1,8
 Ring of Regeneration,o,green,ring,1,1,150,5,0,1,12
 Ring of Mana,o,blue,ring,3,1,180,6,0,1,14
 Ring of the Knight,o,yellow,ring,2,1,160,5,0,1,12

@@ -6,7 +6,11 @@
 #include <sys/stat.h>
 
 static const char MAGIC[] = "CMLT";
-static const int SAVE_VERSION = GAME_VERSION_MINOR;
+/* Save format version. Bump when GameState layout changes in a
+ * breaking way (fields removed or reordered). Adding NEW fields at
+ * the end of GameState does NOT require a bump -- the loader pads
+ * shorter saves with zeros and tolerates longer ones. */
+#define SAVE_FORMAT_VERSION 100
 
 static void get_save_dir(char *buf, int bufsize) {
     const char *home = getenv("HOME");
@@ -26,26 +30,24 @@ static void get_save_path(char *buf, int bufsize) {
     snprintf(buf, bufsize, "%s/save.dat", dir);
 }
 
+/* Non-destructive existence check. Verifies magic and format version
+ * only -- never deletes the file. If the file is corrupt or from an
+ * incompatible format version, returns false but leaves the file in
+ * place so the player can inspect or back it up. */
 bool save_exists(void) {
     char path[300];
     get_save_path(path, sizeof(path));
     FILE *f = fopen(path, "rb");
     if (!f) return false;
 
-    /* Validate magic and version before reporting save exists */
     char magic[4];
     if (fread(magic, 1, 4, f) != 4 || memcmp(magic, MAGIC, 4) != 0) {
-        fclose(f); remove(path); return false;
+        fclose(f); return false;
     }
     int ver;
-    if (fread(&ver, sizeof(int), 1, f) != 1 || ver != SAVE_VERSION) {
-        fclose(f); remove(path); return false;
+    if (fread(&ver, sizeof(int), 1, f) != 1 || ver != SAVE_FORMAT_VERSION) {
+        fclose(f); return false;
     }
-    int struct_size;
-    if (fread(&struct_size, sizeof(int), 1, f) != 1 || struct_size != (int)sizeof(GameState)) {
-        fclose(f); remove(path); return false;
-    }
-
     fclose(f);
     return true;
 }
@@ -58,10 +60,12 @@ bool save_game(const GameState *gs) {
     if (!f) return false;
 
     fwrite(MAGIC, 1, 4, f);
-    int ver = SAVE_VERSION;
+    int ver = SAVE_FORMAT_VERSION;
     fwrite(&ver, sizeof(int), 1, f);
-    int struct_size = (int)sizeof(GameState);
-    fwrite(&struct_size, sizeof(int), 1, f);
+    /* Payload length lets future builds with a larger GameState load
+     * this save by zero-padding the missing trailing bytes. */
+    int payload_len = (int)sizeof(GameState);
+    fwrite(&payload_len, sizeof(int), 1, f);
     fwrite(gs, sizeof(GameState), 1, f);
     fclose(f);
     return true;
@@ -74,25 +78,44 @@ bool load_game(GameState *gs) {
     if (!f) return false;
 
     char magic[4];
-    fread(magic, 1, 4, f);
-    if (memcmp(magic, MAGIC, 4) != 0) { fclose(f); return false; }
+    if (fread(magic, 1, 4, f) != 4 || memcmp(magic, MAGIC, 4) != 0) {
+        fclose(f); return false;
+    }
 
     int ver;
-    fread(&ver, sizeof(int), 1, f);
-    if (ver != SAVE_VERSION) { fclose(f); return false; }
+    if (fread(&ver, sizeof(int), 1, f) != 1 || ver != SAVE_FORMAT_VERSION) {
+        fclose(f); return false;
+    }
 
-    int struct_size;
-    fread(&struct_size, sizeof(int), 1, f);
-    if (struct_size != (int)sizeof(GameState)) { fclose(f); return false; }
+    int payload_len;
+    if (fread(&payload_len, sizeof(int), 1, f) != 1 || payload_len <= 0) {
+        fclose(f); return false;
+    }
 
-    size_t read = fread(gs, 1, sizeof(GameState), f);
-    if (read != sizeof(GameState)) { fclose(f); return false; }
+    /* Forward/backward tolerant: zero-init the destination, then read
+     * MIN(payload_len, sizeof(GameState)). Older saves with fewer
+     * trailing fields leave them zeroed; newer saves with extra fields
+     * have the extras silently discarded. */
+    memset(gs, 0, sizeof(*gs));
+    int to_read = payload_len < (int)sizeof(GameState) ? payload_len : (int)sizeof(GameState);
+    size_t read = fread(gs, 1, (size_t)to_read, f);
+    if (read != (size_t)to_read) { fclose(f); return false; }
+
+    /* If the file has extra trailing bytes (newer save format), skip
+     * them so we leave the stream in a clean state. */
+    if (payload_len > (int)sizeof(GameState)) {
+        fseek(f, payload_len - (int)sizeof(GameState), SEEK_CUR);
+    }
     fclose(f);
 
     /* Pointers are invalid after load -- must reinit */
     gs->overworld = NULL;
     gs->dungeon = NULL;
     gs->current_town = NULL;
+
+    /* Sanity: a successful load should have a non-empty player name.
+     * If not, the file was corrupt (or zero-padded by an earlier bug). */
+    if (gs->player_name[0] == '\0') return false;
 
     return true;
 }

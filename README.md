@@ -399,7 +399,7 @@ When a spell is replaced: "The new magic pushes an old spell from your mind... y
 
 **24 Spell Scrolls** can be found, covering all four schools:
 - **Universal**: Magic Missile, Light, Shield, Teleport, Haste, Blink, Fireball
-- **Light**: Heal, Greater Heal, Holy Strike, Divine Shield, Smite, Turn Undead, Blessing
+- **Light**: Heal, Greater Heal, Holy Strike, Divine Shield, Smite, Turn Undead, Blessing, Cure Poison
 - **Dark**: Drain Life, Shadow Step, Curse, Fear, Dark Bolt
 - **Nature**: Entangle, Lightning, Bark Skin, Regrowth, Walk on Water
 
@@ -702,7 +702,17 @@ Press **`K`** (Shift+K) on the overworld to cook raw food at a campfire. Require
 Cooking takes 20 minutes and transforms raw food into **Cooked Meat** with **3x the healing power** (e.g. Raw Meat power 5 becomes Cooked Meat power 15). Always cook your meat before eating!
 
 #### Fish Spoilage
-Fish (Fresh Fish, Salted Fish, Smoked Salmon) goes **rotten after 2 days**. Rotten fish shows in red as "(ROTTEN!)" in your inventory. Eating rotten fish causes **5-12 HP damage** and **-1 STR** (poison). Eat or sell your fish quickly, or visit a church to cure the poison (30 gold).
+Fish (Fresh Fish, Salted Fish, Smoked Salmon) goes **rotten after 2 days**. Rotten fish shows in red as "(ROTTEN!)" in your inventory. Eating rotten fish causes **5-12 HP damage** and **-1 STR** (poison), **and** now also inflicts lingering food poisoning on top. Eat or sell your fish quickly, or visit a church to cure the poison (30 gold).
+
+#### Food Poisoning
+Any food you eat has a **5% chance** of being bad and giving you **food poisoning** -- even fresh bread or cooked meat can occasionally turn your stomach. While poisoned you lose **1 HP per turn for 8-25 turns**. It will not kill you (damage clamps at 1 HP), and when it wears off you see *"The sickness passes."*
+
+**Cures**:
+- **Poison Antidote** potion -- instant cure (sold in shops)
+- **Cure Poison** spell -- light affiliation, threshold 5, 3 MP, learnable from level 2 -- instant cure
+- **Ring of Poison Resist** -- full immunity to food poisoning while worn
+- **Ring of No-Poison** -- rarer, more expensive premium variant, same full immunity
+- Or just wait it out (it cannot kill you)
 
 #### Gems & Treasures
 Gems and treasures are found in dungeons and cannot be equipped -- they exist purely as valuable loot. Sell them at the **Pawnbroker** for gold.
@@ -719,7 +729,8 @@ Magical rings and amulets enhance your stats when equipped. Each has a **power b
 - Advanced: Ring of Fortitude, Ring of Might, Ring of Agility, Ring of Wisdom (+2, level 4-5)
 - Legendary: Ring of the Bear, Ring of the Eagle, Ring of the Serpent, Ring of the Wolf (+3, level 7)
 - Unique: Ring of the Grail (+4, level 10)
-- Resist rings: Fire Resist, Frost Resist, Poison Resist (+2, level 3)
+- Resist rings: Fire Resist, Frost Resist, Poison Resist (+2, level 3) -- Poison Resist also grants full immunity to food poisoning
+- Ring of No-Poison: rarer, more expensive premium variant of Poison Resist -- full immunity to food poisoning while worn
 - Special: Ring of Regeneration, Ring of Mana, Ring of Shadows
 
 **Amulets** (`"`, equip in Amulet slot): 25 types

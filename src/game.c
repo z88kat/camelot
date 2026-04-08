@@ -2035,6 +2035,19 @@ static void advance_time(GameState *gs, int minutes) {
         gs->mp++;
     }
 
+    /* Food poisoning: 1 HP per turn until it wears off. */
+    if (gs->poison_turns > 0) {
+        gs->poison_turns--;
+        if (gs->hp > 1) {
+            gs->hp--;
+            if (gs->hp <= 0) gs->hp = 1;
+        }
+        if (gs->poison_turns == 0) {
+            log_add(&gs->log, gs->turn, CP_GREEN,
+                    "The sickness passes. You feel better.");
+        }
+    }
+
     /* Excalibur's Scabbard: passive HP regen (1 HP every 5 turns) while carried */
     {
         int regen_bonus = player_artifact_bonus(gs, "regen");
@@ -8250,6 +8263,16 @@ void game_handle_input(GameState *gs, int key) {
                                  "You cast %s. Restored %d HP.", sp->name, heal);
                         break;
                     }
+                    case SEFF_CURE:
+                        if (gs->poison_turns > 0) {
+                            gs->poison_turns = 0;
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "You cast %s. The poison is purged from your body.", sp->name);
+                        } else {
+                            log_add(&gs->log, gs->turn, CP_GREEN,
+                                     "You cast %s. You feel cleansed.", sp->name);
+                        }
+                        break;
                     case SEFF_SHIELD:
                         gs->shield_absorb += 15 + gs->intel;
                         log_add(&gs->log, gs->turn, CP_CYAN,
@@ -8786,6 +8809,23 @@ void game_handle_input(GameState *gs, int key) {
                         sel->power = eff_power;
                         sel->buc_known = true;
 
+                        /* Poison Antidote: cures food poisoning */
+                        if (strcmp(sel->name, "Poison Antidote") == 0) {
+                            if (gs->poison_turns > 0) {
+                                gs->poison_turns = 0;
+                                log_add(&gs->log, gs->turn, CP_GREEN,
+                                         "You drink the antidote. The poison is purged!");
+                            } else {
+                                log_add(&gs->log, gs->turn, CP_GRAY,
+                                         "You drink the antidote. It tastes bitter, but you feel fine.");
+                            }
+                            if (was_unknown)
+                                log_add(&gs->log, gs->turn, CP_WHITE, "You identify it as: %s", sel->name);
+                            for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
+                            gs->inventory[--gs->num_items].template_id = -1;
+                            return;
+                        }
+
                         /* Apply effect based on potion name */
                         bool is_mana = (strstr(sel->name, "Mana") != NULL);
                         bool is_str  = (strcmp(sel->name, "Strength Potion") == 0);
@@ -8829,6 +8869,17 @@ void game_handle_input(GameState *gs, int key) {
                         bool is_rotten = (is_fish && sel->created_day > 0 &&
                                           (gs->day - sel->created_day) >= 2);
 
+                        /* Ring of Poison Resist (or No-Poison) makes the player immune. */
+                        bool poison_immune = false;
+                        for (int es = 0; es < NUM_SLOTS; es++) {
+                            if (gs->equipment[es].template_id >= 0 &&
+                                (strcmp(gs->equipment[es].name, "Ring of Poison Resist") == 0 ||
+                                 strcmp(gs->equipment[es].name, "Ring of No-Poison") == 0)) {
+                                poison_immune = true;
+                                break;
+                            }
+                        }
+
                         if (is_rotten) {
                             /* Eating rotten fish poisons you */
                             int poison_dmg = rng_range(5, 12);
@@ -8838,12 +8889,23 @@ void game_handle_input(GameState *gs, int key) {
                             log_add(&gs->log, gs->turn, CP_RED,
                                      "The %s has gone rotten! You retch violently! -%d HP, -1 STR!",
                                      sel->name, poison_dmg);
-                            log_add(&gs->log, gs->turn, CP_RED,
-                                     "You are poisoned! You should have thrown that away...");
+                            if (!poison_immune) {
+                                gs->poison_turns += rng_range(10, 25);
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "You are poisoned! Find a cure quickly...");
+                            }
                         } else {
                             gs->hp += sel->power / 2;
                             if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
                             log_add(&gs->log, gs->turn, CP_GREEN, "You eat the %s. Delicious!", sel->name);
+                            /* 5% chance any food is bad and gives you food poisoning. */
+                            if (!poison_immune && rng_chance(5)) {
+                                gs->poison_turns += rng_range(8, 20);
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "Ugh! That %s was bad! You feel queasy and weak.", sel->name);
+                                log_add(&gs->log, gs->turn, CP_RED,
+                                         "You are poisoned! Find a cure quickly...");
+                            }
                         }
                         for (int j = idx; j < gs->num_items - 1; j++) gs->inventory[j] = gs->inventory[j+1];
                         gs->inventory[--gs->num_items].template_id = -1;
@@ -9516,6 +9578,9 @@ void game_handle_input(GameState *gs, int key) {
             "- Fish near water for free food.\n"
             "- Cook raw meat (K) for 3x healing.\n"
             "- Eat fish within 2 days or it spoils!\n"
+            "- Beware: 5% of food may be bad and poison you.\n"
+            "  Carry an antidote or wear a poison resist ring.\n"
+            "- Cure Poison spell (light, lvl 2) ends food poisoning.\n"
             "- Torches burn out -- carry spares or a lantern.\n"
             "- Merlin (Glastonbury) always gives true Grail hints.\n"
             "- Bath hot springs cure ALL curses for free.\n"

@@ -87,6 +87,7 @@ typedef struct GameState {
     /* Quests */
     QuestLog   quests;
 
+    int        poison_turns;     /* turns remaining of food poisoning (1 HP/turn) */
     bool       stonehenge_used;  /* has player used Stonehenge this game? */
     bool       church_looted;    /* has player looted a church? */
     int        weight, max_weight;
