@@ -302,7 +302,9 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
         /* Store camera for external use (labels, player dot) */
         /* Title */
         attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(0, (term_cols - 50) / 2,
+        int title_x = (term_cols - 50) / 2;
+        if (title_x < 0) title_x = 0;
+        mvprintw(0, title_x,
                  "-- Map of England -- [arrows] scroll  [any] close");
         attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
 

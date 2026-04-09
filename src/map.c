@@ -16,6 +16,7 @@ typedef struct BSPNode {
 
 static BSPNode *bsp_create(int x, int y, int w, int h) {
     BSPNode *n = calloc(1, sizeof(BSPNode));
+    if (!n) return NULL;
     n->x = x; n->y = y; n->w = w; n->h = h;
     return n;
 }
@@ -29,7 +30,7 @@ static void bsp_free(BSPNode *n) {
 
 /* Recursively split the BSP tree */
 static void bsp_split(BSPNode *n, int depth) {
-    if (depth <= 0 || n->w < 12 || n->h < 10) return;
+    if (!n || depth <= 0 || n->w < 12 || n->h < 10) return;
 
     /* Choose split direction: prefer splitting the longer axis */
     bool split_h;
@@ -1148,10 +1149,12 @@ void map_generate(DungeonLevel *level, int depth, int max_depth) {
 
 Dungeon *dungeon_create(const char *name, int num_levels) {
     Dungeon *d = calloc(1, sizeof(Dungeon));
+    if (!d) return NULL;
     snprintf(d->name, MAX_NAME, "%s", name);
     d->max_depth = num_levels;
     d->current_level = 0;
     d->levels = calloc(num_levels, sizeof(DungeonLevel));
+    if (!d->levels) { free(d); return NULL; }
     d->has_portal = true;
     return d;
 }

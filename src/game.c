@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 /* Forward declarations */
 static void ai_explode_on_death(GameState *gs, Entity *e);
@@ -27,14 +28,16 @@ static bool monster_at_pos(DungeonLevel *dl, int x, int y);
 /* Score calculation                                                   */
 /* ------------------------------------------------------------------ */
 static int calculate_score(const GameState *gs) {
-    int score = gs->kills * 10 + gs->gold_earned +
-                quest_count_completed(&gs->quests) * 150;
+    long score = (long)gs->kills * 10 + gs->gold_earned +
+                 (long)quest_count_completed(&gs->quests) * 150;
     /* Chivalry multiplier: 0.5x at 0, 1.0x at 50, 2.0x at 100 */
     int chiv_pct = 50 + gs->chivalry;
     score = score * chiv_pct / 100;
     if (gs->quests.grail_quest_complete) score += 5000;
     if (gs->cheat_mode) score = 0;
-    return score;
+    if (score > INT_MAX) score = INT_MAX;
+    if (score < 0) score = 0;
+    return (int)score;
 }
 
 /* ------------------------------------------------------------------ */
