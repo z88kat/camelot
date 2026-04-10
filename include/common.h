@@ -31,6 +31,7 @@
 #define MAX_INVENTORY  26   /* a-z */
 #define MAX_NAME       32
 #define MAX_SPELLS     50
+#define MAX_BESTIARY   256  /* max distinct monster types in bestiary */
 
 /* Color pair IDs */
 #define CP_DEFAULT     0

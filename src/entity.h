@@ -109,4 +109,7 @@ bool entity_spawn_one(Entity monsters[], int *num_monsters,
                       Tile tiles[MAP_HEIGHT][MAP_WIDTH],
                       int depth, Vec2 player_pos, int fov_radius);
 
+/* Find the template index for a monster by name. Returns -1 if not found. */
+int entity_find_template(const char *name);
+
 #endif /* ENTITY_H */

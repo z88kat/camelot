@@ -700,8 +700,25 @@ static Entity *monster_at(GameState *gs, int x, int y) {
     return NULL;
 }
 
+/* Record a monster in the bestiary by name lookup */
+static void bestiary_record(GameState *gs, const char *name) {
+    int idx = entity_find_template(name);
+    if (idx >= 0 && idx < MAX_BESTIARY)
+        gs->bestiary[idx] = true;
+}
+
+/* Increment bestiary kill count for a monster */
+static void bestiary_record_kill(GameState *gs, const char *name) {
+    int idx = entity_find_template(name);
+    if (idx >= 0 && idx < MAX_BESTIARY) {
+        gs->bestiary[idx] = true;
+        gs->bestiary_kills[idx]++;
+    }
+}
+
 /* Player attacks a monster -- with hit/miss and crits */
 static void combat_attack_monster(GameState *gs, Entity *target) {
+    bestiary_record(gs, target->name);
     /* Hit chance: 70% base + player STR - monster DEF*2 */
     int hit_chance = 70 + gs->str - target->def * 2;
     if (hit_chance < 15) hit_chance = 15;
@@ -768,6 +785,7 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
         target->alive = false;
         gs->xp += target->xp_reward;
         gs->kills++;
+        bestiary_record_kill(gs, target->name);
         log_add(&gs->log, gs->turn, CP_YELLOW,
                  "The %s is slain! +%d XP (Kills: %d)", target->name, target->xp_reward, gs->kills);
         /* On-death effects */
@@ -859,6 +877,7 @@ static void combat_attack_monster(GameState *gs, Entity *target) {
 
 /* Monster attacks the player -- with hit/miss */
 static void combat_monster_attacks(GameState *gs, Entity *attacker) {
+    bestiary_record(gs, attacker->name);
     int hit_chance = 60 + attacker->str - gs->def * 2;
     if (hit_chance < 10) hit_chance = 10;
     if (hit_chance > 90) hit_chance = 90;
@@ -916,6 +935,7 @@ static void combat_monster_attacks(GameState *gs, Entity *attacker) {
             attacker->alive = false;
             gs->xp += attacker->xp_reward;
             gs->kills++;
+            bestiary_record_kill(gs, attacker->name);
             log_add(&gs->log, gs->turn, CP_GREEN,
                      "The %s is slain by its own reflected fury! +%d XP",
                      attacker->name, attacker->xp_reward);
@@ -2690,6 +2710,7 @@ static void handle_overworld_input(GameState *gs, int key) {
         OWCreature *creature = overworld_creature_at(gs->overworld, nx, ny);
         if (creature && creature->hostile && passable) {
             /* Overworld combat! */
+            bestiary_record(gs, creature->name);
             int hit_chance = 70 + gs->str - creature->def * 2;
             if (hit_chance < 20) hit_chance = 20;
             if (hit_chance > 95) hit_chance = 95;
@@ -2712,6 +2733,7 @@ static void handle_overworld_input(GameState *gs, int key) {
                 if (creature->hp <= 0) {
                     gs->xp += creature->xp_reward;
                     gs->kills++;
+                    bestiary_record_kill(gs, creature->name);
                     int gold = rng_range(3, 15);
                     gs->gold += gold;
                     log_add(&gs->log, gs->turn, CP_YELLOW,
@@ -7267,6 +7289,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                                  "No targets in range (%d tiles).", range);
                     } else {
                         /* Fire! */
+                        bestiary_record(gs, best_target->name);
                         int ammo_pow = gs->inventory[ammo_idx].power;
                         int dmg = wpn->power + ammo_pow + gs->str / 2 + rng_range(-1, 2);
                         if (dmg < 1) dmg = 1;
@@ -7312,6 +7335,7 @@ static void handle_dungeon_input(GameState *gs, int key) {
                             best_target->alive = false;
                             gs->xp += best_target->xp_reward;
                             gs->kills++;
+                            bestiary_record_kill(gs, best_target->name);
                             log_add(&gs->log, gs->turn, CP_YELLOW,
                                      "The %s is slain! +%d XP",
                                      best_target->name, best_target->xp_reward);
@@ -8257,6 +8281,7 @@ void game_handle_input(GameState *gs, int key) {
                                         nearest->alive = false;
                                         gs->xp += nearest->xp_reward;
                                         gs->kills++;
+                                        bestiary_record_kill(gs, nearest->name);
                                         log_add(&gs->log, gs->turn, CP_YELLOW,
                                                  "The %s is slain! +%d XP", nearest->name, nearest->xp_reward);
                                         ai_explode_on_death(gs, nearest);
@@ -8399,6 +8424,7 @@ void game_handle_input(GameState *gs, int key) {
                                         nearest->alive = false;
                                         gs->xp += nearest->xp_reward;
                                         gs->kills++;
+                                        bestiary_record_kill(gs, nearest->name);
                                         log_add(&gs->log, gs->turn, CP_YELLOW,
                                                  "The %s is slain! +%d XP", nearest->name, nearest->xp_reward);
                                     }
@@ -9238,6 +9264,111 @@ void game_handle_input(GameState *gs, int key) {
         return;
     }
 
+    /* Bestiary (B key) */
+    if (key == 'B') {
+        int total_templates;
+        const MonsterTemplate *tmps = entity_get_templates(&total_templates);
+
+        /* Count known entries */
+        int num_known = 0;
+        for (int i = 0; i < total_templates && i < MAX_BESTIARY; i++)
+            if (gs->bestiary[i]) num_known++;
+
+        int scroll = 0;
+        int entries_per_page;
+
+        for (;;) {
+            ui_clear();
+            int term_rows, term_cols;
+            ui_get_size(&term_rows, &term_cols);
+
+            int row = 1;
+            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            mvprintw(row++, 2, "=== Bestiary ===");
+            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+
+            attron(COLOR_PAIR(CP_WHITE));
+            mvprintw(row++, 2, "Creatures encountered: %d / %d", num_known, total_templates);
+            attroff(COLOR_PAIR(CP_WHITE));
+            row++;
+
+            if (num_known == 0) {
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row, 4, "No creatures encountered yet. Go forth and explore!");
+                attroff(COLOR_PAIR(CP_GRAY));
+            } else {
+                /* Header */
+                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                mvprintw(row, 2, " ");
+                mvprintw(row, 4, "%-20s %4s %4s %4s %4s %4s  %s",
+                         "Name", "HP", "STR", "DEF", "SPD", "XP", "Slain");
+                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                row++;
+
+                attron(COLOR_PAIR(CP_GRAY));
+                mvprintw(row++, 4, "----------------------------------------------------");
+                attroff(COLOR_PAIR(CP_GRAY));
+
+                /* List known entries with scrolling */
+                entries_per_page = term_rows - row - 2;
+                if (entries_per_page < 1) entries_per_page = 1;
+
+                int shown = 0;
+                int skipped = 0;
+                for (int i = 0; i < total_templates && i < MAX_BESTIARY; i++) {
+                    if (!gs->bestiary[i]) continue;
+                    if (skipped < scroll) { skipped++; continue; }
+                    if (shown >= entries_per_page) break;
+
+                    const MonsterTemplate *mt = &tmps[i];
+                    int kills = gs->bestiary_kills[i];
+
+                    /* Color-code by category */
+                    short cp = mt->color_pair;
+                    attron(COLOR_PAIR(cp));
+                    mvprintw(row, 2, "%c", mt->glyph);
+                    attroff(COLOR_PAIR(cp));
+
+                    attron(COLOR_PAIR(CP_WHITE));
+                    mvprintw(row, 4, "%-20s %4d %4d %4d %4d %4d",
+                             mt->name, mt->hp, mt->str, mt->def, mt->spd, mt->xp_reward);
+                    attroff(COLOR_PAIR(CP_WHITE));
+
+                    if (kills > 0) {
+                        attron(COLOR_PAIR(CP_GREEN));
+                        mvprintw(row, 54, "%d", kills);
+                        attroff(COLOR_PAIR(CP_GREEN));
+                    } else {
+                        attron(COLOR_PAIR(CP_GRAY));
+                        mvprintw(row, 54, "-");
+                        attroff(COLOR_PAIR(CP_GRAY));
+                    }
+
+                    row++;
+                    shown++;
+                }
+
+                if (num_known > entries_per_page) {
+                    attron(COLOR_PAIR(CP_GRAY));
+                    mvprintw(term_rows - 2, 2, "[up/down to scroll, %d-%d of %d]",
+                             scroll + 1, scroll + shown, num_known);
+                    attroff(COLOR_PAIR(CP_GRAY));
+                }
+            }
+
+            attron(COLOR_PAIR(CP_GRAY));
+            mvprintw(term_rows - 1, 2, "Press q or Esc to close.");
+            attroff(COLOR_PAIR(CP_GRAY));
+            ui_refresh();
+
+            int bkey = ui_getkey();
+            if (bkey == 'q' || bkey == 'Q' || bkey == 27 || bkey == 'B') break;
+            if ((bkey == KEY_UP || bkey == 'k') && scroll > 0) scroll--;
+            if ((bkey == KEY_DOWN || bkey == 'j') && scroll + entries_per_page < num_known) scroll++;
+        }
+        return;
+    }
+
     /* Character sheet (@ key) */
     if (key == '@') {
         ui_clear();
@@ -9537,6 +9668,7 @@ void game_handle_input(GameState *gs, int key) {
             "  z       Cast spell\n"
             "  Z       View spellbook\n"
             "  J       Quest journal\n"
+            "  B       Bestiary\n"
             "  ;       Look/identify mode\n"
             "  M       Minimap (L=labels, arrows=scroll)\n"
             "  P       Message history\n"

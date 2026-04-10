@@ -186,6 +186,15 @@ const MonsterTemplate *entity_get_templates(int *count) {
     return templates;
 }
 
+int entity_find_template(const char *name) {
+    int count;
+    const MonsterTemplate *tmps = entity_get_templates(&count);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(tmps[i].name, name) == 0) return i;
+    }
+    return -1;
+}
+
 /* Helper: try to place one monster at/near (x,y). Returns true if placed. */
 static bool place_one(Entity monsters[], int *num_monsters,
                       Tile tiles[MAP_HEIGHT][MAP_WIDTH],

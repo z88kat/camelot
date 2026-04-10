@@ -181,6 +181,11 @@ typedef struct GameState {
 
     /* Message log */
     MessageLog log;
+
+    /* Bestiary: tracks encountered monsters by template index.
+     * Placed at end of struct so older saves zero-fill these fields. */
+    bool       bestiary[MAX_BESTIARY];
+    int        bestiary_kills[MAX_BESTIARY];
 } GameState;
 
 /* Get current time of day. */
