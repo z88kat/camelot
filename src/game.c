@@ -47,61 +47,162 @@ static void show_death_screen(GameState *gs) {
     const char *class_names[] = { "Knight", "Wizard", "Ranger" };
     int score = calculate_score(gs);
 
+    const char *epitaphs[] = {
+        "The bards will not sing of this.",
+        "A hero's end. Sort of.",
+        "They tried their best. Probably.",
+        "At least the cat survived.",
+        "Should have bought more potions.",
+        "The inn was right there...",
+    };
+    const char *epitaph = epitaphs[rng_range(0, 5)];
+
+    /* Build gravestone inscription lines */
+    char line_name[48], line_title[48], line_cause[48];
+    char line_stats[48], line_score[48], line_epitaph[48];
+    snprintf(line_name, sizeof(line_name), "%s", gs->player_name);
+    snprintf(line_title, sizeof(line_title), "%s %s",
+             class_names[gs->player_class], chivalry_title(gs->chivalry));
+    snprintf(line_cause, sizeof(line_cause), "%s", gs->cause_of_death);
+    snprintf(line_stats, sizeof(line_stats), "Lv %d  %d kills  Day %d",
+             gs->player_level, gs->kills, gs->day);
+    snprintf(line_score, sizeof(line_score), "Score: %d%s",
+             score, gs->cheat_mode ? " (cheat)" : "");
+    snprintf(line_epitaph, sizeof(line_epitaph), "\"%s\"", epitaph);
+
+    /* Gravestone width: fit the longest inscription + padding */
+    int sw = 36; /* inner width of stone */
+    int len;
+    len = (int)strlen(line_name);     if (len + 4 > sw) sw = len + 4;
+    len = (int)strlen(line_cause);    if (len + 4 > sw) sw = len + 4;
+    len = (int)strlen(line_epitaph);  if (len + 4 > sw) sw = len + 4;
+    int tw = sw + 2; /* total width including borders */
+
     ui_clear();
+    int term_rows, term_cols;
+    ui_get_size(&term_rows, &term_cols);
+    int cx = (term_cols - tw) / 2;
+    if (cx < 0) cx = 0;
     int row = 1;
 
-    attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
-    mvprintw(row++, 2, "=== YOU HAVE DIED ===");
-    attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
-    row++;
+    /* --- Gravestone top --- */
+    /*       .---...---.       */
+    /*      /           \      */
+    /*     |   R.I.P.    |     */
 
-    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    mvprintw(row++, 4, "%s, %s %s", gs->player_name,
-             class_names[gs->player_class], chivalry_title(gs->chivalry));
-    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    row++;
-
-    attron(COLOR_PAIR(CP_RED));
-    mvprintw(row++, 4, "Cause of death: %s", gs->cause_of_death);
-    attroff(COLOR_PAIR(CP_RED));
-    /* Funny epitaph */
-    {
-        const char *epitaphs[] = {
-            "The bards will not sing of this.",
-            "A hero's end. Sort of.",
-            "They tried their best. Probably.",
-            "At least the cat survived.",
-            "Should have bought more potions.",
-            "The inn was right there...",
-        };
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 4, "\"%s\"", epitaphs[rng_range(0, 5)]);
-        attroff(COLOR_PAIR(CP_GRAY));
-    }
-    row++;
-
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 4, "Level: %-3d    Turns: %d    Day: %d", gs->player_level, gs->turn, gs->day);
-    mvprintw(row++, 4, "STR: %-3d  DEF: %-3d  INT: %-3d  SPD: %-3d", gs->str, gs->def, gs->intel, gs->spd);
-    mvprintw(row++, 4, "Kills: %-4d   Gold earned: %d", gs->kills, gs->gold_earned);
-    mvprintw(row++, 4, "Quests: %d/%d completed", quest_count_completed(&gs->quests), gs->quests.num_quests);
-    mvprintw(row++, 4, "Spells: %d learned    Chivalry: %d", gs->num_spells, gs->chivalry);
-    if (gs->quests.grail_quest_complete)
-        mvprintw(row++, 4, "THE HOLY GRAIL WAS FOUND (+5000 score)");
-    attroff(COLOR_PAIR(CP_WHITE));
-    row++;
-
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 4, "FINAL SCORE: %d%s", score, gs->cheat_mode ? " (CHEAT)" : "");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    row++;
+    /* Rounded top */
     attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row++, 4, "Game seed: %llu", (unsigned long long)rng_get_seed());
+    {
+        char top[120];
+        int i = 0;
+        top[i++] = '.';
+        for (int c = 0; c < sw; c++) top[i++] = '-';
+        top[i++] = '.';
+        top[i] = '\0';
+        mvprintw(row++, cx, "%s", top);
+    }
+
+    /* Curved shoulders */
+    {
+        char shoulder[120];
+        int i = 0;
+        shoulder[i++] = '/';
+        for (int c = 0; c < sw; c++) shoulder[i++] = ' ';
+        shoulder[i++] = '\\';
+        shoulder[i] = '\0';
+        mvprintw(row++, cx, "%s", shoulder);
+    }
+    attroff(COLOR_PAIR(CP_GRAY));
+
+    /* R.I.P. line */
+    {
+        char border_l[4] = "|";
+        char border_r[4] = "|";
+        attron(COLOR_PAIR(CP_GRAY));
+        mvprintw(row, cx, "%s", border_l);
+        mvprintw(row, cx + tw - 1, "%s", border_r);
+        attroff(COLOR_PAIR(CP_GRAY));
+        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        mvprintw(row, cx + (tw - 5) / 2, "R.I.P.");
+        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        row++;
+    }
+
+    /* Helper macro-like: print a centered line inside the stone */
+    #define STONE_LINE(color, bold, text) do { \
+        attron(COLOR_PAIR(CP_GRAY)); \
+        mvprintw(row, cx, "|"); \
+        mvprintw(row, cx + tw - 1, "|"); \
+        attroff(COLOR_PAIR(CP_GRAY)); \
+        int _tl = (int)strlen(text); \
+        int _tx = cx + 1 + (sw - _tl) / 2; \
+        if (_tx < cx + 1) _tx = cx + 1; \
+        if (bold) attron(COLOR_PAIR(color) | A_BOLD); \
+        else attron(COLOR_PAIR(color)); \
+        mvprintw(row, _tx, "%s", text); \
+        if (bold) attroff(COLOR_PAIR(color) | A_BOLD); \
+        else attroff(COLOR_PAIR(color)); \
+        row++; \
+    } while(0)
+
+    #define STONE_BLANK() do { \
+        attron(COLOR_PAIR(CP_GRAY)); \
+        mvprintw(row, cx, "|"); \
+        mvprintw(row, cx + tw - 1, "|"); \
+        attroff(COLOR_PAIR(CP_GRAY)); \
+        row++; \
+    } while(0)
+
+    STONE_BLANK();
+    STONE_LINE(CP_WHITE_BOLD, 1, line_name);
+    STONE_LINE(CP_WHITE, 0, line_title);
+    STONE_BLANK();
+    STONE_LINE(CP_RED, 0, line_cause);
+    STONE_BLANK();
+    STONE_LINE(CP_GRAY, 0, line_epitaph);
+    STONE_BLANK();
+    STONE_LINE(CP_WHITE, 0, line_stats);
+    if (gs->quests.grail_quest_complete) {
+        STONE_LINE(CP_YELLOW_BOLD, 1, "The Grail was found!");
+    }
+    STONE_LINE(CP_YELLOW_BOLD, 1, line_score);
+    STONE_BLANK();
+
+    #undef STONE_LINE
+    #undef STONE_BLANK
+
+    /* Bottom of gravestone */
+    attron(COLOR_PAIR(CP_GRAY));
+    {
+        char bot[120];
+        int i = 0;
+        bot[i++] = '|';
+        for (int c = 0; c < sw; c++) bot[i++] = '_';
+        bot[i++] = '|';
+        bot[i] = '\0';
+        mvprintw(row++, cx, "%s", bot);
+    }
+
+    /* Ground line */
+    {
+        int ground_start = cx - 4;
+        if (ground_start < 0) ground_start = 0;
+        int ground_end = cx + tw + 4;
+        if (ground_end > term_cols) ground_end = term_cols;
+        for (int c = ground_start; c < ground_end; c++) {
+            mvprintw(row, c, "%c", (rng_range(0, 3) == 0) ? ',' : '.');
+        }
+    }
+    attroff(COLOR_PAIR(CP_GRAY));
+    row += 2;
+
+    attron(COLOR_PAIR(CP_GRAY));
+    mvprintw(row++, cx + (tw - 20) / 2, "Game seed: %llu", (unsigned long long)rng_get_seed());
     attroff(COLOR_PAIR(CP_GRAY));
     row++;
 
     attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row, 4, "Press any key to continue...");
+    mvprintw(row, cx + (tw - 27) / 2, "Press any key to continue...");
     attroff(COLOR_PAIR(CP_GRAY));
     ui_refresh();
     ui_getkey();

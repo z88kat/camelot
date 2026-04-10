@@ -1,0 +1,329 @@
+# DawnLike tileset mapping for Knights of Camelot
+# Maps game entities to sprite coordinates in DawnLike sprite sheets.
+# All tiles are 16x16 pixels. Coordinates are tile indices (not pixels).
+# sheet: path relative to tiles/ directory
+# tx,ty: tile column,row within that sheet (0-indexed)
+#
+# Format: id,name,sheet,tx,ty
+# id: unique identifier used by the renderer to look up tiles
+
+# =====================================================================
+# PLAYER
+# =====================================================================
+player_knight,Player (Knight),Characters/Player0.png,0,0
+player_wizard,Player (Wizard),Characters/Player0.png,4,0
+player_ranger,Player (Ranger),Characters/Player0.png,2,0
+
+# =====================================================================
+# TERRAIN - Dungeon
+# =====================================================================
+tile_wall,Wall,Objects/Wall.png,0,1
+tile_wall_cave,Cave Wall,Objects/Wall.png,3,1
+tile_floor,Floor,Objects/Floor.png,2,1
+tile_floor_stone,Stone Floor,Objects/Floor.png,0,1
+tile_door_closed,Closed Door,Objects/Door0.png,0,0
+tile_door_open,Open Door,Objects/Door0.png,3,0
+tile_door_locked,Locked Door,Objects/Door0.png,1,0
+tile_stairs_up,Stairs Up,Objects/Tile.png,3,0
+tile_stairs_down,Stairs Down,Objects/Tile.png,4,0
+tile_water,Water,Objects/Pit0.png,0,3
+tile_lava,Lava,Objects/Pit0.png,0,1
+tile_ice,Ice,Objects/Floor.png,5,4
+tile_portal,Portal,Objects/Tile.png,5,0
+tile_grail_pedestal,Grail Pedestal,Objects/Decor0.png,5,3
+tile_chest,Chest,Items/Chest0.png,0,0
+
+# =====================================================================
+# TERRAIN - Overworld
+# =====================================================================
+tile_grass,Grass,Objects/Floor.png,2,2
+tile_road,Road,Objects/Floor.png,4,1
+tile_forest,Forest,Objects/Tree0.png,0,1
+tile_hills,Hills,Objects/Hill0.png,0,0
+tile_mountain,Mountain,Objects/Hill0.png,1,0
+tile_marsh,Marsh,Objects/Ground0.png,2,0
+tile_swamp,Swamp,Objects/Ground0.png,3,0
+tile_river,River,Objects/Pit0.png,0,4
+tile_lake,Lake,Objects/Pit0.png,0,5
+tile_bridge,Bridge,Objects/Floor.png,1,7
+tile_dense_woods,Dense Woods,Objects/Tree0.png,2,1
+tile_yellow_road,Yellow Road,Objects/Floor.png,3,8
+
+# =====================================================================
+# OVERWORLD LANDMARKS (Map0.png has town/castle icons)
+# =====================================================================
+tile_town,Town,Objects/Map0.png,3,4
+tile_castle,Castle,Objects/Map0.png,4,4
+tile_dungeon_entrance,Dungeon Entrance,Objects/Pit0.png,0,0
+tile_abbey,Abbey,Objects/Map0.png,3,4
+tile_cottage,Cottage,Objects/Decor0.png,0,1
+tile_cave,Cave,Objects/Pit0.png,0,0
+tile_stone_circle,Stone Circle,Objects/Decor0.png,5,2
+tile_volcano,Volcano,Objects/Hill0.png,2,2
+tile_boat,Boat,Items/Tool.png,0,0
+
+# =====================================================================
+# MONSTERS - Beasts
+# =====================================================================
+mon_giant_rat,Giant Rat,Characters/Rodent0.png,0,0
+mon_bat_swarm,Bat Swarm,Characters/Avian0.png,4,4
+mon_adder,Adder,Characters/Reptile0.png,0,0
+mon_wild_boar,Wild Boar,Characters/Quadraped0.png,4,2
+mon_wolf,Wolf,Characters/Dog0.png,1,0
+mon_giant_spider,Giant Spider,Characters/Pest0.png,0,2
+mon_bear,Bear,Characters/Quadraped0.png,0,3
+mon_giant_beetle,Giant Beetle,Characters/Pest0.png,0,0
+mon_stag,Stag,Characters/Quadraped0.png,0,0
+mon_rabid_dog,Rabid Dog,Characters/Dog0.png,0,0
+
+# =====================================================================
+# MONSTERS - Bandits & Outlaws
+# =====================================================================
+mon_bandit,Bandit,Characters/Humanoid0.png,0,4
+mon_cutthroat,Cutthroat,Characters/Humanoid0.png,1,4
+mon_highwayman,Highwayman,Characters/Humanoid0.png,2,4
+mon_poacher,Poacher,Characters/Humanoid0.png,3,4
+mon_rogue_archer,Rogue Archer,Characters/Humanoid0.png,4,4
+mon_smuggler,Smuggler,Characters/Humanoid0.png,5,4
+mon_deserter,Deserter,Characters/Humanoid0.png,6,4
+mon_bandit_chief,Bandit Chief,Characters/Humanoid0.png,7,4
+
+# =====================================================================
+# MONSTERS - Undead
+# =====================================================================
+mon_skeleton,Skeleton,Characters/Undead0.png,0,0
+mon_zombie,Zombie,Characters/Undead0.png,3,0
+mon_ghoul,Ghoul,Characters/Undead0.png,4,0
+mon_ghost,Ghost,Characters/Undead0.png,7,0
+mon_wight,Wight,Characters/Undead0.png,5,0
+mon_wraith,Wraith,Characters/Undead0.png,6,0
+mon_spectre,Spectre,Characters/Undead0.png,7,0
+mon_revenant,Revenant,Characters/Undead0.png,1,1
+mon_barrow_wight,Barrow-Wight,Characters/Undead0.png,5,0
+mon_skeleton_knight,Skeleton Knight,Characters/Undead0.png,2,1
+mon_bone_dragon,Bone Dragon,Characters/Reptile0.png,6,3
+mon_death_knight,Death Knight,Characters/Undead0.png,3,1
+
+# =====================================================================
+# MONSTERS - Dark Knights & Warriors
+# =====================================================================
+mon_dark_squire,Dark Squire,Characters/Humanoid0.png,0,5
+mon_mercenary,Mercenary,Characters/Humanoid0.png,1,5
+mon_rogue_knight,Rogue Knight,Characters/Humanoid0.png,2,5
+mon_iron_golem,Iron Golem,Characters/Misc0.png,2,0
+mon_black_knight,Black Knight,Characters/Humanoid0.png,3,5
+mon_fallen_paladin,Fallen Paladin,Characters/Humanoid0.png,4,5
+
+# =====================================================================
+# MONSTERS - Magical
+# =====================================================================
+mon_imp,Imp,Characters/Demon0.png,0,0
+mon_dark_monk,Dark Monk,Characters/Humanoid0.png,3,8
+mon_hellhound,Hellhound,Characters/Dog0.png,2,2
+mon_witch,Witch,Characters/Humanoid0.png,4,8
+mon_evil_sorcerer,Evil Sorcerer,Characters/Humanoid0.png,5,8
+mon_necromancer,Necromancer,Characters/Humanoid0.png,6,8
+mon_enchantress,Enchantress,Characters/Humanoid0.png,7,8
+mon_warlock,Warlock,Characters/Humanoid0.png,0,9
+mon_shadow_fiend,Shadow Fiend,Characters/Demon0.png,5,0
+mon_demon,Demon,Characters/Demon0.png,2,1
+
+# =====================================================================
+# MONSTERS - Dragons
+# =====================================================================
+mon_dragon_whelp,Dragon Whelp,Characters/Reptile0.png,0,3
+mon_young_drake,Young Drake,Characters/Reptile0.png,1,3
+mon_fire_drake,Fire Drake,Characters/Reptile0.png,2,3
+mon_ice_drake,Ice Drake,Characters/Reptile0.png,4,3
+mon_wyvern,Wyvern,Characters/Reptile0.png,3,3
+mon_red_dragon,Red Dragon,Characters/Reptile0.png,5,3
+mon_black_dragon,Black Dragon,Characters/Reptile0.png,6,3
+
+# =====================================================================
+# MONSTERS - Faerie & Forest
+# =====================================================================
+mon_will_o_wisp,Will-o-Wisp,Characters/Elemental0.png,3,0
+mon_pixie_swarm,Pixie Swarm,Characters/Avian0.png,0,3
+mon_redcap,Redcap,Characters/Humanoid0.png,0,6
+mon_spriggan,Spriggan,Characters/Humanoid0.png,1,6
+mon_green_man,Green Man,Characters/Plant0.png,0,1
+mon_treant,Treant,Characters/Plant0.png,1,1
+mon_bog_hag,Bog Hag,Characters/Humanoid0.png,2,6
+mon_forest_troll,Forest Troll,Characters/Misc0.png,0,1
+
+# =====================================================================
+# MONSTERS - Water Creatures
+# =====================================================================
+mon_giant_pike,Giant Pike,Characters/Aquatic0.png,0,0
+mon_nixie,Nixie,Characters/Aquatic0.png,1,0
+mon_water_serpent,Water Serpent,Characters/Aquatic0.png,2,0
+mon_kelpie,Kelpie,Characters/Aquatic0.png,3,0
+mon_merfolk_warrior,Merfolk Warrior,Characters/Aquatic0.png,4,0
+mon_giant_crab,Giant Crab,Characters/Aquatic0.png,0,2
+mon_drowned_knight,Drowned Knight,Characters/Undead0.png,4,1
+mon_sea_serpent,Sea Serpent,Characters/Aquatic0.png,5,0
+
+# =====================================================================
+# MONSTERS - Trolls & Giants
+# =====================================================================
+mon_troll_shaman,Troll Shaman,Characters/Misc0.png,1,1
+mon_hill_troll,Hill Troll,Characters/Misc0.png,0,1
+mon_cave_troll,Cave Troll,Characters/Misc0.png,2,1
+mon_ogre,Ogre,Characters/Misc0.png,3,1
+mon_frost_giant,Frost Giant,Characters/Misc0.png,4,1
+mon_ettins,Ettins,Characters/Misc0.png,5,1
+mon_cyclops,Cyclops,Characters/Misc0.png,6,1
+mon_stone_giant,Stone Giant,Characters/Misc0.png,7,1
+
+# =====================================================================
+# MONSTERS - Mythical & Boss
+# =====================================================================
+mon_werewolf,Werewolf,Characters/Dog0.png,3,2
+mon_alpha_werewolf,Alpha Werewolf,Characters/Dog0.png,4,2
+mon_questing_beast,Questing Beast,Characters/Reptile0.png,0,2
+mon_green_knight,Green Knight,Characters/Humanoid0.png,5,5
+mon_manticore,Manticore,Characters/Quadraped0.png,5,3
+mon_griffin,Griffin,Characters/Avian0.png,0,0
+mon_basilisk,Basilisk,Characters/Reptile0.png,1,2
+mon_chimera,Chimera,Characters/Quadraped0.png,6,3
+mon_mordred,Mordred,Characters/Humanoid0.png,0,10
+
+# =====================================================================
+# MONSTERS - High-tier (deep dungeon)
+# =====================================================================
+mon_wight_lord,Wight Lord,Characters/Undead0.png,0,2
+mon_lich,Lich,Characters/Undead0.png,1,2
+mon_adamant_golem,Adamant Golem,Characters/Misc0.png,3,0
+mon_frost_wyrm,Frost Wyrm,Characters/Reptile0.png,4,3
+mon_storm_giant,Storm Giant,Characters/Misc0.png,4,1
+mon_hellhound_alpha,Hellhound Alpha,Characters/Dog0.png,5,2
+mon_black_knight_captain,Black Knight Captain,Characters/Humanoid0.png,6,5
+mon_dread_knight,Dread Knight,Characters/Humanoid0.png,7,5
+mon_deep_troll,Deep Troll,Characters/Misc0.png,2,1
+mon_cave_lord,Cave Lord,Characters/Misc0.png,3,1
+mon_shadow_drake,Shadow Drake,Characters/Reptile0.png,7,3
+mon_greater_demon,Greater Demon,Characters/Demon0.png,4,1
+mon_pit_fiend,Pit Fiend,Characters/Demon0.png,6,1
+mon_vampire_count,Vampire Count,Characters/Undead0.png,2,2
+mon_ancient_wraith,Ancient Wraith,Characters/Undead0.png,3,2
+mon_mind_flayer,Mind Flayer,Characters/Misc0.png,5,0
+mon_magma_lord,Magma Lord,Characters/Elemental0.png,0,1
+mon_void_stalker,Void Stalker,Characters/Demon0.png,5,1
+mon_elder_dragon,Elder Dragon,Characters/Reptile0.png,5,3
+mon_bone_colossus,Bone Colossus,Characters/Undead0.png,4,2
+mon_dark_archmage,Dark Archmage,Characters/Humanoid0.png,1,9
+mon_bone_lord,Bone Lord,Characters/Undead0.png,5,2
+
+# =====================================================================
+# OVERWORLD NPCs & ANIMALS
+# =====================================================================
+npc_traveller,Traveller,Characters/Player0.png,1,0
+npc_pilgrim,Pilgrim,Characters/Player0.png,3,0
+npc_merchant,Merchant,Characters/Humanoid0.png,0,0
+npc_peasant,Peasant,Characters/Humanoid0.png,1,0
+npc_deer,Deer,Characters/Quadraped0.png,1,0
+npc_sheep,Sheep,Characters/Quadraped0.png,0,1
+npc_rabbit,Rabbit,Characters/Rodent0.png,1,0
+npc_crow,Crow,Characters/Avian0.png,0,1
+npc_druid,Druid,Characters/Humanoid0.png,3,8
+npc_cat,Cat,Characters/Cat0.png,0,0
+npc_dog,Dog,Characters/Dog0.png,0,0
+
+# =====================================================================
+# TOWN NPCs
+# =====================================================================
+npc_king,King,Characters/Humanoid0.png,0,1
+npc_queen,Queen,Characters/Humanoid0.png,1,1
+npc_guard,Guard,Characters/Humanoid0.png,2,1
+npc_innkeeper,Innkeeper,Characters/Humanoid0.png,0,2
+npc_priest,Priest,Characters/Humanoid0.png,3,1
+npc_smith,Smith,Characters/Humanoid0.png,4,1
+npc_apothecary,Apothecary,Characters/Humanoid0.png,5,1
+npc_baker,Baker,Characters/Humanoid0.png,6,1
+npc_jeweller,Jeweller,Characters/Humanoid0.png,7,1
+npc_monk,Monk,Characters/Humanoid0.png,4,8
+npc_folk,Townsfolk,Characters/Humanoid0.png,3,0
+
+# =====================================================================
+# ITEMS - Weapons
+# =====================================================================
+item_weapon_sword,Sword,Items/MedWep.png,0,0
+item_weapon_longsword,Longsword,Items/LongWep.png,0,0
+item_weapon_dagger,Dagger,Items/ShortWep.png,0,0
+item_weapon_axe,Axe,Items/MedWep.png,2,0
+item_weapon_mace,Mace,Items/ShortWep.png,4,0
+item_weapon_spear,Spear,Items/LongWep.png,4,0
+item_weapon_bow,Bow,Items/LongWep.png,6,0
+
+# =====================================================================
+# ITEMS - Armor & Equipment
+# =====================================================================
+item_armor,Armor,Items/Armor.png,0,0
+item_shield,Shield,Items/Shield.png,0,0
+item_helmet,Helmet,Items/Hat.png,0,0
+item_boots,Boots,Items/Boot.png,0,0
+item_gloves,Gloves,Items/Glove.png,0,0
+item_ring,Ring,Items/Ring.png,0,0
+item_amulet,Amulet,Items/Amulet.png,0,0
+
+# =====================================================================
+# ITEMS - Consumables
+# =====================================================================
+item_potion,Potion,Items/Potion.png,0,0
+item_potion_red,Red Potion,Items/Potion.png,1,0
+item_potion_blue,Blue Potion,Items/Potion.png,2,0
+item_potion_green,Green Potion,Items/Potion.png,3,0
+item_potion_yellow,Yellow Potion,Items/Potion.png,4,0
+item_potion_purple,Purple Potion,Items/Potion.png,5,0
+item_potion_white,White Potion,Items/Potion.png,6,0
+item_potion_black,Black Potion,Items/Potion.png,7,0
+item_scroll,Scroll,Items/Scroll.png,0,0
+item_food,Food,Items/Food.png,0,0
+item_food_bread,Bread,Items/Food.png,2,0
+item_food_meat,Meat,Items/Flesh.png,0,0
+item_food_fish,Fish,Items/Flesh.png,5,0
+item_food_apple,Apple,Items/Food.png,4,1
+
+# =====================================================================
+# ITEMS - Misc
+# =====================================================================
+item_gold,Gold,Items/Money.png,0,0
+item_gem,Gem,Items/Money.png,3,3
+item_treasure,Treasure,Items/Money.png,1,1
+item_torch,Torch,Items/Light.png,0,0
+item_lantern,Lantern,Items/Light.png,2,0
+item_ammo_arrow,Arrow,Items/Ammo.png,0,0
+item_ammo_bolt,Bolt,Items/Ammo.png,1,0
+item_key,Key,Items/Key.png,0,0
+item_tool,Tool,Items/Tool.png,1,0
+
+# =====================================================================
+# TRAPS
+# =====================================================================
+trap_spike,Spike Trap,Objects/Trap0.png,0,0
+trap_arrow,Arrow Trap,Objects/Trap0.png,1,0
+trap_pit,Pit Trap,Objects/Trap0.png,2,0
+trap_fire,Fire Trap,Objects/Trap0.png,3,0
+trap_poison,Poison Trap,Objects/Trap0.png,4,0
+
+# =====================================================================
+# EFFECTS
+# =====================================================================
+effect_fire,Fire,Objects/Effect0.png,0,0
+effect_ice,Ice,Objects/Effect0.png,0,1
+effect_lightning,Lightning,Objects/Effect0.png,0,2
+effect_heal,Heal,Objects/Effect0.png,0,3
+
+# =====================================================================
+# GUI
+# =====================================================================
+gui_heart_full,Heart Full,GUI/GUI0.png,0,0
+gui_heart_half,Heart Half,GUI/GUI0.png,1,0
+gui_heart_empty,Heart Empty,GUI/GUI0.png,2,0
+gui_mana,Mana,GUI/GUI0.png,3,0
+
+# =====================================================================
+# FONT (bitmap TTF available)
+# =====================================================================
+# DawnLike ships SDS_8x8.ttf and SDS_6x6.ttf in GUI/ for text rendering.
+# Use GUI/SDS_8x8.ttf for UI text in the SDL backend.

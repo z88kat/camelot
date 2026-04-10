@@ -360,6 +360,7 @@ Climb down for a random outcome: treasure (40%), rat attack + loot (25%), or emp
 | `z` | Cast spell (overworld/dungeon)                                                    |
 | `Z` | View spellbook (all known spells with stats)                                      |
 | `J` | Quest journal (main quest + side quests)                                          |
+| `B` | Bestiary (list of all encountered creatures with stats and kill counts)            |
 | `;` | Look/identify mode (overworld and dungeon -- examine tiles, locations, creatures) |
 | `M` | Minimap                                                                           |
 | `P` | Message history (scroll with Up/Down, q to close)                                 |
