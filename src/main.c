@@ -1,11 +1,13 @@
 #include "game.h"
 #include "ui.h"
+#include "render.h"
 #include "rng.h"
 #include "save.h"
 #include "loot.h"
 #include "ammo.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Title screen and menu defined in game.c */
 extern int show_title_screen(void);
@@ -16,6 +18,7 @@ int main(int argc, char *argv[]) {
     /* Parse command line flags */
     uint64_t seed = 0;
     bool debug_mode = false;
+    const char *gfx_backend = "curses";
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] == 's' && i + 1 < argc) {
             seed = (uint64_t)atoll(argv[++i]);
@@ -23,14 +26,28 @@ int main(int argc, char *argv[]) {
         if (argv[i][0] == '-' && argv[i][1] == 'd') {
             debug_mode = true;
         }
+        if (strcmp(argv[i], "--gfx") == 0 && i + 1 < argc) {
+            gfx_backend = argv[++i];
+        }
     }
 
     /* Initialize RNG */
     rng_seed(seed);
 
-    /* Initialize ncurses UI */
-    if (!ui_init()) {
-        fprintf(stderr, "Error: terminal does not support colors.\n");
+    /* Initialize renderer */
+    if (strcmp(gfx_backend, "sdl") == 0) {
+#ifdef HAS_SDL2
+        g_renderer = render_sdl_create("tiles");
+#else
+        fprintf(stderr, "SDL2 backend not available (compiled without SDL2).\n");
+        return 1;
+#endif
+    } else {
+        g_renderer = render_curses_create();
+    }
+
+    if (!g_renderer || !R_INIT()) {
+        fprintf(stderr, "Error: failed to initialise %s renderer.\n", gfx_backend);
         return 1;
     }
 
@@ -158,7 +175,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Shutdown */
-    ui_shutdown();
+    R_SHUTDOWN();
 
     printf("Thanks for playing Knights of Camelot!\n");
     printf("Game seed: %llu\n", (unsigned long long)rng_get_seed());

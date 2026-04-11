@@ -20,7 +20,7 @@
 #define MIN_TERM_WIDTH  (60 + SIDEBAR_WIDTH + 1)  /* viewport width, not map width */
 #define MIN_TERM_HEIGHT 30
 /* These are now dynamically calculated in the render loop based on terminal size */
-#define VIEW_HEIGHT_DEFAULT 26  /* default viewport height for the map area */
+#define VIEW_HEIGHT_DEFAULT 40  /* default viewport height for the map area */
 #define LOG_LINES      3
 #define LOG_BUFFER     200
 

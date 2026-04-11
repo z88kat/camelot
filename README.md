@@ -1291,14 +1291,23 @@ Launch with `./camelot -d` to enable debug mode:
 ## Building
 
 ```bash
-make              # Build the game
-./camelot         # Run the game
+make              # Build the game (terminal + graphical if SDL2 found)
+./camelot         # Run in terminal mode (default)
+./camelot --gfx sdl  # Run in graphical mode (requires SDL2)
 ./camelot -s 123  # Start with a specific seed
 ./camelot -d      # Debug mode (full map, level skip)
 make clean        # Clean build files
 ```
 
+### Terminal Mode (default)
+
 Requires: C compiler (clang/gcc), ncurses library, a 256-colour terminal.
+
+### Graphical Mode (optional)
+
+The graphical mode renders the game in an SDL2 window using the DawnLike 16x16 tileset. SDL2 support is **auto-detected at build time** -- if the libraries are present, `--gfx sdl` becomes available. If not, the game builds and runs in terminal mode only.
+
+Requires: SDL2, SDL2_image, SDL2_ttf (in addition to the terminal mode dependencies).
 
 ### macOS
 
@@ -1307,6 +1316,14 @@ Xcode command-line tools include clang and ncurses out of the box:
 ```bash
 xcode-select --install
 make
+```
+
+To enable the graphical mode, install SDL2 via Homebrew:
+
+```bash
+brew install sdl2 sdl2_image sdl2_ttf
+make clean && make
+./camelot --gfx sdl
 ```
 
 ### Linux
@@ -1326,6 +1343,21 @@ make
 sudo pacman -S base-devel ncurses
 make
 ```
+
+To enable the graphical mode, also install the SDL2 libraries:
+
+```bash
+# Debian / Ubuntu
+sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+
+# Fedora / RHEL
+sudo dnf install SDL2-devel SDL2_image-devel SDL2_ttf-devel
+
+# Arch
+sudo pacman -S sdl2 sdl2_image sdl2_ttf
+```
+
+Then rebuild: `make clean && make && ./camelot --gfx sdl`
 
 If your terminal renders colours oddly, ensure 256-colour support:
 
@@ -1356,7 +1388,15 @@ Knights of Camelot is not built natively for Windows, but it runs perfectly unde
     ./camelot
     ```
 
-3. For the best experience, run from [Windows Terminal](https://aka.ms/terminal) (free from the Microsoft Store) -- it supports 256 colours and renders the map cleanly. If colours look wrong, set:
+3. For graphical mode under WSL, install the SDL2 libraries and ensure WSLg is enabled (Windows 11 or Windows 10 with WSL update):
+
+    ```bash
+    sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+    make clean && make
+    ./camelot --gfx sdl
+    ```
+
+4. For the best terminal experience, run from [Windows Terminal](https://aka.ms/terminal) (free from the Microsoft Store) -- it supports 256 colours and renders the map cleanly. If colours look wrong, set:
 
     ```bash
     export TERM=xterm-256color
@@ -1376,6 +1416,17 @@ All game content is defined in CSV files under `data/` -- edit these to rebalanc
 | `data/locations.csv` | 70+ overworld locations with coordinates                                                                  |
 | `data/creatures.csv` | 12 overworld creature types                                                                               |
 | `data/names.csv`     | 48 period-appropriate random names                                                                        |
+
+## Credits
+
+### Tileset
+
+The graphical mode uses the **DawnLike** 16x16 Universal Roguelike Tileset by **DragonDePlatino**, licensed under [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
+
+Palette by **DawnBringer**.
+
+- Tileset: [DawnLike on OpenGameArt](https://opengameart.org/content/dawnlike-16x16-universal-rogue-like-tileset-v181)
+- Fonts: SDS 6x6 and 8x8 monospaced bitmap fonts by DragonDePlatino
 
 ## License
 

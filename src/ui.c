@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "render.h"
 #include <string.h>
 
 static bool use_256_colors = false;
@@ -63,6 +64,7 @@ void ui_shutdown(void) {
 }
 
 void ui_get_size(int *rows, int *cols) {
+    if (g_renderer) { g_renderer->get_size(g_renderer, rows, cols); return; }
     getmaxyx(stdscr, *rows, *cols);
 }
 
@@ -79,6 +81,32 @@ void ui_render_map_generic(Tile *map, int map_w, int map_h,
     if (cam_y + view_height > map_h) cam_y = map_h - view_height;
     if (cam_x < 0) cam_x = 0;
     if (cam_y < 0) cam_y = 0;
+
+    if (g_renderer) {
+        for (int vy = 0; vy < view_height; vy++) {
+            int my = cam_y + vy;
+            for (int vx = 0; vx < view_width; vx++) {
+                int mx = cam_x + vx;
+                if (mx < 0 || mx >= map_w || my < 0 || my >= map_h) {
+                    R_DRAW_CHAR(vx, vy, ' ', CP_DEFAULT, RATTR_NONE);
+                    continue;
+                }
+                Tile *t = &map[my * map_w + mx];
+                if (t->visible)
+                    R_DRAW_CHAR(vx, vy, t->glyph, t->color_pair, RATTR_NONE);
+                else if (t->revealed)
+                    R_DRAW_CHAR(vx, vy, t->glyph, t->color_pair, RATTR_DIM);
+                else
+                    R_DRAW_CHAR(vx, vy, ' ', CP_DEFAULT, RATTR_NONE);
+            }
+        }
+        /* Draw player */
+        int px = player_pos.x - cam_x;
+        int py = player_pos.y - cam_y;
+        if (px >= 0 && px < view_width && py >= 0 && py < view_height)
+            R_DRAW_CHAR(px, py, '@', CP_WHITE_BOLD, RATTR_BOLD);
+        return;
+    }
 
     for (int vy = 0; vy < view_height; vy++) {
         int my = cam_y + vy;
@@ -124,6 +152,63 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
                        int mp, int max_mp, int str, int def, int intel, int spd,
                        int gold, int weight, int max_weight, int encumbrance, int mounted, int chivalry,
                        int turn, int day, int hour, int minute) {
+    if (g_renderer) {
+        int row = 0;
+        R_DRAW_TEXT(row++, col, CP_WHITE_BOLD, RATTR_BOLD, " %-16s", name);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " Level %-10d", level);
+        row++;
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " HP: %3d/%-3d", hp, max_hp);
+        {
+            int bar_len = 16;
+            int hp_bars = (max_hp > 0) ? (hp * bar_len / max_hp) : 0;
+            for (int i = 0; i < bar_len; i++) {
+                if (i < hp_bars)
+                    R_DRAW_CHAR(col + 1 + i, row, '=', CP_GREEN, RATTR_BOLD);
+                else
+                    R_DRAW_CHAR(col + 1 + i, row, '-', CP_RED, RATTR_NONE);
+            }
+        }
+        row++;
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " MP: %3d/%-3d", mp, max_mp);
+        {
+            int bar_len = 16;
+            int mp_bars = (max_mp > 0) ? (mp * bar_len / max_mp) : 0;
+            for (int i = 0; i < bar_len; i++) {
+                if (i < mp_bars)
+                    R_DRAW_CHAR(col + 1 + i, row, '=', CP_CYAN, RATTR_BOLD);
+                else
+                    R_DRAW_CHAR(col + 1 + i, row, '-', CP_BLUE, RATTR_NONE);
+            }
+        }
+        row++;
+        row++;
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " STR: %-3d", str);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " DEF: %-3d", def);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " INT: %-3d", intel);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " SPD: %-3d", spd);
+        row++;
+        {
+            short wcol = CP_WHITE;
+            const char *marker = "";
+            switch (encumbrance) {
+            case 0: wcol = CP_WHITE;  marker = "";    break;
+            case 1: wcol = CP_YELLOW; marker = "*";   break;
+            case 2: wcol = CP_BROWN;  marker = "**";  break;
+            case 3: wcol = CP_RED;    marker = "!!!"; break;
+            }
+            if (mounted)
+                R_DRAW_TEXT(row++, col, wcol, RATTR_NONE, " Wt: %d.%d/%d.%d%s ~", weight/10, weight%10, max_weight/10, max_weight%10, marker);
+            else
+                R_DRAW_TEXT(row++, col, wcol, RATTR_NONE, " Wt: %d.%d/%d.%d%s", weight/10, weight%10, max_weight/10, max_weight%10, marker);
+        }
+        R_DRAW_TEXT(row++, col, CP_YELLOW_BOLD, RATTR_BOLD, " Gold: %-6d", gold);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " Chiv: %-3d", chivalry);
+        row++;
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " Turn: %-6d", turn);
+        R_DRAW_TEXT(row++, col, CP_WHITE, RATTR_NONE, " Day %-2d %02d:%02d", day, hour, minute);
+        return;
+    }
+
     int row = 0;
     attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
     mvprintw(row++, col, " %-16s", name);
@@ -131,9 +216,7 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
 
     attron(COLOR_PAIR(CP_WHITE));
     mvprintw(row++, col, " Level %-10d", level);
-    row++; /* blank line */
-
-    /* HP */
+    row++;
     mvprintw(row++, col, " HP: %3d/%-3d", hp, max_hp);
     {
         int bar_len = 16;
@@ -152,8 +235,6 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
         }
     }
     row++;
-
-    /* MP */
     mvprintw(row++, col, " MP: %3d/%-3d", mp, max_mp);
     {
         int bar_len = 16;
@@ -172,8 +253,7 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
         }
     }
     row++;
-
-    row++; /* blank line */
+    row++;
     mvprintw(row++, col, " STR: %-3d", str);
     mvprintw(row++, col, " DEF: %-3d", def);
     mvprintw(row++, col, " INT: %-3d", intel);
@@ -195,11 +275,9 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
             mvprintw(row++, col, " Wt: %d.%d/%d.%d%s", weight/10, weight%10, max_weight/10, max_weight%10, marker);
         attroff(COLOR_PAIR(wcol));
     }
-
     attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
     mvprintw(row++, col, " Gold: %-6d", gold);
     attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-
     mvprintw(row++, col, " Chiv: %-3d", chivalry);
     row++;
     mvprintw(row++, col, " Turn: %-6d", turn);
@@ -208,6 +286,17 @@ void ui_render_sidebar(int col, const char *name, int level, int hp, int max_hp,
 }
 
 void ui_render_log(const MessageLog *log, int start_row, int width, int lines) {
+    if (g_renderer) {
+        for (int i = 0; i < lines; i++) {
+            int row = start_row + (lines - 1 - i);
+            R_CLEAR_LINE(row, 0);
+            const LogEntry *entry = log_get(log, i);
+            if (entry)
+                R_DRAW_TEXT(row, 1, entry->color_pair, RATTR_NONE, "%.*s", width - 2, entry->text);
+        }
+        return;
+    }
+
     for (int i = 0; i < lines; i++) {
         int row = start_row + (lines - 1 - i);
         move(row, 0);
@@ -223,6 +312,13 @@ void ui_render_log(const MessageLog *log, int start_row, int width, int lines) {
 }
 
 void ui_render_status_bar(int row, int width, const char *status_text) {
+    if (g_renderer) {
+        for (int i = 0; i < width; i++)
+            R_DRAW_CHAR(i, row, ' ', CP_STATUS_BAR, RATTR_NONE);
+        R_DRAW_TEXT(row, 1, CP_STATUS_BAR, RATTR_BOLD, "%.*s", width - 2, status_text);
+        return;
+    }
+
     attron(COLOR_PAIR(CP_STATUS_BAR));
     move(row, 0);
     for (int i = 0; i < width; i++) addch(' ');
@@ -231,6 +327,11 @@ void ui_render_status_bar(int row, int width, const char *status_text) {
 }
 
 void ui_draw_char(int x, int y, char ch, short color_pair, bool bold) {
+    if (g_renderer) {
+        g_renderer->draw_char(g_renderer, x, y, ch, color_pair,
+                              bold ? RATTR_BOLD : RATTR_NONE);
+        return;
+    }
     if (bold) {
         attron(COLOR_PAIR(color_pair) | A_BOLD);
     } else {
@@ -245,19 +346,27 @@ void ui_draw_char(int x, int y, char ch, short color_pair, bool bold) {
 }
 
 void ui_clear(void) {
+    if (g_renderer) { void (*fn)(Renderer*) = g_renderer->clear; fn(g_renderer); return; }
     clear();
 }
 
 void ui_refresh(void) {
+    if (g_renderer) { void (*fn)(Renderer*) = g_renderer->refresh; fn(g_renderer); return; }
     refresh();
 }
 
 int ui_getkey(void) {
+    if (g_renderer) return g_renderer->getkey(g_renderer);
     return getch();
 }
 
 void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
                        const char *locations_info) {
+    if (g_renderer) {
+        g_renderer->render_minimap(g_renderer, map, map_w, map_h,
+                                   player_pos, locations_info);
+        return;
+    }
     int term_rows, term_cols;
     getmaxyx(stdscr, term_rows, term_cols);
 

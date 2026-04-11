@@ -1,5 +1,6 @@
 #include "game.h"
 #include "ui.h"
+#include "render.h"
 #include "rng.h"
 #include "pathfind.h"
 #include "save.h"
@@ -10,6 +11,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
+#include <time.h>
+
+/* When true, game_render() skips its final ui_refresh() so the caller
+ * can draw overlays (e.g. look-mode cursor) before presenting. */
+static bool render_skip_refresh = false;
 
 /* Forward declarations */
 static void ai_explode_on_death(GameState *gs, Entity *e);
@@ -91,7 +97,6 @@ static void show_death_screen(GameState *gs) {
     /*     |   R.I.P.    |     */
 
     /* Rounded top */
-    attron(COLOR_PAIR(CP_GRAY));
     {
         char top[120];
         int i = 0;
@@ -99,7 +104,7 @@ static void show_death_screen(GameState *gs) {
         for (int c = 0; c < sw; c++) top[i++] = '-';
         top[i++] = '.';
         top[i] = '\0';
-        mvprintw(row++, cx, "%s", top);
+        R_DRAW_TEXT(row++, cx, CP_GRAY, RATTR_NONE,  "%s",  top);
     }
 
     /* Curved shoulders */
@@ -110,46 +115,33 @@ static void show_death_screen(GameState *gs) {
         for (int c = 0; c < sw; c++) shoulder[i++] = ' ';
         shoulder[i++] = '\\';
         shoulder[i] = '\0';
-        mvprintw(row++, cx, "%s", shoulder);
+        R_DRAW_TEXT(row++, cx, CP_GRAY, RATTR_NONE,  "%s",  shoulder);
     }
-    attroff(COLOR_PAIR(CP_GRAY));
 
     /* R.I.P. line */
     {
         char border_l[4] = "|";
         char border_r[4] = "|";
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row, cx, "%s", border_l);
-        mvprintw(row, cx + tw - 1, "%s", border_r);
-        attroff(COLOR_PAIR(CP_GRAY));
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, cx + (tw - 5) / 2, "R.I.P.");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, cx, CP_GRAY, RATTR_NONE,  "%s",  border_l);
+        R_DRAW_TEXT(row, cx + tw - 1, CP_GRAY, RATTR_NONE,  "%s",  border_r);
+        R_DRAW_TEXT(row, cx + (tw - 5) / 2, CP_WHITE_BOLD, RATTR_BOLD,  "R.I.P.");
         row++;
     }
 
     /* Helper macro-like: print a centered line inside the stone */
     #define STONE_LINE(color, bold, text) do { \
-        attron(COLOR_PAIR(CP_GRAY)); \
-        mvprintw(row, cx, "|"); \
-        mvprintw(row, cx + tw - 1, "|"); \
-        attroff(COLOR_PAIR(CP_GRAY)); \
+        R_DRAW_TEXT(row, cx, CP_GRAY, RATTR_NONE,  "|"); \
+        R_DRAW_TEXT(row, cx + tw - 1, CP_GRAY, RATTR_NONE,  "|"); \
         int _tl = (int)strlen(text); \
         int _tx = cx + 1 + (sw - _tl) / 2; \
         if (_tx < cx + 1) _tx = cx + 1; \
-        if (bold) attron(COLOR_PAIR(color) | A_BOLD); \
-        else attron(COLOR_PAIR(color)); \
-        mvprintw(row, _tx, "%s", text); \
-        if (bold) attroff(COLOR_PAIR(color) | A_BOLD); \
-        else attroff(COLOR_PAIR(color)); \
+        R_DRAW_TEXT(row, _tx, color, (bold) ? RATTR_BOLD : RATTR_NONE, "%s", text); \
         row++; \
     } while(0)
 
     #define STONE_BLANK() do { \
-        attron(COLOR_PAIR(CP_GRAY)); \
-        mvprintw(row, cx, "|"); \
-        mvprintw(row, cx + tw - 1, "|"); \
-        attroff(COLOR_PAIR(CP_GRAY)); \
+        R_DRAW_TEXT(row, cx, CP_GRAY, RATTR_NONE,  "|"); \
+        R_DRAW_TEXT(row, cx + tw - 1, CP_GRAY, RATTR_NONE,  "|"); \
         row++; \
     } while(0)
 
@@ -172,7 +164,6 @@ static void show_death_screen(GameState *gs) {
     #undef STONE_BLANK
 
     /* Bottom of gravestone */
-    attron(COLOR_PAIR(CP_GRAY));
     {
         char bot[120];
         int i = 0;
@@ -180,7 +171,7 @@ static void show_death_screen(GameState *gs) {
         for (int c = 0; c < sw; c++) bot[i++] = '_';
         bot[i++] = '|';
         bot[i] = '\0';
-        mvprintw(row++, cx, "%s", bot);
+        R_DRAW_TEXT(row++, cx, CP_GRAY, RATTR_NONE,  "%s",  bot);
     }
 
     /* Ground line */
@@ -190,20 +181,15 @@ static void show_death_screen(GameState *gs) {
         int ground_end = cx + tw + 4;
         if (ground_end > term_cols) ground_end = term_cols;
         for (int c = ground_start; c < ground_end; c++) {
-            mvprintw(row, c, "%c", (rng_range(0, 3) == 0) ? ',' : '.');
+            R_DRAW_TEXT(row, c, CP_GRAY, RATTR_NONE,  "%c",  (rng_range(0, 3) == 0) ? ',' : '.');
         }
     }
-    attroff(COLOR_PAIR(CP_GRAY));
     row += 2;
 
-    attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row++, cx + (tw - 20) / 2, "Game seed: %llu", (unsigned long long)rng_get_seed());
-    attroff(COLOR_PAIR(CP_GRAY));
+    R_DRAW_TEXT(row++, cx + (tw - 20) / 2, CP_GRAY, RATTR_NONE,  "Game seed: %llu",  (unsigned long long)rng_get_seed());
     row++;
 
-    attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row, cx + (tw - 27) / 2, "Press any key to continue...");
-    attroff(COLOR_PAIR(CP_GRAY));
+    R_DRAW_TEXT(row, cx + (tw - 27) / 2, CP_GRAY, RATTR_NONE,  "Press any key to continue...");
     ui_refresh();
     ui_getkey();
 
@@ -291,37 +277,29 @@ int show_title_screen(void) {
     ui_clear();
     int row = 3;
 
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 10, "  _  __      _       _     _        ");
-    mvprintw(row++, 10, " | |/ /     (_)     | |   | |       ");
-    mvprintw(row++, 10, " | ' / _ __  _  __ _| |__ | |_ ___  ");
-    mvprintw(row++, 10, " |  < | '_ \\| |/ _` | '_ \\| __/ __|");
-    mvprintw(row++, 10, " | . \\| | | | | (_| | | | | |_\\__ \\");
-    mvprintw(row++, 10, " |_|\\_\\_| |_|_|\\__, |_| |_|\\__|___/");
-    mvprintw(row++, 10, "                __/ |               ");
-    mvprintw(row++, 10, "   of          |___/                ");
-    mvprintw(row++, 10, "       C A M E L O T                ");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  "  _  __      _       _     _        ");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  " | |/ /     (_)     | |   | |       ");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  " | ' / _ __  _  __ _| |__ | |_ ___  ");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  " |  < | '_ \\| |/ _` | '_ \\| __/ __|");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  " | . \\| | | | | (_| | | | | |_\\__ \\");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  " |_|\\_\\_| |_|_|\\__, |_| |_|\\__|___/");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  "                __/ |               ");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  "   of          |___/                ");
+    R_DRAW_TEXT(row++, 10, CP_YELLOW_BOLD, RATTR_BOLD,  "       C A M E L O T                ");
     row += 2;
 
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 10, "The Quest for the Holy Grail");
-    attroff(COLOR_PAIR(CP_WHITE));
+    R_DRAW_TEXT(row++, 10, CP_WHITE, RATTR_NONE,  "The Quest for the Holy Grail");
     row++;
-    attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row++, 10, "Version %s", GAME_VERSION_STRING);
-    attroff(COLOR_PAIR(CP_GRAY));
+    R_DRAW_TEXT(row++, 10, CP_GRAY, RATTR_NONE,  "Version %s",  GAME_VERSION_STRING);
     row++;
 
     int menu_row = row;
-    attron(COLOR_PAIR(CP_CYAN));
     if (has_save)
-        mvprintw(row++, 14, "[c] Continue saved game");
-    mvprintw(row++, 14, "[n] New Game");
-    mvprintw(row++, 14, "[h] High Scores");
-    mvprintw(row++, 14, "[f] Fallen Heroes");
-    mvprintw(row++, 14, "[q] Quit");
-    attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 14, CP_CYAN, RATTR_NONE,  "[c] Continue saved game");
+    R_DRAW_TEXT(row++, 14, CP_CYAN, RATTR_NONE,  "[n] New Game");
+    R_DRAW_TEXT(row++, 14, CP_CYAN, RATTR_NONE,  "[h] High Scores");
+    R_DRAW_TEXT(row++, 14, CP_CYAN, RATTR_NONE,  "[f] Fallen Heroes");
+    R_DRAW_TEXT(row++, 14, CP_CYAN, RATTR_NONE,  "[q] Quit");
     (void)menu_row;
 
     ui_refresh();
@@ -342,33 +320,23 @@ void show_high_scores_screen(void) {
 
     ui_clear();
     int row = 2;
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 4, "=== High Scores ===");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== High Scores ===");
     row++;
 
     if (count == 0) {
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 6, "No scores yet. Go forth and quest!");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "No scores yet. Go forth and quest!");
     } else {
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, " #  %-16s %-10s %6s  %s", "Name", "Class", "Score", "Cause of Death");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  " #  %-16s %-10s %6s  %s",  "Name",  "Class",  "Score",  "Cause of Death");
         for (int i = 0; i < count; i++) {
             short cp = (i == 0) ? CP_YELLOW_BOLD : (i < 3) ? CP_YELLOW : CP_WHITE;
-            attron(COLOR_PAIR(cp));
-            mvprintw(row++, 4, "%2d. %-16s %-10s %6d  %s%s",
+            R_DRAW_TEXT(row++, 4, cp, RATTR_NONE, "%2d. %-16s %-10s %6d  %s%s",
                      i + 1, scores[i].name, scores[i].class_name,
                      scores[i].score, scores[i].cause,
                      scores[i].found_grail ? " [GRAIL]" : "");
-            attroff(COLOR_PAIR(cp));
         }
     }
     row++;
-    attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row, 4, "Press any key to return.");
-    attroff(COLOR_PAIR(CP_GRAY));
+    R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to return.");
     ui_refresh();
     ui_getkey();
 }
@@ -379,35 +347,25 @@ void show_fallen_heroes_screen(void) {
 
     ui_clear();
     int row = 2;
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 4, "=== Fallen Heroes ===");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Fallen Heroes ===");
     row++;
 
     if (count == 0) {
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 6, "No heroes have fallen yet.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "No heroes have fallen yet.");
     } else {
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 4, "%d brave soul%s ha%s perished in the quest for the Grail.",
+        R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "%d brave soul%s ha%s perished in the quest for the Grail.",
                  count, count == 1 ? "" : "s", count == 1 ? "s" : "ve");
-        attroff(COLOR_PAIR(CP_WHITE));
         row++;
         int term_rows, term_cols;
         ui_get_size(&term_rows, &term_cols);
         for (int i = 0; i < count && row < term_rows - 3; i++) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "%-16s Lvl %-2d  %-10s  %4d pts  \"%s\"",
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE, "%-16s Lvl %-2d  %-10s  %4d pts  \"%s\"",
                      heroes[i].name, heroes[i].level, heroes[i].class_name,
                      heroes[i].score, heroes[i].cause);
-            attroff(COLOR_PAIR(CP_GRAY));
         }
     }
     row++;
-    attron(COLOR_PAIR(CP_GRAY));
-    mvprintw(row, 4, "Press any key to return.");
-    attroff(COLOR_PAIR(CP_GRAY));
+    R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to return.");
     ui_refresh();
     ui_getkey();
 }
@@ -3721,140 +3679,100 @@ static void handle_overworld_input(GameState *gs, int key) {
                 for (int cx = 0; cx < COT_W; cx++) {
                     int sx = ox + cx, sy = oy + cy;
                     if (cy == 0 || cy == COT_H - 1 || cx == 0 || cx == COT_W - 1) {
-                        attron(COLOR_PAIR(CP_BROWN));
-                        mvaddch(sy, sx, '#');
-                        attroff(COLOR_PAIR(CP_BROWN));
+                        R_DRAW_CHAR(sx, sy, '#', CP_BROWN, RATTR_NONE);
                     } else {
-                        attron(COLOR_PAIR(CP_YELLOW));
-                        mvaddch(sy, sx, '.');
-                        attroff(COLOR_PAIR(CP_YELLOW));
+                        R_DRAW_CHAR(sx, sy, '.', CP_YELLOW, RATTR_NONE);
                     }
                 }
             }
             /* Door at bottom center */
-            attron(COLOR_PAIR(CP_BROWN));
-            mvaddch(oy + COT_H - 1, ox + COT_W / 2, '/');
-            attroff(COLOR_PAIR(CP_BROWN));
+            R_DRAW_CHAR(ox + COT_W / 2, oy + COT_H - 1, '/', CP_BROWN, RATTR_NONE);
             /* Fireplace */
-            attron(COLOR_PAIR(CP_RED) | A_BOLD);
-            mvaddch(oy + 1, ox + 1, '^');
-            attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+            R_DRAW_CHAR(ox + 1, oy + 1, '^', CP_RED, RATTR_BOLD);
             /* Table */
-            attron(COLOR_PAIR(CP_BROWN));
-            mvaddch(oy + 3, ox + COT_W / 2, '=');
-            attroff(COLOR_PAIR(CP_BROWN));
+            R_DRAW_CHAR(ox + COT_W / 2, oy + 3, '=', CP_BROWN, RATTR_NONE);
             /* Player at door */
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvaddch(oy + COT_H - 2, ox + COT_W / 2, '@');
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            R_DRAW_CHAR(ox + COT_W / 2, oy + COT_H - 2, '@', CP_WHITE_BOLD, RATTR_BOLD);
 
             /* Title */
-            attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
-            mvprintw(oy - 1, ox, "A Small Cottage");
-            attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+            R_DRAW_TEXT(oy - 1, ox, CP_BROWN, RATTR_BOLD,  "A Small Cottage");
 
             /* Random state */
             int cot_roll = rng_range(1, 100);
             int text_y = oy + COT_H + 1;
 
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(text_y++, ox - 10, "You push open the creaky door and step inside...");
+            R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "You push open the creaky door and step inside...");
             text_y++;
 
             if (cot_roll <= 30) {
                 /* Empty */
-                mvprintw(text_y++, ox - 10, "The cottage is abandoned. Dust covers everything.");
-                mvprintw(text_y++, ox - 10, "A cold fireplace and an empty table. You rest briefly.");
+                R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "The cottage is abandoned. Dust covers everything.");
+                R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "A cold fireplace and an empty table. You rest briefly.");
                 gs->hp += gs->max_hp / 4;
                 if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
                 gs->mp += gs->max_mp / 4;
                 if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(text_y++, ox - 10, "You rest and recover slightly. (+25%% HP/MP)");
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(text_y++, ox - 10, CP_GREEN, RATTR_NONE,  "You rest and recover slightly. (+25%% HP/MP)");
             } else if (cot_roll <= 65) {
                 /* Friendly occupant */
                 /* Draw occupant */
-                attron(COLOR_PAIR(CP_WHITE) | A_BOLD);
-                mvaddch(oy + 2, ox + COT_W / 2 + 2, '@');
-                attroff(COLOR_PAIR(CP_WHITE) | A_BOLD);
+                R_DRAW_CHAR(ox + COT_W / 2 + 2, oy + 2, '@', CP_WHITE, RATTR_BOLD);
 
                 int who = rng_range(1, 4);
                 if (who == 1) {
-                    mvprintw(text_y++, ox - 10, "A hermit sits by the fire. He looks up and smiles.");
-                    mvprintw(text_y++, ox - 10, "\"Sit, traveller. I know these lands well.\"");
-                    attron(COLOR_PAIR(CP_YELLOW));
-                    mvprintw(text_y++, ox - 10, "He shares rumours about a nearby dungeon.");
-                    attroff(COLOR_PAIR(CP_YELLOW));
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "A hermit sits by the fire. He looks up and smiles.");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "\"Sit, traveller. I know these lands well.\"");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_YELLOW, RATTR_NONE,  "He shares rumours about a nearby dungeon.");
                 } else if (who == 2) {
-                    mvprintw(text_y++, ox - 10, "A healer tends herbs by the window.");
-                    mvprintw(text_y++, ox - 10, "\"You look weary. Let me help.\"");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "A healer tends herbs by the window.");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "\"You look weary. Let me help.\"");
                     gs->hp = gs->max_hp;
-                    attron(COLOR_PAIR(CP_GREEN));
-                    mvprintw(text_y++, ox - 10, "She heals your wounds. HP fully restored!");
-                    attroff(COLOR_PAIR(CP_GREEN));
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_GREEN, RATTR_NONE,  "She heals your wounds. HP fully restored!");
                 } else if (who == 3) {
-                    mvprintw(text_y++, ox - 10, "A retired knight sits polishing a old sword.");
-                    mvprintw(text_y++, ox - 10, "\"Let me tell you about fighting, lad...\"");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "A retired knight sits polishing a old sword.");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "\"Let me tell you about fighting, lad...\"");
                     gs->str++;
-                    attron(COLOR_PAIR(CP_GREEN));
-                    mvprintw(text_y++, ox - 10, "His tales inspire you. +1 STR!");
-                    attroff(COLOR_PAIR(CP_GREEN));
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_GREEN, RATTR_NONE,  "His tales inspire you. +1 STR!");
                 } else {
-                    mvprintw(text_y++, ox - 10, "A peasant offers you bread and water.");
-                    mvprintw(text_y++, ox - 10, "\"Not much, but you're welcome to it.\"");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "A peasant offers you bread and water.");
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "\"Not much, but you're welcome to it.\"");
                     gs->hp += gs->max_hp / 2;
                     if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
-                    attron(COLOR_PAIR(CP_GREEN));
-                    mvprintw(text_y++, ox - 10, "The food restores you. (+50%% HP)");
-                    attroff(COLOR_PAIR(CP_GREEN));
+                    R_DRAW_TEXT(text_y++, ox - 10, CP_GREEN, RATTR_NONE,  "The food restores you. (+50%% HP)");
                 }
                 gs->chivalry += 2;
                 if (gs->chivalry > 100) gs->chivalry = 100;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(text_y++, ox - 10, "You are grateful for the hospitality. (+2 chivalry)");
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(text_y++, ox - 10, CP_YELLOW, RATTR_NONE,  "You are grateful for the hospitality. (+2 chivalry)");
             } else if (cot_roll <= 85) {
                 /* Hostile -- bandits (placeholder without combat) */
-                attron(COLOR_PAIR(CP_RED) | A_BOLD);
-                mvaddch(oy + 2, ox + 3, 'b');
-                mvaddch(oy + 3, ox + 8, 'b');
-                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+                R_DRAW_CHAR(ox + 3, oy + 2, 'b', CP_RED, RATTR_BOLD);
+                R_DRAW_CHAR(ox + 8, oy + 3, 'b', CP_RED, RATTR_BOLD);
 
-                mvprintw(text_y++, ox - 10, "Bandits! Two rough men lunge at you!");
+                R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "Bandits! Two rough men lunge at you!");
                 int damage = rng_range(3, 8);
                 gs->hp -= damage;
                 if (gs->hp < 1) gs->hp = 1;
-                attron(COLOR_PAIR(CP_RED));
-                mvprintw(text_y++, ox - 10, "You fight them off but take %d damage.", damage);
-                attroff(COLOR_PAIR(CP_RED));
+                R_DRAW_TEXT(text_y++, ox - 10, CP_RED, RATTR_NONE,  "You fight them off but take %d damage.",  damage);
                 int loot = rng_range(8, 25);
                 gs->gold += loot;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(text_y++, ox - 10, "You find %d gold in their stash.", loot);
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(text_y++, ox - 10, CP_YELLOW, RATTR_NONE,  "You find %d gold in their stash.",  loot);
             } else {
                 /* Special -- alchemist lab */
-                attron(COLOR_PAIR(CP_MAGENTA));
-                mvaddch(oy + 2, ox + 3, '!');
-                mvaddch(oy + 2, ox + 5, '!');
-                mvaddch(oy + 2, ox + 7, '!');
-                attroff(COLOR_PAIR(CP_MAGENTA));
+                R_DRAW_CHAR(ox + 3, oy + 2, '!', CP_MAGENTA, RATTR_NONE);
+                R_DRAW_CHAR(ox + 5, oy + 2, '!', CP_MAGENTA, RATTR_NONE);
+                R_DRAW_CHAR(ox + 7, oy + 2, '!', CP_MAGENTA, RATTR_NONE);
 
-                mvprintw(text_y++, ox - 10, "An abandoned alchemist's laboratory!");
-                mvprintw(text_y++, ox - 10, "Bubbling potions line the shelves.");
+                R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "An abandoned alchemist's laboratory!");
+                R_DRAW_TEXT(text_y++, ox - 10, CP_WHITE, RATTR_NONE, "Bubbling potions line the shelves.");
                 int gold = rng_range(10, 30);
                 gs->gold += gold;
                 gs->mp += 10;
                 if (gs->mp > gs->max_mp) gs->mp = gs->max_mp;
-                attron(COLOR_PAIR(CP_MAGENTA));
-                mvprintw(text_y++, ox - 10, "You find %d gold and drink a mana potion. (+10 MP)", gold);
-                attroff(COLOR_PAIR(CP_MAGENTA));
+                R_DRAW_TEXT(text_y++, ox - 10, CP_MAGENTA, RATTR_NONE,  "You find %d gold and drink a mana potion. (+10 MP)",  gold);
             }
 
-            attroff(COLOR_PAIR(CP_WHITE));
             text_y++;
-            mvprintw(text_y, ox - 10, "[ESC/q to leave the cottage]");
+            R_DRAW_TEXT(text_y, ox - 10, CP_GRAY, RATTR_NONE, "[ESC/q to leave the cottage]");
             ui_refresh();
             { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
 
@@ -3975,105 +3893,73 @@ static void handle_overworld_input(GameState *gs, int key) {
                     double dist = (double)((cx - CAVE_W/2)*(cx - CAVE_W/2)) / 12.0 +
                                   (double)((cy - CAVE_H/2)*(cy - CAVE_H/2)) / 8.0;
                     if (dist > 1.0) {
-                        attron(COLOR_PAIR(CP_GRAY));
-                        mvaddch(sy, sx, '#');
-                        attroff(COLOR_PAIR(CP_GRAY));
+                        R_DRAW_CHAR(sx, sy, '#', CP_GRAY, RATTR_NONE);
                     } else {
-                        attron(COLOR_PAIR(CP_GRAY));
-                        mvaddch(sy, sx, '.');
-                        attroff(COLOR_PAIR(CP_GRAY));
+                        R_DRAW_CHAR(sx, sy, '.', CP_GRAY, RATTR_NONE);
                     }
                 }
             }
             /* Entrance */
-            attron(COLOR_PAIR(CP_BROWN));
-            mvaddch(coy + CAVE_H - 1, cox + CAVE_W / 2, '/');
-            attroff(COLOR_PAIR(CP_BROWN));
+            R_DRAW_CHAR(cox + CAVE_W / 2, coy + CAVE_H - 1, '/', CP_BROWN, RATTR_NONE);
             /* Player */
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvaddch(coy + CAVE_H - 2, cox + CAVE_W / 2, '@');
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            R_DRAW_CHAR(cox + CAVE_W / 2, coy + CAVE_H - 2, '@', CP_WHITE_BOLD, RATTR_BOLD);
 
-            attron(COLOR_PAIR(CP_GRAY) | A_BOLD);
-            mvprintw(coy - 1, cox, "A Dark Cave");
-            attroff(COLOR_PAIR(CP_GRAY) | A_BOLD);
+            R_DRAW_TEXT(coy - 1, cox, CP_GRAY, RATTR_BOLD,  "A Dark Cave");
 
             int cave_roll = rng_range(1, 100);
             int ct_y = coy + CAVE_H + 1;
 
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(ct_y++, cox - 10, "You squeeze through the narrow entrance...");
+            R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "You squeeze through the narrow entrance...");
             ct_y++;
 
             if (cave_roll <= 25) {
-                mvprintw(ct_y++, cox - 10, "The cave is empty. A dry shelter, nothing more.");
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "The cave is empty. A dry shelter, nothing more.");
                 gs->hp += gs->max_hp / 4;
                 if (gs->hp > gs->max_hp) gs->hp = gs->max_hp;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(ct_y++, cox - 10, "You rest briefly. (+25%% HP)");
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_GREEN, RATTR_NONE,  "You rest briefly. (+25%% HP)");
             } else if (cave_roll <= 55) {
                 /* Monster lair */
-                attron(COLOR_PAIR(CP_RED) | A_BOLD);
-                mvaddch(coy + 2, cox + CAVE_W / 2, 'B');
-                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+                R_DRAW_CHAR(cox + CAVE_W / 2, coy + 2, 'B', CP_RED, RATTR_BOLD);
 
-                mvprintw(ct_y++, cox - 10, "A bear growls from the shadows!");
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "A bear growls from the shadows!");
                 int damage = rng_range(4, 10);
                 gs->hp -= damage;
                 if (gs->hp < 1) gs->hp = 1;
-                attron(COLOR_PAIR(CP_RED));
-                mvprintw(ct_y++, cox - 10, "The bear mauls you for %d damage!", damage);
-                attroff(COLOR_PAIR(CP_RED));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_RED, RATTR_NONE,  "The bear mauls you for %d damage!",  damage);
                 int loot = rng_range(5, 15);
                 gs->gold += loot;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(ct_y++, cox - 10, "You drive it off and find %d gold in its lair.", loot);
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_YELLOW, RATTR_NONE,  "You drive it off and find %d gold in its lair.",  loot);
             } else if (cave_roll <= 90) {
                 /* Hermit */
-                attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
-                mvaddch(coy + 2, cox + CAVE_W / 2, 'h');
-                attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+                R_DRAW_CHAR(cox + CAVE_W / 2, coy + 2, 'h', CP_BROWN, RATTR_BOLD);
 
-                mvprintw(ct_y++, cox - 10, "A hermit sits cross-legged, meditating.");
-                mvprintw(ct_y++, cox - 10, "\"Peace, traveller. Take this blessing.\"");
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "A hermit sits cross-legged, meditating.");
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "\"Peace, traveller. Take this blessing.\"");
                 int *stats[] = { &gs->str, &gs->def, &gs->intel, &gs->spd };
                 const char *names[] = { "STR", "DEF", "INT", "SPD" };
                 int pick = rng_range(0, 3);
                 (*stats[pick])++;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(ct_y++, cox - 10, "The hermit blesses you. +1 %s!", names[pick]);
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_GREEN, RATTR_NONE,  "The hermit blesses you. +1 %s!",  names[pick]);
                 gs->chivalry += 2;
                 if (gs->chivalry > 100) gs->chivalry = 100;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(ct_y++, cox - 10, "You respect his solitude. (+2 chivalry)");
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_YELLOW, RATTR_NONE,  "You respect his solitude. (+2 chivalry)");
             } else {
                 /* Bandit hideout */
-                attron(COLOR_PAIR(CP_RED) | A_BOLD);
-                mvaddch(coy + 2, cox + 3, 'b');
-                mvaddch(coy + 3, cox + 6, 'b');
-                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+                R_DRAW_CHAR(cox + 3, coy + 2, 'b', CP_RED, RATTR_BOLD);
+                R_DRAW_CHAR(cox + 6, coy + 3, 'b', CP_RED, RATTR_BOLD);
 
-                mvprintw(ct_y++, cox - 10, "Bandits! They spring from the darkness!");
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_WHITE, RATTR_NONE, "Bandits! They spring from the darkness!");
                 int damage = rng_range(2, 6);
                 gs->hp -= damage;
                 if (gs->hp < 1) gs->hp = 1;
-                attron(COLOR_PAIR(CP_RED));
-                mvprintw(ct_y++, cox - 10, "A scuffle! You take %d damage.", damage);
-                attroff(COLOR_PAIR(CP_RED));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_RED, RATTR_NONE,  "A scuffle! You take %d damage.",  damage);
                 int loot = rng_range(15, 40);
                 gs->gold += loot;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(ct_y++, cox - 10, "You defeat them and loot %d gold!", loot);
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(ct_y++, cox - 10, CP_YELLOW, RATTR_NONE,  "You defeat them and loot %d gold!",  loot);
             }
 
-            attroff(COLOR_PAIR(CP_WHITE));
             ct_y++;
-            mvprintw(ct_y, cox - 10, "[ESC/q to leave the cave]");
+            R_DRAW_TEXT(ct_y, cox - 10, CP_GRAY, RATTR_NONE, "[ESC/q to leave the cave]");
             ui_refresh();
             { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
 
@@ -4142,24 +4028,16 @@ static void handle_overworld_input(GameState *gs, int key) {
                     gs->faerie_queen_met = true;
                     ui_clear();
                     int row = 3;
-                    attron(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "The air shimmers and a radiant figure appears!");
-                    mvprintw(row++, 4, "The Faerie Queen stands before you.");
-                    attroff(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_GREEN_BOLD, RATTR_BOLD,  "The air shimmers and a radiant figure appears!");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN_BOLD, RATTR_BOLD,  "The Faerie Queen stands before you.");
                     row++;
-                    attron(COLOR_PAIR(CP_GREEN));
-                    mvprintw(row++, 4, "\"Mortal, I offer you a pact. My power for your service.\"");
-                    mvprintw(row++, 4, "\"Accept, and I shall grant you a faerie blade and");
-                    mvprintw(row++, 4, " the blessing of Nature. But you owe me a favour...\"");
-                    attroff(COLOR_PAIR(CP_GREEN));
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "\"Mortal, I offer you a pact. My power for your service.\"");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "\"Accept, and I shall grant you a faerie blade and");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  " the blessing of Nature. But you owe me a favour...\"");
                     row++;
-                    attron(COLOR_PAIR(CP_CYAN));
-                    mvprintw(row++, 4, "Reward: +10 Nature affinity, Faerie Blade (pow 10)");
-                    attroff(COLOR_PAIR(CP_CYAN));
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "Reward: +10 Nature affinity, Faerie Blade (pow 10)");
                     row++;
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvprintw(row++, 4, "[a] Accept the pact    [d] Decline politely");
-                    attroff(COLOR_PAIR(CP_GRAY));
+                    R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "[a] Accept the pact    [d] Decline politely");
                     ui_refresh();
 
                     int fk = ui_getkey();
@@ -4219,11 +4097,9 @@ static void handle_overworld_input(GameState *gs, int key) {
                 } else {
                     ui_clear();
                     int row = 3;
-                    attron(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "The dark waters of Loch Ness ripple...");
-                    mvprintw(row++, 4, "A massive shape rises from the depths!");
-                    mvprintw(row++, 4, "NESSIE, the legendary sea monster!");
-                    attroff(COLOR_PAIR(CP_GREEN_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_GREEN_BOLD, RATTR_BOLD,  "The dark waters of Loch Ness ripple...");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN_BOLD, RATTR_BOLD,  "A massive shape rises from the depths!");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN_BOLD, RATTR_BOLD,  "NESSIE, the legendary sea monster!");
                     row++;
 
                     /* Check for fish to appease */
@@ -4235,12 +4111,10 @@ static void handle_overworld_input(GameState *gs, int key) {
                         }
                     }
 
-                    attron(COLOR_PAIR(CP_CYAN));
-                    mvprintw(row++, 4, "[f] Fight Nessie (very dangerous!)");
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "[f] Fight Nessie (very dangerous!)");
                     if (fish_idx >= 0)
-                        mvprintw(row++, 4, "[o] Offer fish to appease her");
-                    mvprintw(row++, 4, "[r] Run away");
-                    attroff(COLOR_PAIR(CP_CYAN));
+                        R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "[o] Offer fish to appease her");
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "[r] Run away");
                     ui_refresh();
 
                     int nk = ui_getkey();
@@ -4325,22 +4199,14 @@ static void handle_overworld_input(GameState *gs, int key) {
                     /* Worthy -- receive Excalibur */
                     ui_clear();
                     int row = 3;
-                    attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "A hand rises from the still waters, holding a gleaming sword.");
-                    attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_CYAN_BOLD, RATTR_BOLD,  "A hand rises from the still waters, holding a gleaming sword.");
                     row++;
-                    attron(COLOR_PAIR(CP_CYAN));
-                    mvprintw(row++, 4, "\"You have proven yourself worthy, %s.", gs->player_name);
-                    mvprintw(row++, 4, " Take Excalibur, the sword of kings.\"");
-                    attroff(COLOR_PAIR(CP_CYAN));
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "\"You have proven yourself worthy, %s.",  gs->player_name);
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  " Take Excalibur, the sword of kings.\"");
                     row++;
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "You receive Excalibur! (+2 STR while wielded)");
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "You receive Excalibur! (+2 STR while wielded)");
                     row += 2;
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvprintw(row, 4, "Press any key.");
-                    attroff(COLOR_PAIR(CP_GRAY));
+                    R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key.");
                     ui_refresh();
                     ui_getkey();
 
@@ -4853,7 +4719,7 @@ static void handle_overworld_input(GameState *gs, int key) {
 
             /* Calculate scaling to match ui_render_minimap proportional mode */
             int term_rows_m, term_cols_m;
-            getmaxyx(stdscr, term_rows_m, term_cols_m);
+            R_GET_SIZE(&term_rows_m, &term_cols_m);
             int avail_cols_m = term_cols_m - 2;
             int avail_rows_m = term_rows_m - 3;
             int scale_m = (OW_WIDTH + avail_cols_m - 1) / avail_cols_m;
@@ -4890,18 +4756,14 @@ static void handle_overworld_input(GameState *gs, int key) {
                     int ly = (ll->pos.y - cam_y_m) / row_scale_m;
                     if (lx < 0 || lx >= view_w_m || ly < 0 || ly >= view_h_m) continue;
 
-                    attron(COLOR_PAIR(ll->color_pair) | A_BOLD);
-                    mvaddch(off_y_m + ly, off_x_m + lx, ll->glyph);
-                    attroff(COLOR_PAIR(ll->color_pair) | A_BOLD);
+                    R_DRAW_CHAR(off_x_m + lx, off_y_m + ly, ll->glyph, ll->color_pair, RATTR_BOLD);
 
                     int label_x = off_x_m + lx + 1;
                     int max_len = off_x_m + view_w_m - label_x;
                     if (max_len > 3) {
                         int nlen = (int)strlen(ll->name);
                         if (nlen > max_len) nlen = max_len;
-                        attron(COLOR_PAIR(CP_WHITE));
-                        mvprintw(off_y_m + ly, label_x, "%.*s", nlen, ll->name);
-                        attroff(COLOR_PAIR(CP_WHITE));
+                        R_DRAW_TEXT(off_y_m + ly, label_x, CP_WHITE, RATTR_NONE,  "%.*s",  nlen,  ll->name);
                     }
                 }
 
@@ -4909,19 +4771,15 @@ static void handle_overworld_input(GameState *gs, int key) {
                 int ppx = (gs->player_pos.x - cam_x_m) / scale_m;
                 int ppy = (gs->player_pos.y - cam_y_m) / row_scale_m;
                 if (ppx >= 0 && ppx < view_w_m && ppy >= 0 && ppy < view_h_m) {
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
-                    mvaddch(off_y_m + ppy, off_x_m + ppx, '@');
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+                    R_DRAW_CHAR(off_x_m + ppx, off_y_m + ppy, '@', CP_YELLOW_BOLD, RATTR_BOLD | RATTR_BLINK);
                 }
             }
 
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(term_rows_m - 2, 1,
+            R_DRAW_TEXT(term_rows_m - 2, 1, CP_WHITE, RATTR_NONE,
                      "[arrows] Scroll  [L] Labels  [p] Centre on player  [any] Close");
-            attroff(COLOR_PAIR(CP_GRAY));
-            refresh();
+            ui_refresh();
 
-            int mk = getch();
+            int mk = R_GETKEY();
             if (mk == 'L' || mk == 'l') {
                 show_labels = !show_labels;
             } else if (mk == KEY_UP || mk == 'k') {
@@ -5051,24 +4909,18 @@ static void town_render(GameState *gs) {
     for (int y = 0; y < TOWN_MAP_H; y++) {
         for (int x = 0; x < TOWN_MAP_W; x++) {
             Tile *t = &tm->map[y][x];
-            attron(COLOR_PAIR(t->color_pair));
-            mvaddch(y, x, t->glyph);
-            attroff(COLOR_PAIR(t->color_pair));
+            R_DRAW_CHAR(x, y, t->glyph, t->color_pair, RATTR_NONE);
         }
     }
 
     /* Render NPCs */
     for (int i = 0; i < tm->num_npcs; i++) {
         TownNPC *npc = &tm->npcs[i];
-        attron(COLOR_PAIR(npc->color_pair) | A_BOLD);
-        mvaddch(npc->pos.y, npc->pos.x, npc->glyph);
-        attroff(COLOR_PAIR(npc->color_pair) | A_BOLD);
+        R_DRAW_CHAR(npc->pos.x, npc->pos.y, npc->glyph, npc->color_pair, RATTR_BOLD);
     }
 
     /* Render player */
-    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    mvaddch(gs->town_player_pos.y, gs->town_player_pos.x, '@');
-    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    R_DRAW_CHAR(gs->town_player_pos.x, gs->town_player_pos.y, '@', CP_WHITE_BOLD, RATTR_BOLD);
 }
 
 /* Handle bumping into an NPC -- trigger the appropriate service */
@@ -5085,29 +4937,21 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             /* Merlin in Glastonbury */
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "Merlin the Wizard peers at you with ancient eyes.");
-            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_CYAN_BOLD, RATTR_BOLD,  "Merlin the Wizard peers at you with ancient eyes.");
             row++;
-            attron(COLOR_PAIR(CP_CYAN));
-            mvprintw(row++, 4, "\"Ah, %s. I have been expecting you.\"", gs->player_name);
+            R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "\"Ah, %s. I have been expecting you.\"",  gs->player_name);
             row++;
 
             /* Merlin can cure vampirism */
             if (gs->has_vampirism) {
-                mvprintw(row++, 4, "\"I sense the darkness within you... vampirism.\"");
-                mvprintw(row++, 4, "\"I know an ancient cure. Hold still...\"");
-                attroff(COLOR_PAIR(CP_CYAN));
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "\"I sense the darkness within you... vampirism.\"");
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "\"I know an ancient cure. Hold still...\"");
                 gs->has_vampirism = false;
                 gs->str -= 3; if (gs->str < 1) gs->str = 1;
                 gs->spd -= 2; if (gs->spd < 1) gs->spd = 1;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(row++, 4, "Merlin cures your vampirism!");
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "Merlin cures your vampirism!");
                 row++;
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row, 4, "Press any key to continue.");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to continue.");
                 ui_refresh();
                 ui_getkey();
                 log_add(&gs->log, gs->turn, CP_GREEN, "Merlin cures your vampirism!");
@@ -5130,36 +4974,29 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
 
             if (teach >= 0 && gs->num_spells < gs->max_spells_capacity) {
                 gs->spells_known[gs->num_spells++] = teach;
-                mvprintw(row++, 4, "\"Let me teach you something useful...\"");
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "\"Let me teach you something useful...\"");
                 row++;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD));
-                mvprintw(row++, 4, "Merlin teaches you: %s!", spells[teach].name);
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD));
+                R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_NONE,  "Merlin teaches you: %s!",  spells[teach].name);
             } else {
                 gs->intel += 1;
                 gs->max_mp += 3;
-                mvprintw(row++, 4, "\"Your mind has great potential. Let me sharpen it.\"");
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "\"Your mind has great potential. Let me sharpen it.\"");
                 row++;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(row++, 4, "+1 INT, +3 max MP!");
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "+1 INT, +3 max MP!");
             }
 
             row++;
             /* Grail hint */
             if (gs->quests.grail_quest_active && !gs->quests.grail_quest_complete) {
-                mvprintw(row++, 4, "\"The Grail rests in %s, brave %s.\"",
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "\"The Grail rests in %s, brave %s.\"",
                          gs->grail_dungeon,
                          gs->player_gender == GENDER_MALE ? "Sir" : "Lady");
-                mvprintw(row++, 4, "  \"Seek it at the bottom. But beware the guardian.\"");
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "  \"Seek it at the bottom. But beware the guardian.\"");
             } else {
-                mvprintw(row++, 4, "\"Seek King Arthur at Camelot. He needs you.\"");
+                R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "\"Seek King Arthur at Camelot. He needs you.\"");
             }
-            attroff(COLOR_PAIR(CP_CYAN));
             row++;
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row, 4, "Press any key to continue.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to continue.");
             ui_refresh();
             ui_getkey();
             gs->light_affinity += 3;
@@ -5168,12 +5005,9 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             /* Morgan le Fay in Cornwall */
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_MAGENTA_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "A dark-robed woman steps from the shadows.");
-            mvprintw(row++, 4, "\"I am Morgan le Fay. I have a bargain for you.\"");
-            attroff(COLOR_PAIR(CP_MAGENTA_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_MAGENTA_BOLD, RATTR_BOLD,  "A dark-robed woman steps from the shadows.");
+            R_DRAW_TEXT(row++, 4, CP_MAGENTA_BOLD, RATTR_BOLD,  "\"I am Morgan le Fay. I have a bargain for you.\"");
             row++;
-            attron(COLOR_PAIR(CP_MAGENTA));
             int offer = rng_range(0, 2);
             const char *boon_desc, *cost_desc;
             int boon_stat = 0, cost_hp = 0;
@@ -5194,13 +5028,10 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 boon_stat = 3; cost_hp = 8;
                 break;
             }
-            mvprintw(row++, 4, "\"I offer you: %s\"", boon_desc);
-            mvprintw(row++, 4, "\"The cost:    %s\"", cost_desc);
-            attroff(COLOR_PAIR(CP_MAGENTA));
+            R_DRAW_TEXT(row++, 4, CP_MAGENTA, RATTR_NONE,  "\"I offer you: %s\"",  boon_desc);
+            R_DRAW_TEXT(row++, 4, CP_MAGENTA, RATTR_NONE,  "\"The cost:    %s\"",  cost_desc);
             row++;
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "Press 'a' to accept the bargain, or 'q' to decline.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "Press 'a' to accept the bargain, or 'q' to decline.");
             ui_refresh();
 
             int mk = ui_getkey();
@@ -5348,24 +5179,17 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 ui_clear();
                 int srow = 1;
 
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(srow++, 2, "=== %s's Shop ===", npc->label);
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(srow++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== %s's Shop ===",  npc->label);
                 srow++;
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(srow++, 2, "Your gold: %d    Bag: %d/%d", gs->gold, gs->num_items, MAX_INVENTORY);
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(srow++, 2, CP_WHITE, RATTR_NONE,  "Your gold: %d    Bag: %d/%d",  gs->gold,  gs->num_items,  MAX_INVENTORY);
 
                 /* Show feedback from last action */
                 if (shop_msg[0]) {
-                    attron(COLOR_PAIR(shop_msg_color) | A_BOLD);
-                    mvprintw(srow, 2, "%s", shop_msg);
-                    attroff(COLOR_PAIR(shop_msg_color) | A_BOLD);
+                    R_DRAW_TEXT(srow, 2, shop_msg_color, RATTR_BOLD,  "%s",  shop_msg);
                     shop_msg[0] = 0;
                 }
                 srow++;
-                mvprintw(srow++, 2, "Press a letter to buy:");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(srow++, 2, CP_WHITE, RATTR_NONE, "Press a letter to buy:");
 
                 int visible_count = 0;
                 for (int si = 0; si < num_shop && srow < term_rows2 - 6; si++) {
@@ -5373,23 +5197,17 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                     const ItemTemplate *it = &tmps[shop_items[si]];
                     int price = it->value;
                     if (npc->type == NPC_PAWN_SHOP) price = it->value * 4 / 5;
-                    attron(COLOR_PAIR(it->color_pair));
-                    mvprintw(srow++, 4, "%c) %-20s [%s] pow:%-2d  %3dg  (x%d)",
+                    R_DRAW_TEXT(srow++, 4, CP_WHITE, RATTR_NONE, "%c) %-20s [%s] pow:%-2d  %3dg  (x%d)",
                              'a' + si, it->name, item_type_name(it->type), it->power, price, shop_qty[si]);
-                    attroff(COLOR_PAIR(it->color_pair));
                     visible_count++;
                 }
 
                 if (visible_count == 0) {
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvprintw(srow++, 4, "(Shop is sold out!)");
-                    attroff(COLOR_PAIR(CP_GRAY));
+                    R_DRAW_TEXT(srow++, 4, CP_GRAY, RATTR_NONE,  "(Shop is sold out!)");
                 }
 
                 srow++;
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(srow++, 2, "[S] Sell    [h] Haggle    [t] Steal    [q] Leave");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(srow++, 2, CP_WHITE, RATTR_NONE,  "[S] Sell    [h] Haggle    [t] Steal    [q] Leave");
                 ui_refresh();
 
                 int skey = ui_getkey();
@@ -5504,21 +5322,17 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                     } else {
                         ui_clear();
                         int sr = 1;
-                        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                        mvprintw(sr++, 2, "=== Sell Items ===");
-                        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                        R_DRAW_TEXT(sr++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Sell Items ===");
                         sr++;
                         for (int ii = 0; ii < gs->num_items && sr < term_rows2 - 3; ii++) {
                             Item *inv = &gs->inventory[ii];
                             if (inv->template_id < 0) continue;
                             int sell_price = inv->value / 2;
                             if (npc->type == NPC_PAWN_SHOP) sell_price = inv->value * 2 / 5;
-                            attron(COLOR_PAIR(inv->color_pair));
-                            mvprintw(sr++, 4, "%c) %s -- %dg", 'a' + ii, inv->name, sell_price);
-                            attroff(COLOR_PAIR(inv->color_pair));
+                            R_DRAW_TEXT(sr++, 4, inv->color_pair, RATTR_NONE,  "%c) %s -- %dg",  'a' + ii,  inv->name,  sell_price);
                         }
                         sr++;
-                        mvprintw(sr, 4, "Press a-z to sell, any other key to go back");
+                        R_DRAW_TEXT(sr, 4, CP_WHITE, RATTR_NONE, "Press a-z to sell, any other key to go back");
                         ui_refresh();
 
                         int sellkey = ui_getkey();
@@ -5573,24 +5387,16 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             /* Show horse selection menu */
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "=== Stablemaster ===");
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Stablemaster ===");
             row++;
-            attron(COLOR_PAIR(CP_BROWN));
-            mvprintw(row++, 4, "\"Welcome! I have fine steeds for sale:\"");
-            attroff(COLOR_PAIR(CP_BROWN));
+            R_DRAW_TEXT(row++, 4, CP_BROWN, RATTR_NONE,  "\"Welcome! I have fine steeds for sale:\"");
             row++;
-            attron(COLOR_PAIR(CP_CYAN));
-            mvprintw(row++, 6, "[1] Pony      - %3d gold  -- 1.5x speed, good in hills", pony_cost);
-            mvprintw(row++, 6, "[2] Palfrey   - %3d gold  -- 2x speed, standard riding horse", palfrey_cost);
-            mvprintw(row++, 6, "[3] Destrier  - %3d gold  -- 2x speed, +2 DEF (war horse)", destrier_cost);
-            attroff(COLOR_PAIR(CP_CYAN));
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] Pony      - %3d gold  -- 1.5x speed, good in hills",  pony_cost);
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] Palfrey   - %3d gold  -- 2x speed, standard riding horse",  palfrey_cost);
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[3] Destrier  - %3d gold  -- 2x speed, +2 DEF (war horse)",  destrier_cost);
             row++;
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 6, "Press 1-3 to buy, or q to leave.");
-            mvprintw(row++, 6, "You have %d gold.", gs->gold);
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press 1-3 to buy, or q to leave.");
+            R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "You have %d gold.",  gs->gold);
             ui_refresh();
 
             int skey = ui_getkey();
@@ -5691,29 +5497,21 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 /* First visit: Arthur grants the Grail quest and knighthood */
                 ui_clear();
                 int row = 2;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(row++, 4, "King Arthur rises from the throne.");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "King Arthur rises from the throne.");
                 row++;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(row++, 4, "\"Welcome, %s. England is in peril.", gs->player_name);
-                mvprintw(row++, 4, " The Holy Grail has been lost, and with it,");
-                mvprintw(row++, 4, " the land's power fades. I charge you with");
-                mvprintw(row++, 4, " this sacred quest: find the Grail and return");
-                mvprintw(row++, 4, " it to Camelot.\"");
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"Welcome, %s. England is in peril.",  gs->player_name);
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  " The Holy Grail has been lost, and with it,");
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  " the land's power fades. I charge you with");
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  " this sacred quest: find the Grail and return");
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  " it to Camelot.\"");
                 row++;
-                mvprintw(row++, 4, "Arthur draws his sword and taps your shoulders.");
-                mvprintw(row++, 4, "\"I knight thee %s %s. Rise, and go forth!\"",
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "Arthur draws his sword and taps your shoulders.");
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE, "\"I knight thee %s %s. Rise, and go forth!\"",
                          gs->player_gender == GENDER_MALE ? "Sir" : "Lady", gs->player_name);
-                attroff(COLOR_PAIR(CP_YELLOW));
                 row++;
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(row++, 4, "You receive: +2 DEF, +1 STR, the Grail Quest.");
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "You receive: +2 DEF, +1 STR, the Grail Quest.");
                 row++;
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row, 4, "Press any key to continue.");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to continue.");
                 ui_refresh();
                 ui_getkey();
 
@@ -5750,28 +5548,20 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
 
                     ui_clear();
                     int row = 3;
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "=== THE HOLY GRAIL IS RETURNED! ===");
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== THE HOLY GRAIL IS RETURNED! ===");
                     row++;
-                    attron(COLOR_PAIR(CP_YELLOW));
-                    mvprintw(row++, 4, "King Arthur rises, tears in his eyes.");
-                    mvprintw(row++, 4, "\"%s, you have done what no other could.\"", gs->player_name);
-                    mvprintw(row++, 4, "\"The Holy Grail is restored to Camelot!\"");
-                    mvprintw(row++, 4, "\"The land shall heal. You are truly the greatest");
-                    mvprintw(row++, 4, " knight of the Round Table.\"");
-                    attroff(COLOR_PAIR(CP_YELLOW));
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "King Arthur rises, tears in his eyes.");
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"%s, you have done what no other could.\"",  gs->player_name);
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"The Holy Grail is restored to Camelot!\"");
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"The land shall heal. You are truly the greatest");
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  " knight of the Round Table.\"");
                     row++;
-                    attron(COLOR_PAIR(CP_GREEN));
-                    mvprintw(row++, 4, "+5000 gold!");
-                    mvprintw(row++, 4, "+10 chivalry!");
-                    mvprintw(row++, 4, "Title: Grail Knight");
-                    mvprintw(row++, 4, "+500 XP!");
-                    attroff(COLOR_PAIR(CP_GREEN));
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "+5000 gold!");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "+10 chivalry!");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "Title: Grail Knight");
+                    R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "+500 XP!");
                     row += 2;
-                    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                    mvprintw(row, 4, "Press any key to continue your adventure...");
-                    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Press any key to continue your adventure...");
                     ui_refresh();
                     ui_getkey();
 
@@ -5827,19 +5617,13 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 if (gs->princess_rescued && !gs->princess_married) {
                     ui_clear();
                     int row = 3;
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                    mvprintw(row++, 4, "\"You have rescued my daughter! You are a true hero!\"");
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "\"You have rescued my daughter! You are a true hero!\"");
                     row++;
-                    attron(COLOR_PAIR(CP_YELLOW));
-                    mvprintw(row++, 4, "\"She wishes to marry you. Will you accept?\"");
-                    attroff(COLOR_PAIR(CP_YELLOW));
+                    R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"She wishes to marry you. Will you accept?\"");
                     row++;
-                    attron(COLOR_PAIR(CP_CYAN));
-                    mvprintw(row++, 4, "[y] Accept -- become %s (TRUE ENDING, +10000 score)",
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE, "[y] Accept -- become %s (TRUE ENDING, +10000 score)",
                              gs->player_gender == GENDER_MALE ? "King" : "Queen");
-                    mvprintw(row++, 4, "[n] Decline -- +5 chivalry, +500 gold, continue playing");
-                    attroff(COLOR_PAIR(CP_CYAN));
+                    R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "[n] Decline -- +5 chivalry, +500 gold, continue playing");
                     ui_refresh();
                     int mk = ui_getkey();
                     if (mk == 'y' || mk == 'Y') {
@@ -5944,16 +5728,11 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
             if (q) {
                 ui_clear();
                 int row = 2;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(row++, 2, "=== Quest Available ===");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Quest Available ===");
                 row++;
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(row++, 4, "A stranger approaches you in the inn.");
+                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "A stranger approaches you in the inn.");
                 row++;
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(row++, 4, "\"%s\"", q->name);
-                attroff(COLOR_PAIR(CP_YELLOW));
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "\"%s\"",  q->name);
                 row++;
                 /* Word-wrap description */
                 const char *desc = q->description;
@@ -5961,19 +5740,18 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                 while (*desc) {
                     int len = (int)strlen(desc);
                     if (len > max_w) len = max_w;
-                    mvprintw(row++, dx, "%.*s", len, desc);
+                    R_DRAW_TEXT(row++, dx, CP_WHITE, RATTR_NONE, "%.*s", len, desc);
                     desc += len;
                 }
                 row++;
-                mvprintw(row++, 4, "Reward: %d gold", q->gold_reward);
+                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "Reward: %d gold", q->gold_reward);
                 if (q->stat_reward >= 0) {
                     const char *sn[] = { "+1 STR", "+1 DEF", "+1 INT", "+1 SPD" };
-                    mvprintw(row++, 4, "Bonus: %s", sn[q->stat_reward]);
+                    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "Bonus: %s", sn[q->stat_reward]);
                 }
                 row++;
-                mvprintw(row++, 4, "[a] Accept quest");
-                mvprintw(row++, 4, "[d] Decline");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[a] Accept quest");
+                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[d] Decline");
                 ui_refresh();
 
                 int qkey = ui_getkey();
@@ -6094,18 +5872,14 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                         for (int round = 0; round < 3; round++) {
                             ui_clear();
                             int row = 3;
-                            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                            mvprintw(row++, 4, "=== JOUSTING TOURNAMENT -- Round %d ===", round + 1);
-                            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                            R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== JOUSTING TOURNAMENT -- Round %d ===",  round + 1);
                             row++;
-                            attron(COLOR_PAIR(CP_WHITE));
-                            mvprintw(row++, 4, "Opponent: %s", opponents[round]);
+                            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Opponent: %s",  opponents[round]);
                             row++;
 
                             /* ASCII jousting animation */
-                            mvprintw(row++, 4, "You charge! Press SPACE at the right moment...");
-                            mvprintw(row++, 4, "Choose aim: [h]ead (risky) [c]hest (balanced) [s]hield (safe)");
-                            attroff(COLOR_PAIR(CP_WHITE));
+                            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "You charge! Press SPACE at the right moment...");
+                            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Choose aim: [h]ead (risky) [c]hest (balanced) [s]hield (safe)");
                             ui_refresh();
 
                             int aim = ui_getkey();
@@ -6117,29 +5891,24 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                             /* Timing mini-game: show charge animation */
                             row++;
                             int charge_row = row;
-                            attron(COLOR_PAIR(CP_WHITE));
-                            mvprintw(charge_row, 4, "                                           ");
-                            attroff(COLOR_PAIR(CP_WHITE));
+                            R_DRAW_TEXT(charge_row, 4, CP_WHITE, RATTR_NONE,  "                                           ");
                             ui_refresh();
 
                             /* Quick countdown with visual */
                             int timing = 0;
                             for (int tick = 0; tick < 20; tick++) {
-                                mvprintw(charge_row, 4, "                                           ");
+                                R_DRAW_TEXT(charge_row, 4, CP_WHITE, RATTR_NONE, "                                           ");
                                 int px = 4 + tick;
                                 int ox = 44 - tick;
-                                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                                mvaddch(charge_row, px, '>');
-                                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                                attron(COLOR_PAIR(CP_RED) | A_BOLD);
-                                mvaddch(charge_row, ox, '<');
-                                attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+                                R_DRAW_CHAR(px, charge_row, '>', CP_WHITE_BOLD, RATTR_BOLD);
+                                R_DRAW_CHAR(ox, charge_row, '<', CP_RED, RATTR_BOLD);
                                 ui_refresh();
 
-                                /* Check for keypress (non-blocking would be ideal but use timeout) */
-                                timeout(150);
-                                int tkey = getch();
-                                timeout(-1);
+                                /* Check for keypress (non-blocking with delay) */
+                                R_SET_BLOCKING(false);
+                                { struct timespec ts = {0, 150000000}; nanosleep(&ts, NULL); }
+                                int tkey = R_GETKEY();
+                                R_SET_BLOCKING(true);
                                 if (tkey == ' ') {
                                     /* Perfect timing is around tick 9-11 (middle) */
                                     int dist = abs(tick - 10);
@@ -6150,11 +5919,11 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                                 }
                             }
                             /* Always restore blocking mode after charge animation */
-                            timeout(-1);
+                            R_SET_BLOCKING(true);
                             /* Flush any buffered input from the timing loop */
-                            nodelay(stdscr, TRUE);
-                            while (getch() != ERR) {}
-                            nodelay(stdscr, FALSE);
+                            R_SET_BLOCKING(false);
+                            R_FLUSH_INPUT();
+                            R_SET_BLOCKING(true);
 
                             row = charge_row + 2;
                             /* Calculate result -- timing is the main factor */
@@ -6165,18 +5934,12 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                             bool player_wins = (player_hit > opp_hit_chance);
 
                             if (timing == 2) {
-                                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                                mvprintw(row++, 4, "PERFECT TIMING!");
-                                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "PERFECT TIMING!");
                                 player_wins = true; /* perfect always wins */
                             } else if (timing == 1) {
-                                attron(COLOR_PAIR(CP_WHITE));
-                                mvprintw(row++, 4, "Good hit!");
-                                attroff(COLOR_PAIR(CP_WHITE));
+                                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Good hit!");
                             } else {
-                                attron(COLOR_PAIR(CP_GRAY));
-                                mvprintw(row++, 4, "Poor timing...");
-                                attroff(COLOR_PAIR(CP_GRAY));
+                                R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "Poor timing...");
                             }
 
                             row++;
@@ -6186,19 +5949,15 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                                 total_winnings += prize;
                                 /* Aim choice modulates XP gain (head shot = bigger reward) */
                                 gs->xp += 10 + round * 10 + aim_dmg / 4;
-                                attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
-                                mvprintw(row++, 4, "You unhorse the %s! +%dg, +%d XP!",
+                                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE, "You unhorse the %s! +%dg, +%d XP!",
                                          opponents[round], prize, 10 + round * 10);
-                                attroff(COLOR_PAIR(CP_GREEN) | A_BOLD);
 
                                 if (round == 2) {
                                     /* Won the championship! */
                                     gs->chivalry += 5;
                                     if (gs->chivalry > 100) gs->chivalry = 100;
                                     row++;
-                                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                                    mvprintw(row++, 4, "TOURNAMENT CHAMPION! +5 chivalry!");
-                                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                                    R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "TOURNAMENT CHAMPION! +5 chivalry!");
                                 }
                             } else {
                                 int dmg = rng_range(3, 10);
@@ -6206,20 +5965,16 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
                                 if (gs->hp < 1) gs->hp = 1;
                                 gs->chivalry -= 1;
                                 if (gs->chivalry < 0) gs->chivalry = 0;
-                                attron(COLOR_PAIR(CP_RED));
-                                mvprintw(row++, 4, "The %s unhorses you! -%d HP, -1 chivalry.",
+                                R_DRAW_TEXT(row++, 4, CP_RED, RATTR_NONE, "The %s unhorses you! -%d HP, -1 chivalry.",
                                          opponents[round], dmg);
-                                attroff(COLOR_PAIR(CP_RED));
                             }
 
                             row += 2;
-                            attron(COLOR_PAIR(CP_GRAY));
-                            mvprintw(row, 4, "Press any key to continue...");
-                            attroff(COLOR_PAIR(CP_GRAY));
+                            R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press any key to continue...");
                             ui_refresh();
                             /* Wait a moment and flush input before waiting for key */
-                            napms(500);
-                            flushinp();
+                            { struct timespec ts = {0, 500000000}; nanosleep(&ts, NULL); }
+                            R_FLUSH_INPUT();
                             ui_getkey();
 
                             if (!player_wins) {
@@ -6320,42 +6075,30 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
 
             ui_clear();
             int row = 1;
-            attron(COLOR_PAIR(CP_GRAY) | A_BOLD);
-            mvprintw(row++, 4, "=== Canterbury Graveyard ===");
-            attroff(COLOR_PAIR(CP_GRAY) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_BOLD,  "=== Canterbury Graveyard ===");
             row++;
 
             if (hcount == 0) {
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row++, 6, "The graveyard is empty. No heroes have fallen yet.");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "The graveyard is empty. No heroes have fallen yet.");
             } else {
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(row++, 4, "Rows of gravestones mark the fallen...");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Rows of gravestones mark the fallen...");
                 row++;
                 int term_rows_g, term_cols_g;
                 ui_get_size(&term_rows_g, &term_cols_g);
                 for (int i = 0; i < hcount && row < term_rows_g - 4; i++) {
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvprintw(row++, 6, "+---------------------------+");
-                    mvprintw(row++, 6, "| Here lies %-16s |", heroes[i].name);
-                    mvprintw(row++, 6, "| %-10s Level %-3d       |", heroes[i].class_name, heroes[i].level);
-                    mvprintw(row++, 6, "| %-27s |", heroes[i].cause);
-                    mvprintw(row++, 6, "+---------------------------+");
-                    attroff(COLOR_PAIR(CP_GRAY));
+                    R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "+---------------------------+");
+                    R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "| Here lies %-16s |",  heroes[i].name);
+                    R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "| %-10s Level %-3d       |",  heroes[i].class_name,  heroes[i].level);
+                    R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "| %-27s |",  heroes[i].cause);
+                    R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "+---------------------------+");
                     row++;
                 }
             }
             gs->chivalry++;
             if (gs->chivalry > 100) gs->chivalry = 100;
             row++;
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(row++, 4, "You pay your respects to the fallen. (+1 chivalry)");
-            attroff(COLOR_PAIR(CP_WHITE));
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row, 4, "[ESC/q to leave]");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "You pay your respects to the fallen. (+1 chivalry)");
+            R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "[ESC/q to leave]");
             ui_refresh();
             { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
         }
@@ -6364,19 +6107,13 @@ static void town_interact_npc(GameState *gs, TownNPC *npc) {
         {
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "=== Roman Hot Springs ===");
-            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_CYAN_BOLD, RATTR_BOLD,  "=== Roman Hot Springs ===");
             row++;
-            attron(COLOR_PAIR(CP_CYAN));
-            mvprintw(row++, 4, "Steam rises from the ancient stone pools.");
-            mvprintw(row++, 4, "The warm mineral waters are said to cure all ills.");
-            attroff(COLOR_PAIR(CP_CYAN));
+            R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "Steam rises from the ancient stone pools.");
+            R_DRAW_TEXT(row++, 4, CP_CYAN, RATTR_NONE,  "The warm mineral waters are said to cure all ills.");
             row++;
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(row++, 4, "[b] Bathe in the hot springs (free)");
-            mvprintw(row++, 4, "[q] Leave");
-            attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[b] Bathe in the hot springs (free)");
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[q] Leave");
             ui_refresh();
 
             int bk = ui_getkey();
@@ -6492,20 +6229,16 @@ static void town_do_inn(GameState *gs) {
     int row = 2;
     const TownDef *td = gs->current_town;
 
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 2, "=== The Inn ===");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== The Inn ===");
     row++;
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 4, "The innkeeper nods as you enter.");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "The innkeeper nods as you enter.");
     row++;
-    mvprintw(row++, 4, "[r] Rest until morning (%dg)", td->inn_cost);
-    mvprintw(row++, 4, "[n] Rest until nightfall (%dg)", td->inn_cost);
-    mvprintw(row++, 4, "[b] Buy a %s (%dg)", td->beer_name, td->beer_cost);
-    mvprintw(row++, 4, "[q] Leave the inn");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[r] Rest until morning (%dg)",  td->inn_cost);
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[n] Rest until nightfall (%dg)",  td->inn_cost);
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[b] Buy a %s (%dg)",  td->beer_name,  td->beer_cost);
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[q] Leave the inn");
     row++;
-    mvprintw(row++, 4, "Gold: %d  |  Beers: %d", gs->gold, gs->beers_drunk);
-    attroff(COLOR_PAIR(CP_WHITE));
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Gold: %d  |  Beers: %d",  gs->gold,  gs->beers_drunk);
     ui_refresh();
 
     int key = ui_getkey();
@@ -6567,25 +6300,19 @@ static void town_do_church(GameState *gs) {
     ui_clear();
     int row = 2;
 
-    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    mvprintw(row++, 2, "=== The Church ===");
-    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "=== The Church ===");
     row++;
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 4, "A priest tends the altar. Candles flicker softly.");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "A priest tends the altar. Candles flicker softly.");
     row++;
-    mvprintw(row++, 4, "[p] Pray (restore some HP/MP)");
-    mvprintw(row++, 4, "[d] Donate gold (+1 chivalry per 20g)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[p] Pray (restore some HP/MP)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[d] Donate gold (+1 chivalry per 20g)");
     if (!gs->confessed && gs->chivalry < 50)
-        mvprintw(row++, 4, "[c] Confession (+3 chivalry)");
-    mvprintw(row++, 4, "[u] Cure poison/curses (30 gold donation)");
-    attron(COLOR_PAIR(CP_RED));
-    mvprintw(row++, 4, "[l] Loot the church (-12 chivalry!)");
-    attroff(COLOR_PAIR(CP_RED));
-    mvprintw(row++, 4, "[q] Leave the church");
+        R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[c] Confession (+3 chivalry)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[u] Cure poison/curses (30 gold donation)");
+    R_DRAW_TEXT(row++, 4, CP_RED, RATTR_NONE,  "[l] Loot the church (-12 chivalry!)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "[q] Leave the church");
     row++;
-    mvprintw(row++, 4, "Gold: %d  |  Chivalry: %d", gs->gold, gs->chivalry);
-    attroff(COLOR_PAIR(CP_WHITE));
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE, "Gold: %d  |  Chivalry: %d", gs->gold, gs->chivalry);
     ui_refresh();
 
     int key = ui_getkey();
@@ -6714,22 +6441,18 @@ static void town_do_bank(GameState *gs) {
     /* TODO: load bank balance from ~/.camelot/bank.dat for persistence */
     static int bank_balance = 0;  /* placeholder until save system */
 
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(row++, 2, "=== The Bank ===");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== The Bank ===");
     row++;
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(row++, 4, "The banker greets you. \"How may I help?\"");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "The banker greets you. \"How may I help?\"");
     row++;
-    mvprintw(row++, 4, "Bank balance: %d gold", bank_balance);
-    mvprintw(row++, 4, "Your gold:    %d", gs->gold);
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Bank balance: %d gold",  bank_balance);
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Your gold:    %d",  gs->gold);
     row++;
-    mvprintw(row++, 4, "[d] Deposit 50 gold (5%% fee)");
-    mvprintw(row++, 4, "[D] Deposit all gold (5%% fee)");
-    mvprintw(row++, 4, "[w] Withdraw 50 gold");
-    mvprintw(row++, 4, "[W] Withdraw all gold");
-    mvprintw(row++, 4, "[q] Leave the bank");
-    attroff(COLOR_PAIR(CP_WHITE));
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[d] Deposit 50 gold (5%% fee)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[D] Deposit all gold (5%% fee)");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[w] Withdraw 50 gold");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[W] Withdraw all gold");
+    R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[q] Leave the bank");
     ui_refresh();
 
     int key = ui_getkey();
@@ -6795,9 +6518,7 @@ static void town_do_well(GameState *gs) {
     int oy = 2;
 
     /* Title */
-    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    mvprintw(oy - 1, ox, "Bottom of the Well");
-    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    R_DRAW_TEXT(oy - 1, ox, CP_WHITE_BOLD, RATTR_BOLD,  "Bottom of the Well");
 
     /* Draw circular well with walls, floor, and water puddles */
     for (int wy = 0; wy < WELL_H; wy++) {
@@ -6810,25 +6531,17 @@ static void town_do_well(GameState *gs) {
 
             if (dist > 1.1) {
                 /* Outside -- dark stone */
-                attron(COLOR_PAIR(CP_GRAY));
-                mvaddch(sy, sx, '#');
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_CHAR(sx, sy, '#', CP_GRAY, RATTR_NONE);
             } else if (dist > 0.9) {
                 /* Wall edge */
-                attron(COLOR_PAIR(CP_BROWN));
-                mvaddch(sy, sx, '#');
-                attroff(COLOR_PAIR(CP_BROWN));
+                R_DRAW_CHAR(sx, sy, '#', CP_BROWN, RATTR_NONE);
             } else {
                 /* Floor -- damp stone with occasional water */
                 int h = (wx * 31 + wy * 17) & 7;
                 if (h == 0) {
-                    attron(COLOR_PAIR(CP_BLUE));
-                    mvaddch(sy, sx, '~');
-                    attroff(COLOR_PAIR(CP_BLUE));
+                    R_DRAW_CHAR(sx, sy, '~', CP_BLUE, RATTR_NONE);
                 } else {
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvaddch(sy, sx, '.');
-                    attroff(COLOR_PAIR(CP_GRAY));
+                    R_DRAW_CHAR(sx, sy, '.', CP_GRAY, RATTR_NONE);
                 }
             }
         }
@@ -6836,73 +6549,49 @@ static void town_do_well(GameState *gs) {
 
     /* Ladder coming down from above */
     int ladder_x = ox + WELL_W / 2;
-    attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
-    mvaddch(oy, ladder_x, 'H');
-    mvaddch(oy + 1, ladder_x, 'H');
-    attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+    R_DRAW_CHAR(ladder_x, oy, 'H', CP_BROWN, RATTR_BOLD);
+    R_DRAW_CHAR(ladder_x, oy + 1, 'H', CP_BROWN, RATTR_BOLD);
 
     /* Player at bottom of ladder */
-    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-    mvaddch(oy + 2, ladder_x, '@');
-    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+    R_DRAW_CHAR(ladder_x, oy + 2, '@', CP_WHITE_BOLD, RATTR_BOLD);
 
     /* Chest in the well */
     if (has_treasure || has_rat) {
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvaddch(oy + WELL_H / 2 + 1, ox + WELL_W / 2 - 2, '=');
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_CHAR(ox + WELL_W / 2 - 2, oy + WELL_H / 2 + 1, '=', CP_YELLOW_BOLD, RATTR_BOLD);
 
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(oy + WELL_H / 2 + 1, ox + WELL_W / 2, " Chest");
-        attroff(COLOR_PAIR(CP_WHITE));
+        R_DRAW_TEXT(oy + WELL_H / 2 + 1, ox + WELL_W / 2, CP_WHITE, RATTR_NONE,  " Chest");
     }
 
     /* Rat if present */
     if (has_rat) {
-        attron(COLOR_PAIR(CP_RED) | A_BOLD);
-        mvaddch(oy + WELL_H / 2, ox + WELL_W / 2 + 2, 'r');
-        attroff(COLOR_PAIR(CP_RED) | A_BOLD);
+        R_DRAW_CHAR(ox + WELL_W / 2 + 2, oy + WELL_H / 2, 'r', CP_RED, RATTR_BOLD);
 
-        attron(COLOR_PAIR(CP_RED));
-        mvprintw(oy + WELL_H / 2, ox + WELL_W / 2 + 4, "Rat!");
-        attroff(COLOR_PAIR(CP_RED));
+        R_DRAW_TEXT(oy + WELL_H / 2, ox + WELL_W / 2 + 4, CP_RED, RATTR_NONE,  "Rat!");
     }
 
     /* Description text */
     int text_y = oy + WELL_H + 1;
-    attron(COLOR_PAIR(CP_WHITE));
-    mvprintw(text_y++, ox - 5, "You climb down the slippery ladder...");
-    mvprintw(text_y++, ox - 5, "The air is cold and damp. Water drips from above.");
+    R_DRAW_TEXT(text_y++, ox - 5, CP_WHITE, RATTR_NONE, "You climb down the slippery ladder...");
+    R_DRAW_TEXT(text_y++, ox - 5, CP_WHITE, RATTR_NONE, "The air is cold and damp. Water drips from above.");
     text_y++;
 
     if (has_treasure) {
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(text_y++, ox - 5, "You find a chest! Inside: %d gold coins!", gold_found);
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(text_y++, ox - 5, CP_YELLOW_BOLD, RATTR_BOLD,  "You find a chest! Inside: %d gold coins!",  gold_found);
     } else if (has_rat) {
-        attron(COLOR_PAIR(CP_RED));
-        mvprintw(text_y++, ox - 5, "A rat lunges at you from the shadows!");
-        attroff(COLOR_PAIR(CP_RED));
+        R_DRAW_TEXT(text_y++, ox - 5, CP_RED, RATTR_NONE,  "A rat lunges at you from the shadows!");
         int damage = rng_range(2, 6);
         gs->hp -= damage;
         if (gs->hp < 1) gs->hp = 1;
-        attron(COLOR_PAIR(CP_RED));
-        mvprintw(text_y++, ox - 5, "The rat bites you for %d damage!", damage);
-        attroff(COLOR_PAIR(CP_RED));
+        R_DRAW_TEXT(text_y++, ox - 5, CP_RED, RATTR_NONE,  "The rat bites you for %d damage!",  damage);
         if (gold_found > 0) {
-            attron(COLOR_PAIR(CP_YELLOW));
-            mvprintw(text_y++, ox - 5, "You find %d gold in the chest after driving it off.", gold_found);
-            attroff(COLOR_PAIR(CP_YELLOW));
+            R_DRAW_TEXT(text_y++, ox - 5, CP_YELLOW, RATTR_NONE,  "You find %d gold in the chest after driving it off.",  gold_found);
         }
     } else {
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(text_y++, ox - 5, "The well is dry. Nothing but damp stones and silence.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(text_y++, ox - 5, CP_GRAY, RATTR_NONE,  "The well is dry. Nothing but damp stones and silence.");
     }
 
     text_y++;
-    mvprintw(text_y, ox - 5, "[ESC/q to climb back up]");
-    attroff(COLOR_PAIR(CP_WHITE));
+    R_DRAW_TEXT(text_y, ox - 5, CP_GRAY, RATTR_NONE, "[ESC/q to climb back up]");
 
     ui_refresh();
     { int _k; do { _k = ui_getkey(); } while (_k != 27 && _k != 'q' && _k != 'Q'); }
@@ -6970,29 +6659,19 @@ static void handle_town_input(GameState *gs, int key) {
             int term_rows_h, term_cols_h;
             ui_get_size(&term_rows_h, &term_cols_h);
             int row = 1;
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "=== Your Home -- Storage Chest ===");
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Your Home -- Storage Chest ===");
             row++;
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(row++, 4, "[s] Stash an item    [t] Take an item    [r] Rest    [q] Leave");
-            attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "[s] Stash an item    [t] Take an item    [r] Rest    [q] Leave");
             row++;
 
             if (chest_count == 0) {
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row++, 6, "The chest is empty.");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "The chest is empty.");
             } else {
-                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                mvprintw(row++, 4, "Chest contents (%d/%d):", chest_count, MAX_STORED_ITEMS);
-                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Chest contents (%d/%d):",  chest_count,  MAX_STORED_ITEMS);
                 for (int i = 0; i < chest_count && row < term_rows_h - 3; i++) {
-                    attron(COLOR_PAIR(chest[i].color_pair));
-                    mvprintw(row++, 6, "%c) %s (pow:%d val:%dg) -- left by %s, day %d",
+                    R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE, "%c) %s (pow:%d val:%dg) -- left by %s, day %d",
                              'a' + i, chest[i].name, chest[i].power, chest[i].value,
                              chest[i].left_by, chest[i].day_stored);
-                    attroff(COLOR_PAIR(chest[i].color_pair));
                 }
             }
             ui_refresh();
@@ -7013,22 +6692,16 @@ static void handle_town_input(GameState *gs, int key) {
 
                 ui_clear();
                 int sr = 1;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(sr++, 4, "=== Stash Item in Chest ===");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(sr++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Stash Item in Chest ===");
                 sr++;
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(sr++, 4, "Select an item to stash, or q to go back:");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(sr++, 4, CP_WHITE, RATTR_NONE,  "Select an item to stash, or q to go back:");
                 sr++;
                 for (int ii = 0; ii < gs->num_items && sr < term_rows_h - 2; ii++) {
                     Item *it = &gs->inventory[ii];
                     if (it->template_id < 0) continue;
-                    attron(COLOR_PAIR(it->color_pair));
-                    mvprintw(sr++, 6, "%c) %s [%s] pow:%d val:%dg",
+                    R_DRAW_TEXT(sr++, 6, CP_WHITE, RATTR_NONE, "%c) %s [%s] pow:%d val:%dg",
                              'a' + ii, it->name, item_type_name(it->type),
                              it->power, it->value);
-                    attroff(COLOR_PAIR(it->color_pair));
                 }
                 ui_refresh();
 
@@ -7059,20 +6732,14 @@ static void handle_town_input(GameState *gs, int key) {
                 /* Chest contents already shown -- just wait for selection */
                 ui_clear();
                 int tr = 1;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(tr++, 4, "=== Take Item from Chest ===");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(tr++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Take Item from Chest ===");
                 tr++;
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(tr++, 4, "Select an item to take, or q to go back:");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(tr++, 4, CP_WHITE, RATTR_NONE,  "Select an item to take, or q to go back:");
                 tr++;
                 for (int i = 0; i < chest_count && tr < term_rows_h - 2; i++) {
-                    attron(COLOR_PAIR(chest[i].color_pair));
-                    mvprintw(tr++, 6, "%c) %s (pow:%d val:%dg) -- left by %s",
+                    R_DRAW_TEXT(tr++, 6, CP_WHITE, RATTR_NONE, "%c) %s (pow:%d val:%dg) -- left by %s",
                              'a' + i, chest[i].name, chest[i].power, chest[i].value,
                              chest[i].left_by);
-                    attroff(COLOR_PAIR(chest[i].color_pair));
                 }
                 ui_refresh();
 
@@ -8161,13 +7828,9 @@ void game_handle_input(GameState *gs, int key) {
         gs->mp = gs->max_mp;
         /* carry capacity now derived from STR via carry_capacity() */
 
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "=== Level Up! Level %d ===", gs->player_level);
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Level Up! Level %d ===",  gs->player_level);
         row++;
-        attron(COLOR_PAIR(CP_GREEN));
-        mvprintw(row++, 6, "+%d max HP   +%d max MP", hp_gain, mp_gain);
-        attroff(COLOR_PAIR(CP_GREEN));
+        R_DRAW_TEXT(row++, 6, CP_GREEN, RATTR_NONE,  "+%d max HP   +%d max MP",  hp_gain,  mp_gain);
         row++;
 
         /* Class perks at milestone levels */
@@ -8232,25 +7895,19 @@ void game_handle_input(GameState *gs, int key) {
         }
 
         if (perk_msg) {
-            attron(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
-            mvprintw(row++, 6, "%s", perk_msg);
-            attroff(COLOR_PAIR(CP_CYAN_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 6, CP_CYAN_BOLD, RATTR_BOLD,  "%s",  perk_msg);
             row++;
             log_add(&gs->log, gs->turn, CP_CYAN_BOLD, "%s", perk_msg);
         }
         gs->hp = gs->max_hp;
         gs->mp = gs->max_mp;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "Choose a stat to increase by +1:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Choose a stat to increase by +1:");
         row++;
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "[1] STR: %d -> %d", gs->str, gs->str + 1);
-        mvprintw(row++, 6, "[2] DEF: %d -> %d", gs->def, gs->def + 1);
-        mvprintw(row++, 6, "[3] INT: %d -> %d", gs->intel, gs->intel + 1);
-        mvprintw(row++, 6, "[4] SPD: %d -> %d", gs->spd, gs->spd + 1);
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] STR: %d -> %d",  gs->str,  gs->str + 1);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] DEF: %d -> %d",  gs->def,  gs->def + 1);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[3] INT: %d -> %d",  gs->intel,  gs->intel + 1);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[4] SPD: %d -> %d",  gs->spd,  gs->spd + 1);
         ui_refresh();
 
         /* Wait for valid choice */
@@ -8272,9 +7929,7 @@ void game_handle_input(GameState *gs, int key) {
     if ((key == 'q' || key == 'Q') && gs->mode != MODE_TOWN) {
         int term_rows, term_cols;
         ui_get_size(&term_rows, &term_cols);
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(term_rows - 1, 0, "Quit? [s] Save & quit  [q] Quit without saving  [Esc] Cancel");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(term_rows - 1, 0, CP_YELLOW_BOLD, RATTR_BOLD,  "Quit? [s] Save & quit  [q] Quit without saving  [Esc] Cancel");
         ui_refresh();
 
         int qk = ui_getkey();
@@ -8297,9 +7952,7 @@ void game_handle_input(GameState *gs, int key) {
             /* Show spell list */
             ui_clear();
             int row = 1;
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(row++, 2, "=== Cast Spell ===");
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Cast Spell ===");
             row++;
 
             for (int i = 0; i < gs->num_spells; i++) {
@@ -8312,19 +7965,15 @@ void game_handle_input(GameState *gs, int key) {
                 if (sp->affiliation == AFF_NATURE) { aff_name = "Nature"; aff_color = CP_GREEN; }
 
                 bool can_cast = (gs->mp >= sp->mp_cost);
-                attron(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
-                mvprintw(row++, 4, "[%c] %-20s  MP:%-3d  %s",
+                R_DRAW_TEXT(row++, 4, can_cast ? aff_color : CP_GRAY, RATTR_NONE, "[%c] %-20s  MP:%-3d  %s",
                          'a' + i, sp->name, sp->mp_cost, aff_name);
-                attroff(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
             }
             row++;
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row, 4, "Press a letter to cast, or Esc to cancel.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "Press a letter to cast, or Esc to cancel.");
             ui_refresh();
 
             /* Wait for selection */
-            int skey = getch();
+            int skey = R_GETKEY();
             if (skey >= 'a' && skey < 'a' + gs->num_spells) {
                 int si = skey - 'a';
                 const SpellDef *sp = spell_get(gs->spells_known[si]);
@@ -8554,7 +8203,9 @@ void game_handle_input(GameState *gs, int key) {
         Vec2 cursor = gs->player_pos;
 
         while (1) {
+            render_skip_refresh = true;
             game_render(gs);
+            render_skip_refresh = false;
 
             /* Draw cursor */
             int term_rows_l, term_cols_l;
@@ -8574,14 +8225,14 @@ void game_handle_input(GameState *gs, int key) {
             int cx = cursor.x - cam_x;
             int cy = cursor.y - cam_y;
             if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
-                mvaddch(cy, cx, 'X');
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+                R_DRAW_CHAR(cx, cy, 'X', CP_YELLOW_BOLD, RATTR_BLINK);
             }
 
-            /* Show info about cursor position */
-            int info_row = vh + 1;
-            attron(COLOR_PAIR(CP_WHITE));
+            /* Show info about cursor position -- clear the log area first */
+            int info_row = term_rows_l - 3;
+            R_CLEAR_LINE(info_row, 0);
+            R_CLEAR_LINE(info_row + 1, 0);
+            R_CLEAR_LINE(info_row + 2, 0);
             /* Check for location */
             Location *loc_l = overworld_location_at(gs->overworld, cursor.x, cursor.y);
             if (loc_l) {
@@ -8590,28 +8241,25 @@ void game_handle_input(GameState *gs, int key) {
                     "Dungeon", "Cottage", "Cave", "Volcano", "Magic Circle", "Abbey"
                 };
                 const char *tname = (loc_l->type < 11) ? type_names[loc_l->type] : "Location";
-                mvprintw(info_row, 1, "%-40s [%s]                    ", loc_l->name, tname);
+                R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "%-40s [%s]                    ",  loc_l->name,  tname);
             } else {
                 /* Check for creature */
                 OWCreature *cr = overworld_creature_at(gs->overworld, cursor.x, cursor.y);
                 if (cr) {
                     if (cr->hostile) {
-                        mvprintw(info_row, 1, "%-20s HP:%d/%d STR:%d DEF:%d XP:%d        ",
+                        R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE, "%-20s HP:%d/%d STR:%d DEF:%d XP:%d        ",
                                  cr->name, cr->hp, cr->max_hp, cr->str, cr->def, cr->xp_reward);
                     } else {
-                        mvprintw(info_row, 1, "%-20s (friendly)                              ", cr->name);
+                        R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "%-20s (friendly)                              ",  cr->name);
                     }
                 } else {
                     Tile *tl = &gs->overworld->map[cursor.y][cursor.x];
                     const char *tn = terrain_name(tl->type);
-                    mvprintw(info_row, 1, "Terrain: %-20s                               ", tn);
+                    R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "Terrain: %-20s                               ",  tn);
                 }
             }
-            attroff(COLOR_PAIR(CP_WHITE));
 
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(info_row + 1, 1, "Look mode: move cursor to examine. Press ; or Esc to exit.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(info_row + 1, 1, CP_GRAY, RATTR_NONE,  "Look mode: move cursor to examine. Press ; or Esc to exit.");
             ui_refresh();
 
             int lkey = ui_getkey();
@@ -8638,8 +8286,10 @@ void game_handle_input(GameState *gs, int key) {
             Vec2 cursor = gs->player_pos;
 
             while (1) {
-                /* Render the map normally */
+                /* Render the map normally (skip refresh so we can overlay cursor) */
+                render_skip_refresh = true;
                 game_render(gs);
+                render_skip_refresh = false;
 
                 /* Draw cursor -- match camera calculation from game_render */
                 int term_rows, term_cols;
@@ -8659,21 +8309,21 @@ void game_handle_input(GameState *gs, int key) {
                 int cx = cursor.x - cam_x;
                 int cy = cursor.y - cam_y;
                 if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
-                    mvaddch(cy, cx, 'X');
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BLINK);
+                    R_DRAW_CHAR(cx, cy, 'X', CP_YELLOW_BOLD, RATTR_BLINK);
                 }
 
-                /* Show info about cursor tile at bottom */
+                /* Show info about cursor tile at bottom -- clear log area first */
                 Tile *ct = &dl_look->tiles[cursor.y][cursor.x];
-                int info_row = vh + 1;
+                int info_row = term_rows - 3;
+                R_CLEAR_LINE(info_row, 0);
+                R_CLEAR_LINE(info_row + 1, 0);
+                R_CLEAR_LINE(info_row + 2, 0);
 
-                attron(COLOR_PAIR(CP_WHITE));
                 if (ct->visible) {
                     /* Check for monster */
                     Entity *mon = monster_at(gs, cursor.x, cursor.y);
                     if (mon) {
-                        mvprintw(info_row, 1, "Monster: %s  HP:%d/%d  STR:%d  DEF:%d  SPD:%d  XP:%d    ",
+                        R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE, "Monster: %s  HP:%d/%d  STR:%d  DEF:%d  SPD:%d  XP:%d    ",
                                  mon->name, mon->hp, mon->max_hp, mon->str, mon->def, mon->spd, mon->xp_reward);
                     } else {
                         /* Check for item */
@@ -8681,7 +8331,7 @@ void game_handle_input(GameState *gs, int key) {
                         for (int ii = 0; ii < dl_look->num_ground_items; ii++) {
                             Item *it = &dl_look->ground_items[ii];
                             if (it->on_ground && it->pos.x == cursor.x && it->pos.y == cursor.y) {
-                                mvprintw(info_row, 1, "Item: %s [%s]  Power:%d  Value:%dg  Weight:%d    ",
+                                R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE, "Item: %s [%s]  Power:%d  Value:%dg  Weight:%d    ",
                                          it->name, item_type_name(it->type), it->power, it->value, it->weight / 10);
                                 found_item = true;
                                 break;
@@ -8712,15 +8362,14 @@ void game_handle_input(GameState *gs, int key) {
                             case '-': tile_desc = "Coffin"; break;
                             default: tile_desc = "Unknown"; break;
                             }
-                            mvprintw(info_row, 1, "Tile: %s ('%c')                                        ", tile_desc, ct->glyph);
+                            R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "Tile: %s ('%c')                                        ",  tile_desc,  ct->glyph);
                         }
                     }
                 } else if (ct->revealed) {
-                    mvprintw(info_row, 1, "Tile: (remembered, not currently visible)                    ");
+                    R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "Tile: (remembered, not currently visible)                    ");
                 } else {
-                    mvprintw(info_row, 1, "Tile: (unexplored)                                          ");
+                    R_DRAW_TEXT(info_row, 1, CP_WHITE, RATTR_NONE,  "Tile: (unexplored)                                          ");
                 }
-                attroff(COLOR_PAIR(CP_WHITE));
 
                 ui_refresh();
 
@@ -8764,36 +8413,24 @@ void game_handle_input(GameState *gs, int key) {
         ui_get_size(&term_rows, &term_cols);
         int row = 1;
 
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "=== Inventory ===");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Inventory ===");
         row++;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "Equipped:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "Equipped:");
         const char *slot_names[] = { "Weapon", "Armor", "Shield", "Helmet", "Boots", "Gloves", "Ring 1", "Ring 2", "Amulet" };
         for (int s = 0; s < NUM_SLOTS; s++) {
             if (gs->equipment[s].template_id >= 0) {
-                attron(COLOR_PAIR(gs->equipment[s].color_pair));
-                mvprintw(row++, 4, "%-8s: %s (pow:%d)",
+                R_DRAW_TEXT(row++, 4, gs->equipment[s].color_pair, RATTR_NONE, "%-8s: %s (pow:%d)",
                          slot_names[s], gs->equipment[s].name, gs->equipment[s].power);
-                attroff(COLOR_PAIR(gs->equipment[s].color_pair));
             } else {
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row++, 4, "%-8s: (empty)", slot_names[s]);
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "%-8s: (empty)",  slot_names[s]);
             }
         }
         row++;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "Bag (%d/%d):", gs->num_items, MAX_INVENTORY);
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "Bag (%d/%d):",  gs->num_items,  MAX_INVENTORY);
         if (gs->num_items == 0) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "(empty)");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "(empty)");
         }
         for (int ii = 0; ii < gs->num_items && row < term_rows - 4; ii++) {
             Item *it = &gs->inventory[ii];
@@ -8806,10 +8443,8 @@ void game_handle_input(GameState *gs, int key) {
                            (gs->day - it->created_day) >= 2);
 
             if (rotten) {
-                attron(COLOR_PAIR(CP_RED));
-                mvprintw(row++, 4, "%c) %s (ROTTEN!) [%s] (Wt %d.%d)",
+                R_DRAW_TEXT(row++, 4, CP_RED, RATTR_NONE, "%c) %s (ROTTEN!) [%s] (Wt %d.%d)",
                          'a' + ii, it->name, item_type_name(it->type), it->weight/10, it->weight%10);
-                attroff(COLOR_PAIR(CP_RED));
             } else {
                 const char *disp_name = potion_display_name(gs, it);
                 if (it->type == ITYPE_SCROLL || it->type == ITYPE_SPELL_SCROLL)
@@ -8822,11 +8457,9 @@ void game_handle_input(GameState *gs, int key) {
                 short disp_color = it->color_pair;
                 if (it->buc_known && it->buc == 1) disp_color = CP_RED;
                 if (it->buc_known && it->buc == 3) disp_color = CP_YELLOW_BOLD;
-                attron(COLOR_PAIR(disp_color));
-                mvprintw(row++, 4, "%c) %s%s [%s] pow:%d val:%dg (Wt %d.%d)",
+                R_DRAW_TEXT(row++, 4, disp_color, RATTR_NONE, "%c) %s%s [%s] pow:%d val:%dg (Wt %d.%d)",
                          'a' + ii, buc_str, disp_name, item_type_name(it->type),
                          it->power, it->value, it->weight/10, it->weight%10);
-                attroff(COLOR_PAIR(disp_color));
             }
         }
         row++;
@@ -8843,14 +8476,10 @@ void game_handle_input(GameState *gs, int key) {
             case ENC_HEAVY:        state_name = "Heavily Encumbered"; scol = CP_BROWN; break;
             case ENC_OVERLOADED:   state_name = "Overloaded";   scol = CP_RED;    break;
             }
-            attron(COLOR_PAIR(scol));
-            mvprintw(row++, 2, "Weight: %d.%d / %d.%d   [%s]",
+            R_DRAW_TEXT(row++, 2, scol, RATTR_NONE, "Weight: %d.%d / %d.%d   [%s]",
                      tw/10, tw%10, cap/10, cap%10, state_name);
-            attroff(COLOR_PAIR(scol));
         }
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 2, "Press a-z to select, then: e=equip d=drop u=use | q=close");
-        attroff(COLOR_PAIR(CP_WHITE));
+        R_DRAW_TEXT(row++, 2, CP_WHITE, RATTR_NONE,  "Press a-z to select, then: e=equip d=drop u=use | q=close");
         ui_refresh();
 
         int ikey = ui_getkey();
@@ -8858,7 +8487,7 @@ void game_handle_input(GameState *gs, int key) {
             int idx = ikey - 'a';
             if (idx < gs->num_items && gs->inventory[idx].template_id >= 0) {
                 Item *sel = &gs->inventory[idx];
-                mvprintw(row, 4, "Selected: %s  [e]quip [d]rop [u]se [q]cancel", sel->name);
+                R_DRAW_TEXT(row, 4, CP_WHITE, RATTR_NONE, "Selected: %s  [e]quip [d]rop [u]se [q]cancel", sel->name);
                 ui_refresh();
                 int akey = ui_getkey();
                 if (akey == 'e') {
@@ -9113,7 +8742,7 @@ void game_handle_input(GameState *gs, int key) {
                         bool consume = true;
                         if (strcmp(sel->name, "Scroll of Identify") == 0) {
                             /* Pick another inventory item to identify BUC of */
-                            mvprintw(row + 1, 4, "Identify which item? (a-z, q=cancel)");
+                            R_DRAW_TEXT(row + 1, 4, CP_WHITE, RATTR_NONE, "Identify which item? (a-z, q=cancel)");
                             ui_refresh();
                             int ck = ui_getkey();
                             if (ck >= 'a' && ck <= 'z') {
@@ -9163,9 +8792,7 @@ void game_handle_input(GameState *gs, int key) {
                         if (best >= 0) {
                             ui_clear();
                             int mrow = 2;
-                            attron(COLOR_PAIR(CP_BROWN) | A_BOLD);
-                            mvprintw(mrow++, 4, "=== Tattered Treasure Map ===");
-                            attroff(COLOR_PAIR(CP_BROWN) | A_BOLD);
+                            R_DRAW_TEXT(mrow++, 4, CP_BROWN, RATTR_BOLD,  "=== Tattered Treasure Map ===");
                             mrow++;
 
                             /* Draw a crude mini-map centred on the treasure */
@@ -9176,32 +8803,24 @@ void game_handle_input(GameState *gs, int key) {
                                     int wx = tpos.x + mx, wy = tpos.y + my;
                                     int sx = 20 + mx + map_r, sy = mrow + my + 8;
                                     if (wx < 0 || wx >= OW_WIDTH || wy < 0 || wy >= OW_HEIGHT) {
-                                        mvaddch(sy, sx, '~');
+                                        R_DRAW_CHAR(sx, sy, '~', CP_CYAN, RATTR_NONE);
                                         continue;
                                     }
                                     if (wx == tpos.x && wy == tpos.y) {
-                                        attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
-                                        mvaddch(sy, sx, 'X');
-                                        attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+                                        R_DRAW_CHAR(sx, sy, 'X', CP_RED_BOLD, RATTR_BOLD);
                                     } else {
                                         Tile *mt = &gs->overworld->map[wy][wx];
-                                        attron(COLOR_PAIR(mt->color_pair));
-                                        mvaddch(sy, sx, mt->glyph);
-                                        attroff(COLOR_PAIR(mt->color_pair));
+                                        R_DRAW_CHAR(sx, sy, mt->glyph, mt->color_pair, RATTR_NONE);
                                     }
                                 }
                             }
                             mrow += 18;
-                            attron(COLOR_PAIR(CP_YELLOW));
-                            mvprintw(mrow++, 4, "The X marks the spot! Navigate there and press 'x' to dig.");
-                            attroff(COLOR_PAIR(CP_YELLOW));
-                            attron(COLOR_PAIR(CP_GRAY));
-                            mvprintw(mrow++, 4, "Approximate location: %s",
+                            R_DRAW_TEXT(mrow++, 4, CP_YELLOW, RATTR_NONE,  "The X marks the spot! Navigate there and press 'x' to dig.");
+                            R_DRAW_TEXT(mrow++, 4, CP_WHITE, RATTR_NONE, "Approximate location: %s",
                                      tpos.y < 80 ? "Northern England" :
                                      tpos.y < 140 ? "Central England" :
                                      tpos.y < 200 ? "Southern England" : "The South Coast");
-                            mvprintw(mrow, 4, "Press any key to close.");
-                            attroff(COLOR_PAIR(CP_GRAY));
+                            R_DRAW_TEXT(mrow, 4, CP_GRAY, RATTR_NONE,  "Press any key to close.");
                             ui_refresh();
                             ui_getkey();
                         } else {
@@ -9268,98 +8887,68 @@ void game_handle_input(GameState *gs, int key) {
         ui_get_size(&term_rows, &term_cols);
 
         int row = 1;
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "=== Quest Journal ===");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Quest Journal ===");
         row++;
 
         int active = 0, completed = 0;
 
         /* Main Quest: Holy Grail */
         if (gs->quests.grail_quest_active) {
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvprintw(row++, 2, "Main Quest:");
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "Main Quest:");
             if (gs->quests.grail_quest_complete) {
-                attron(COLOR_PAIR(CP_GREEN) | A_BOLD);
-                mvprintw(row++, 4, "[COMPLETE] The Holy Grail -- Returned to King Arthur!");
-                attroff(COLOR_PAIR(CP_GREEN) | A_BOLD);
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_BOLD,  "[COMPLETE] The Holy Grail -- Returned to King Arthur!");
             } else if (gs->has_grail) {
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(row++, 4, "[GRAIL FOUND] Return the Holy Grail to King Arthur at Camelot Castle!");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "[GRAIL FOUND] Return the Holy Grail to King Arthur at Camelot Castle!");
             } else {
-                attron(COLOR_PAIR(CP_YELLOW));
-                mvprintw(row++, 4, "[ACTIVE] The Holy Grail");
-                attroff(COLOR_PAIR(CP_YELLOW));
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(row++, 6, "Find the Holy Grail and return it to King Arthur.");
-                mvprintw(row++, 6, "Ask townfolk and Merlin for hints about its location.");
-                attroff(COLOR_PAIR(CP_WHITE));
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "[ACTIVE] The Holy Grail");
+                R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Find the Holy Grail and return it to King Arthur.");
+                R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Ask townfolk and Merlin for hints about its location.");
             }
             row++;
         }
 
         /* Side quests */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "Active Quests:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "Active Quests:");
         for (int i = 0; i < gs->quests.num_quests && row < term_rows - 4; i++) {
             Quest *q = &gs->quests.quests[i];
             if (q->state == QUEST_ACTIVE) {
-                attron(COLOR_PAIR(CP_YELLOW));
                 const char *tname = (q->type == QTYPE_DELIVERY) ? "Deliver" :
                                     (q->type == QTYPE_FETCH) ? "Fetch" : "Kill";
-                mvprintw(row++, 4, "[%s] %s", tname, q->name);
-                attroff(COLOR_PAIR(CP_YELLOW));
-                attron(COLOR_PAIR(CP_WHITE));
-                mvprintw(row++, 6, "%s", q->description);
+                R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "[%s] %s",  tname,  q->name);
+                R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "%s",  q->description);
                 if (q->type == QTYPE_DELIVERY)
-                    mvprintw(row++, 6, "Deliver to: %s  |  Return to: %s", q->target_town, q->giver_town);
+                    R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Deliver to: %s  |  Return to: %s",  q->target_town,  q->giver_town);
                 else if (q->type == QTYPE_FETCH)
-                    mvprintw(row++, 6, "Location: %s  |  Return to: %s", q->target_dungeon, q->giver_town);
+                    R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Location: %s  |  Return to: %s",  q->target_dungeon,  q->giver_town);
                 else
-                    mvprintw(row++, 6, "Return to: %s", q->giver_town);
-                mvprintw(row++, 6, "Reward: %dg", q->gold_reward);
-                attroff(COLOR_PAIR(CP_WHITE));
+                    R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Return to: %s",  q->giver_town);
+                R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Reward: %dg",  q->gold_reward);
                 row++;
                 active++;
             } else if (q->state == QUEST_COMPLETE) {
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(row++, 4, "[DONE] %s -- return to %s for reward!", q->name, q->giver_town);
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "[DONE] %s -- return to %s for reward!",  q->name,  q->giver_town);
                 active++;
             }
         }
         if (active == 0) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "No active quests. Visit inns to find quest givers (!).");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "No active quests. Visit inns to find quest givers (!).");
         }
 
         row++;
         /* Completed quests */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "Completed Quests:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_WHITE_BOLD, RATTR_BOLD,  "Completed Quests:");
         for (int i = 0; i < gs->quests.num_quests && row < term_rows - 2; i++) {
             Quest *q = &gs->quests.quests[i];
             if (q->state == QUEST_TURNED_IN) {
-                attron(COLOR_PAIR(CP_GREEN));
-                mvprintw(row++, 4, "[DONE] %s (+%dg)", q->name, q->gold_reward);
-                attroff(COLOR_PAIR(CP_GREEN));
+                R_DRAW_TEXT(row++, 4, CP_GREEN, RATTR_NONE,  "[DONE] %s (+%dg)",  q->name,  q->gold_reward);
                 completed++;
             }
         }
         if (completed == 0) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "None yet.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "None yet.");
         }
 
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(term_rows - 1, 2, "Press any key to close.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(term_rows - 1, 2, CP_GRAY, RATTR_NONE,  "Press any key to close.");
         ui_refresh();
         ui_getkey();
         return;
@@ -9384,31 +8973,21 @@ void game_handle_input(GameState *gs, int key) {
             ui_get_size(&term_rows, &term_cols);
 
             int row = 1;
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(row++, 2, "=== Bestiary ===");
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Bestiary ===");
 
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(row++, 2, "Creatures encountered: %d / %d", num_known, total_templates);
-            attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(row++, 2, CP_WHITE, RATTR_NONE,  "Creatures encountered: %d / %d",  num_known,  total_templates);
             row++;
 
             if (num_known == 0) {
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row, 4, "No creatures encountered yet. Go forth and explore!");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row, 4, CP_GRAY, RATTR_NONE,  "No creatures encountered yet. Go forth and explore!");
             } else {
                 /* Header */
-                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                mvprintw(row, 2, " ");
-                mvprintw(row, 4, "%-20s %4s %4s %4s %4s %4s  %s",
+                R_DRAW_TEXT(row, 2, CP_WHITE_BOLD, RATTR_BOLD,  " ");
+                R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD, "%-20s %4s %4s %4s %4s %4s  %s",
                          "Name", "HP", "STR", "DEF", "SPD", "XP", "Slain");
-                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
                 row++;
 
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(row++, 4, "----------------------------------------------------");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "----------------------------------------------------");
 
                 /* List known entries with scrolling */
                 entries_per_page = term_rows - row - 2;
@@ -9426,23 +9005,15 @@ void game_handle_input(GameState *gs, int key) {
 
                     /* Color-code by category */
                     short cp = mt->color_pair;
-                    attron(COLOR_PAIR(cp));
-                    mvprintw(row, 2, "%c", mt->glyph);
-                    attroff(COLOR_PAIR(cp));
+                    R_DRAW_TEXT(row, 2, cp, RATTR_NONE,  "%c",  mt->glyph);
 
-                    attron(COLOR_PAIR(CP_WHITE));
-                    mvprintw(row, 4, "%-20s %4d %4d %4d %4d %4d",
+                    R_DRAW_TEXT(row, 4, cp, RATTR_NONE, "%-20s %4d %4d %4d %4d %4d",
                              mt->name, mt->hp, mt->str, mt->def, mt->spd, mt->xp_reward);
-                    attroff(COLOR_PAIR(CP_WHITE));
 
                     if (kills > 0) {
-                        attron(COLOR_PAIR(CP_GREEN));
-                        mvprintw(row, 54, "%d", kills);
-                        attroff(COLOR_PAIR(CP_GREEN));
+                        R_DRAW_TEXT(row, 54, CP_GREEN, RATTR_NONE,  "%d",  kills);
                     } else {
-                        attron(COLOR_PAIR(CP_GRAY));
-                        mvprintw(row, 54, "-");
-                        attroff(COLOR_PAIR(CP_GRAY));
+                        R_DRAW_TEXT(row, 54, CP_GRAY, RATTR_NONE,  "-");
                     }
 
                     row++;
@@ -9450,16 +9021,12 @@ void game_handle_input(GameState *gs, int key) {
                 }
 
                 if (num_known > entries_per_page) {
-                    attron(COLOR_PAIR(CP_GRAY));
-                    mvprintw(term_rows - 2, 2, "[up/down to scroll, %d-%d of %d]",
+                    R_DRAW_TEXT(term_rows - 2, 2, CP_GRAY, RATTR_NONE, "[up/down to scroll, %d-%d of %d]",
                              scroll + 1, scroll + shown, num_known);
-                    attroff(COLOR_PAIR(CP_GRAY));
                 }
             }
 
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(term_rows - 1, 2, "Press q or Esc to close.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(term_rows - 1, 2, CP_GRAY, RATTR_NONE,  "Press q or Esc to close.");
             ui_refresh();
 
             int bkey = ui_getkey();
@@ -9483,88 +9050,60 @@ void game_handle_input(GameState *gs, int key) {
                                    "Weathered face", "Freckles", "Piercing gaze",
                                    "Noble bearing", "Calloused hands" };
 
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "=== Character Sheet ===");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Character Sheet ===");
         row++;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "%s %s %s", gender_names[gs->player_gender],
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD, "%s %s %s", gender_names[gs->player_gender],
                  class_names[gs->player_class], gs->player_name);
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 4, "Level %d  |  %s  |  Chivalry: %d (%s)",
+        R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE, "Level %d  |  %s  |  Chivalry: %d (%s)",
                  gs->player_level, chivalry_title(gs->chivalry),
                  gs->chivalry, chivalry_title(gs->chivalry));
-        attroff(COLOR_PAIR(CP_GRAY));
         row++;
 
         /* Appearance */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "Appearance:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "Hair:    %s", hair[gs->appearance[0] % 7]);
-        mvprintw(row++, 6, "Eyes:    %s", eyes[gs->appearance[1] % 6]);
-        mvprintw(row++, 6, "Build:   %s", build[gs->appearance[2] % 6]);
-        mvprintw(row++, 6, "Feature: %s", feature[gs->appearance[3] % 8]);
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Appearance:");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "Hair:    %s",  hair[gs->appearance[0] % 7]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "Eyes:    %s",  eyes[gs->appearance[1] % 6]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "Build:   %s",  build[gs->appearance[2] % 6]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "Feature: %s",  feature[gs->appearance[3] % 8]);
         row++;
 
         /* Stats */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "Stats:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 6, "HP:  %d/%d    MP:  %d/%d", gs->hp, gs->max_hp, gs->mp, gs->max_mp);
-        mvprintw(row++, 6, "STR: %-3d     DEF: %-3d", gs->str, gs->def);
-        mvprintw(row++, 6, "INT: %-3d     SPD: %-3d", gs->intel, gs->spd);
-        mvprintw(row++, 6, "Gold: %d     Weight: %d/%d", gs->gold, gs->weight, gs->max_weight);
-        attroff(COLOR_PAIR(CP_WHITE));
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Stats:");
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "HP:  %d/%d    MP:  %d/%d",  gs->hp,  gs->max_hp,  gs->mp,  gs->max_mp);
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "STR: %-3d     DEF: %-3d",  gs->str,  gs->def);
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "INT: %-3d     SPD: %-3d",  gs->intel,  gs->spd);
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Gold: %d     Weight: %d/%d",  gs->gold,  gs->weight,  gs->max_weight);
         row++;
 
         /* Affinities */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "Affinities:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        attron(COLOR_PAIR(CP_YELLOW));
-        mvprintw(row, 6, "Light: %d", gs->light_affinity);
-        attroff(COLOR_PAIR(CP_YELLOW));
-        attron(COLOR_PAIR(CP_MAGENTA));
-        mvprintw(row, 20, "Dark: %d", gs->dark_affinity);
-        attroff(COLOR_PAIR(CP_MAGENTA));
-        attron(COLOR_PAIR(CP_GREEN));
-        mvprintw(row++, 33, "Nature: %d", gs->nature_affinity);
-        attroff(COLOR_PAIR(CP_GREEN));
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Affinities:");
+        R_DRAW_TEXT(row, 6, CP_YELLOW, RATTR_NONE,  "Light: %d",  gs->light_affinity);
+        R_DRAW_TEXT(row, 20, CP_MAGENTA, RATTR_NONE,  "Dark: %d",  gs->dark_affinity);
+        R_DRAW_TEXT(row++, 33, CP_GREEN, RATTR_NONE,  "Nature: %d",  gs->nature_affinity);
         row++;
 
         /* Combat */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row++, 4, "Combat:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 6, "XP: %d    Kills: %d    Quests: %d/%d",
+        R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Combat:");
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE, "XP: %d    Kills: %d    Quests: %d/%d",
                  gs->xp, gs->kills,
                  quest_count_completed(&gs->quests), gs->quests.num_quests);
         if (gs->shield_absorb > 0)
-            mvprintw(row++, 6, "Shield absorb: %d remaining", gs->shield_absorb);
+            R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Shield absorb: %d remaining",  gs->shield_absorb);
         if (gs->horse_type > 0) {
             const char *hnames[] = { "", "Pony", "Palfrey", "Destrier" };
-            mvprintw(row++, 6, "Mount: %s%s", hnames[gs->horse_type],
+            R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE, "Mount: %s%s", hnames[gs->horse_type],
                      gs->riding ? " (riding)" : " (dismounted)");
         }
         if (gs->has_lycanthropy)
-            mvprintw(row++, 6, "Curse: LYCANTHROPY (beware the full moon!)");
+            R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Curse: LYCANTHROPY (beware the full moon!)");
         if (gs->has_vampirism)
-            mvprintw(row++, 6, "Curse: VAMPIRISM (sunlight burns, drain HP on attacks)");
-        mvprintw(row++, 6, "Spells: %d/%d known", gs->num_spells, gs->max_spells_capacity);
-        attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Curse: VAMPIRISM (sunlight burns, drain HP on attacks)");
+        R_DRAW_TEXT(row++, 6, CP_WHITE, RATTR_NONE,  "Spells: %d/%d known",  gs->num_spells,  gs->max_spells_capacity);
 
         int term_rows, term_cols;
         ui_get_size(&term_rows, &term_cols);
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(term_rows - 1, 2, "Press any key to close.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(term_rows - 1, 2, CP_GRAY, RATTR_NONE,  "Press any key to close.");
         ui_refresh();
         ui_getkey();
         return;
@@ -9578,28 +9117,20 @@ void game_handle_input(GameState *gs, int key) {
         int row = 1;
 
         const char *class_names[] = { "Knight", "Wizard", "Ranger" };
-        attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-        mvprintw(row++, 2, "=== Spellbook ===");
-        attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row++, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Spellbook ===");
         row++;
 
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row++, 2, "Class: %s | MP: %d/%d | Spells: %d/%d",
+        R_DRAW_TEXT(row++, 2, CP_WHITE, RATTR_NONE, "Class: %s | MP: %d/%d | Spells: %d/%d",
                  class_names[gs->player_class], gs->mp, gs->max_mp,
                  gs->num_spells, gs->max_spells_capacity);
-        attroff(COLOR_PAIR(CP_WHITE));
         row++;
 
         if (gs->num_spells == 0) {
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "You don't know any spells.");
-            mvprintw(row++, 4, "Find Spell Scrolls in dungeons and use them to learn.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "You don't know any spells.");
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "Find Spell Scrolls in dungeons and use them to learn.");
         } else {
             /* Column headers */
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "%-22s %-10s  MP  Dmg  Range  School", "Name", "Effect");
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_WHITE_BOLD, RATTR_BOLD,  "%-22s %-10s  MP  Dmg  Range  School",  "Name",  "Effect");
 
             for (int i = 0; i < gs->num_spells && row < term_rows - 3; i++) {
                 const SpellDef *sp = spell_get(gs->spells_known[i]);
@@ -9639,19 +9170,15 @@ void game_handle_input(GameState *gs, int key) {
                 }
 
                 bool can_cast = (gs->mp >= sp->mp_cost);
-                attron(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
-                mvprintw(row++, 4, "[%c] %-20s %-10s %3d  %3d  %5d  %s",
+                R_DRAW_TEXT(row++, 4, can_cast ? aff_color : CP_GRAY, RATTR_NONE, "[%c] %-20s %-10s %3d  %3d  %5d  %s",
                          'a' + i, sp->name, eff_name, sp->mp_cost,
                          sp->damage, sp->range, aff_name);
-                attroff(COLOR_PAIR(can_cast ? aff_color : CP_GRAY));
             }
         }
 
         row = term_rows - 2;
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 2, "Press z to cast a spell. Use Spell Scrolls (i -> u) to learn new spells.");
-        mvprintw(row, 2, "Press any key to close.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 2, CP_GRAY, RATTR_NONE,  "Press z to cast a spell. Use Spell Scrolls (i -> u) to learn new spells.");
+        R_DRAW_TEXT(row, 2, CP_GRAY, RATTR_NONE,  "Press any key to close.");
         ui_refresh();
         ui_getkey();
         return;
@@ -9700,26 +9227,20 @@ void game_handle_input(GameState *gs, int key) {
         while (1) {
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "=== Settings ===");
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Settings ===");
             row++;
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(row++, 4, "Version: %s", GAME_VERSION_STRING);
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Version: %s",  GAME_VERSION_STRING);
             row++;
-            mvprintw(row++, 4, "Game seed: %llu", (unsigned long long)rng_get_seed());
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Game seed: %llu",  (unsigned long long)rng_get_seed());
             row++;
-            mvprintw(row++, 4, "Save location: ~/.camelot/save.dat");
-            mvprintw(row++, 4, "Morgue files:  ~/.camelot/morgue/");
-            mvprintw(row++, 4, "High scores:   ~/.camelot/scores.dat");
-            mvprintw(row++, 4, "Home chest:    ~/.camelot/home_chest.dat");
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Save location: ~/.camelot/save.dat");
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Morgue files:  ~/.camelot/morgue/");
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "High scores:   ~/.camelot/scores.dat");
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Home chest:    ~/.camelot/home_chest.dat");
             row++;
-            mvprintw(row++, 4, "Terminal: %dx%d", COLS, LINES);
-            attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(row++, 4, CP_WHITE, RATTR_NONE,  "Terminal: %dx%d",  COLS,  LINES);
             row++;
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(row++, 4, "Press [q] to close.");
-            attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_TEXT(row++, 4, CP_GRAY, RATTR_NONE,  "Press [q] to close.");
             ui_refresh();
 
             int sk = ui_getkey();
@@ -9872,9 +9393,7 @@ void game_handle_input(GameState *gs, int key) {
             ui_get_size(&term_rows_hp, &term_cols_hp);
 
             /* Render current page */
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(0, 2, "HELP -- Page %d/%d -- [</>] Page  [q] Close", page + 1, num_pages);
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(0, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "HELP -- Page %d/%d -- [</>] Page  [q] Close",  page + 1,  num_pages);
 
             const char *text = help_pages[page];
             int row = 2;
@@ -9888,21 +9407,13 @@ void game_handle_input(GameState *gs, int key) {
 
                 /* Color headers */
                 if (len > 3 && p[0] == '=' && p[1] == '=' && p[2] == '=') {
-                    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                    mvprintw(row, 2, "%.*s", len, p);
-                    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "%.*s",  len,  p);
                 } else if (len > 0 && p[len-1] == ':') {
-                    attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                    mvprintw(row, 2, "%.*s", len, p);
-                    attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                    R_DRAW_TEXT(row, 2, CP_WHITE_BOLD, RATTR_BOLD,  "%.*s",  len,  p);
                 } else if (len > 2 && p[0] == '-') {
-                    attron(COLOR_PAIR(CP_CYAN));
-                    mvprintw(row, 2, "%.*s", len, p);
-                    attroff(COLOR_PAIR(CP_CYAN));
+                    R_DRAW_TEXT(row, 2, CP_CYAN, RATTR_NONE,  "%.*s",  len,  p);
                 } else {
-                    attron(COLOR_PAIR(CP_WHITE));
-                    mvprintw(row, 2, "%.*s", len, p);
-                    attroff(COLOR_PAIR(CP_WHITE));
+                    R_DRAW_TEXT(row, 2, CP_WHITE, RATTR_NONE,  "%.*s",  len,  p);
                 }
                 row++;
                 p = *eol ? eol + 1 : eol;
@@ -9929,26 +9440,20 @@ void game_handle_input(GameState *gs, int key) {
 
         while (1) {
             ui_clear();
-            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-            mvprintw(0, 1, "-- Message History (%d messages) -- [Up/Down to scroll, q to close]", total);
-            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            R_DRAW_TEXT(0, 1, CP_WHITE_BOLD, RATTR_BOLD,  "-- Message History (%d messages) -- [Up/Down to scroll, q to close]",  total);
 
             for (int i = 0; i < page_size && (offset + i) < total; i++) {
                 const LogEntry *entry = log_get(&gs->log, offset + i);
                 if (entry) {
-                    attron(COLOR_PAIR(entry->color_pair));
-                    mvprintw(2 + i, 1, "[%4d] %.*s",
+                    R_DRAW_TEXT(2 + i, 1, entry->color_pair, RATTR_NONE, "[%4d] %.*s",
                              entry->turn, term_cols - 10, entry->text);
-                    attroff(COLOR_PAIR(entry->color_pair));
                 }
             }
 
-            attron(COLOR_PAIR(CP_GRAY));
-            mvprintw(term_rows - 1, 1, "Showing %d-%d of %d",
+            R_DRAW_TEXT(term_rows - 1, 1, CP_GRAY, RATTR_NONE, "Showing %d-%d of %d",
                      offset + 1,
                      (offset + page_size < total) ? offset + page_size : total,
                      total);
-            attroff(COLOR_PAIR(CP_GRAY));
 
             ui_refresh();
             int hkey = ui_getkey();
@@ -10178,51 +9683,35 @@ static void render_character_create(GameState *gs) {
     ui_clear();
     int row = 2;
 
-    attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-    mvprintw(0, 2, "=== Knights of Camelot - Character Creation ===");
-    attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+    R_DRAW_TEXT(0, 2, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Knights of Camelot - Character Creation ===");
 
     if (gs->create_step == 0) {
         /* Class selection */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "Choose your class:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Choose your class:");
         row += 2;
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "[1] Knight  - Warrior of the realm. Strong and tough.");
-        mvprintw(row++, 6, "              +2 STR, +2 DEF. HP:30  MP:8   Max spells: 4");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] Knight  - Warrior of the realm. Strong and tough.");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "              +2 STR, +2 DEF. HP:30  MP:8   Max spells: 4");
         row++;
-        mvprintw(row++, 6, "[2] Wizard  - Master of the arcane arts. Powerful magic.");
-        mvprintw(row++, 6, "              +3 INT, +1 SPD. HP:18  MP:30  Max spells: 15");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] Wizard  - Master of the arcane arts. Powerful magic.");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "              +3 INT, +1 SPD. HP:18  MP:30  Max spells: 15");
         row++;
-        mvprintw(row++, 6, "[3] Ranger  - Swift and versatile. Balanced fighter.");
-        mvprintw(row++, 6, "              +1 STR, +2 SPD. HP:24  MP:15  Max spells: 6");
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[3] Ranger  - Swift and versatile. Balanced fighter.");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "              +1 STR, +2 SPD. HP:24  MP:15  Max spells: 6");
     } else if (gs->create_step == 1) {
         /* Gender selection */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "Choose your gender:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Choose your gender:");
         row += 2;
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "[1] Male   - +1 STR, +1 DEF");
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] Male   - +1 STR, +1 DEF");
         row++;
-        mvprintw(row++, 6, "[2] Female - +1 INT, +1 SPD");
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] Female - +1 INT, +1 SPD");
     } else if (gs->create_step == 2) {
         /* Name entry */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "Enter your name:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Enter your name:");
         row += 2;
-        attron(COLOR_PAIR(CP_WHITE));
-        mvprintw(row, 6, "> %s_", gs->player_name);
-        attroff(COLOR_PAIR(CP_WHITE));
+        R_DRAW_TEXT(row, 6, CP_WHITE, RATTR_NONE,  "> %s_",  gs->player_name);
         row += 2;
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 6, "Type a name and press Enter.");
-        mvprintw(row++, 6, "Press [r] for a random name.  Press Backspace to delete.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Type a name and press Enter.");
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press [r] for a random name.  Press Backspace to delete.");
     } else if (gs->create_step == 3) {
         /* Appearance */
         const char *hair[] = { "Black", "Brown", "Auburn", "Red", "Blonde", "Grey", "White" };
@@ -10233,21 +9722,15 @@ static void render_character_create(GameState *gs) {
                                    "Noble bearing", "Calloused hands" };
         int nhair = 7, neyes = 6, nbuild = 6, nfeat = 8;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "Customise your appearance:");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Customise your appearance:");
         row += 2;
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "[1] Hair:    %-12s", hair[gs->appearance[0] % nhair]);
-        mvprintw(row++, 6, "[2] Eyes:    %-12s", eyes[gs->appearance[1] % neyes]);
-        mvprintw(row++, 6, "[3] Build:   %-12s", build[gs->appearance[2] % nbuild]);
-        mvprintw(row++, 6, "[4] Feature: %-20s", feature[gs->appearance[3] % nfeat]);
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] Hair:    %-12s",  hair[gs->appearance[0] % nhair]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] Eyes:    %-12s",  eyes[gs->appearance[1] % neyes]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[3] Build:   %-12s",  build[gs->appearance[2] % nbuild]);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[4] Feature: %-20s",  feature[gs->appearance[3] % nfeat]);
         row++;
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 6, "Press 1-4 to cycle options. [r] to randomise all.");
-        mvprintw(row++, 6, "Press [Enter] to continue.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press 1-4 to cycle options. [r] to randomise all.");
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press [Enter] to continue.");
     } else if (gs->create_step == 4) {
         /* Stats roll */
         const char *class_name[] = { "Knight", "Wizard", "Ranger" };
@@ -10255,50 +9738,38 @@ static void render_character_create(GameState *gs) {
         const char *hair[] = { "Black", "Brown", "Auburn", "Red", "Blonde", "Grey", "White" };
         const char *eyes[] = { "Blue", "Green", "Brown", "Grey", "Hazel", "Amber" };
         const char *build[] = { "Lean", "Average", "Stocky", "Tall", "Short", "Athletic" };
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "%s - %s %s", gs->player_name,
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD, "%s - %s %s", gs->player_name,
                  gender_name[gs->player_gender], class_name[gs->player_class]);
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         row++;
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row, 6, "%s hair, %s eyes, %s",
+        R_DRAW_TEXT(row, 6, CP_GRAY, RATTR_NONE, "%s hair, %s eyes, %s",
                  hair[gs->appearance[0] % 7], eyes[gs->appearance[1] % 6],
                  build[gs->appearance[2] % 6]);
-        attroff(COLOR_PAIR(CP_GRAY));
         row += 2;
-        attron(COLOR_PAIR(CP_CYAN));
-        mvprintw(row++, 6, "STR: %-3d  DEF: %-3d", gs->str, gs->def);
-        mvprintw(row++, 6, "INT: %-3d  SPD: %-3d", gs->intel, gs->spd);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "STR: %-3d  DEF: %-3d",  gs->str,  gs->def);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "INT: %-3d  SPD: %-3d",  gs->intel,  gs->spd);
         row++;
-        mvprintw(row++, 6, "HP:  %-3d  MP:  %-3d", gs->max_hp, gs->max_mp);
-        mvprintw(row++, 6, "Gold: %d", gs->gold);
-        attroff(COLOR_PAIR(CP_CYAN));
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "HP:  %-3d  MP:  %-3d",  gs->max_hp,  gs->max_mp);
+        R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "Gold: %d",  gs->gold);
         row++;
-        attron(COLOR_PAIR(CP_GRAY));
-        mvprintw(row++, 6, "Press [r] to re-roll stats.");
-        mvprintw(row++, 6, "Press [Enter] to accept and begin.");
-        mvprintw(row++, 6, "Press [C] for cheat options.");
-        attroff(COLOR_PAIR(CP_GRAY));
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press [r] to re-roll stats.");
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press [Enter] to accept and begin.");
+        R_DRAW_TEXT(row++, 6, CP_GRAY, RATTR_NONE,  "Press [C] for cheat options.");
     } else if (gs->create_step == 5) {
         /* Story screen */
         row = 4;
-        attron(COLOR_PAIR(CP_YELLOW));
-        mvprintw(row++, 4, "The kingdom of Camelot is in peril...");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "The kingdom of Camelot is in peril...");
         row++;
-        mvprintw(row++, 4, "Dark forces gather in the shadows. Ancient evils stir");
-        mvprintw(row++, 4, "beneath the hills of England. The Holy Grail, source of");
-        mvprintw(row++, 4, "the land's power, has been lost.");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "Dark forces gather in the shadows. Ancient evils stir");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "beneath the hills of England. The Holy Grail, source of");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "the land's power, has been lost.");
         row++;
-        mvprintw(row++, 4, "King Arthur has summoned you to his court.");
-        mvprintw(row++, 4, "Seek an audience with the King in the throne room");
-        mvprintw(row++, 4, "of Camelot Castle to learn of your destiny.");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "King Arthur has summoned you to his court.");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "Seek an audience with the King in the throne room");
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "of Camelot Castle to learn of your destiny.");
         row++;
-        mvprintw(row++, 4, "Your journey begins at the gates of Camelot...");
-        attroff(COLOR_PAIR(CP_YELLOW));
+        R_DRAW_TEXT(row++, 4, CP_YELLOW, RATTR_NONE,  "Your journey begins at the gates of Camelot...");
         row += 2;
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-        mvprintw(row, 4, "Press any key to begin your adventure.");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        R_DRAW_TEXT(row, 4, CP_WHITE_BOLD, RATTR_BOLD,  "Press any key to begin your adventure.");
     }
 
     ui_refresh();
@@ -10384,23 +9855,17 @@ static void handle_character_create(GameState *gs, int key) {
             /* Cheat mode! */
             ui_clear();
             int row = 2;
-            attron(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
-            mvprintw(row++, 4, "=== CHEAT MODE ===");
-            attroff(COLOR_PAIR(CP_RED_BOLD) | A_BOLD);
+            R_DRAW_TEXT(row++, 4, CP_RED_BOLD, RATTR_BOLD,  "=== CHEAT MODE ===");
             row++;
-            attron(COLOR_PAIR(CP_YELLOW));
-            mvprintw(row++, 6, "WARNING: Enabling cheats sets your score to 0");
-            mvprintw(row++, 6, "and marks your character as CHEAT permanently.");
-            attroff(COLOR_PAIR(CP_YELLOW));
+            R_DRAW_TEXT(row++, 6, CP_YELLOW, RATTR_NONE,  "WARNING: Enabling cheats sets your score to 0");
+            R_DRAW_TEXT(row++, 6, CP_YELLOW, RATTR_NONE,  "and marks your character as CHEAT permanently.");
             row++;
-            attron(COLOR_PAIR(CP_CYAN));
-            mvprintw(row++, 6, "[1] God Mode (HP 999)");
-            mvprintw(row++, 6, "[2] Rich Start (Gold 9999)");
-            mvprintw(row++, 6, "[3] Max Stats (all 15)");
-            mvprintw(row++, 6, "[4] All of the above");
-            mvprintw(row++, 6, "[5] Choose starting town");
-            mvprintw(row++, 6, "[q] Cancel -- no cheats");
-            attroff(COLOR_PAIR(CP_CYAN));
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[1] God Mode (HP 999)");
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[2] Rich Start (Gold 9999)");
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[3] Max Stats (all 15)");
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[4] All of the above");
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[5] Choose starting town");
+            R_DRAW_TEXT(row++, 6, CP_CYAN, RATTR_NONE,  "[q] Cancel -- no cheats");
             ui_refresh();
 
             int ck = ui_getkey();
@@ -10420,24 +9885,18 @@ static void handle_character_create(GameState *gs, int key) {
                 gs->cheat_mode = true;
                 ui_clear();
                 int tr = 2;
-                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-                mvprintw(tr++, 4, "=== Choose Starting Town ===");
-                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+                R_DRAW_TEXT(tr++, 4, CP_YELLOW_BOLD, RATTR_BOLD,  "=== Choose Starting Town ===");
                 tr++;
                 const char *towns[] = {
                     "Camelot", "London", "York", "Winchester", "Canterbury",
                     "Glastonbury", "Bath", "Sherwood", "Tintagel", "Cornwall",
                     "Caernarfon", "Whitby"
                 };
-                attron(COLOR_PAIR(CP_CYAN));
                 for (int ti = 0; ti < 12; ti++) {
-                    mvprintw(tr++, 6, "[%c] %s", 'a' + ti, towns[ti]);
+                    R_DRAW_TEXT(tr++, 6, CP_CYAN, RATTR_NONE,  "[%c] %s",  'a' + ti,  towns[ti]);
                 }
-                attroff(COLOR_PAIR(CP_CYAN));
                 tr++;
-                attron(COLOR_PAIR(CP_GRAY));
-                mvprintw(tr, 6, "Press a letter, or q to keep Camelot.");
-                attroff(COLOR_PAIR(CP_GRAY));
+                R_DRAW_TEXT(tr, 6, CP_GRAY, RATTR_NONE,  "Press a letter, or q to keep Camelot.");
                 ui_refresh();
 
                 int tk = ui_getkey();
@@ -10595,22 +10054,18 @@ static void game_render(GameState *gs) {
 
         /* Town name header */
         if (gs->current_town) {
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
-            mvprintw(0, TOWN_MAP_W + 2, "%s", gs->current_town->name);
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD);
+            R_DRAW_TEXT(0, TOWN_MAP_W + 2, CP_YELLOW_BOLD, RATTR_BOLD,  "%s",  gs->current_town->name);
 
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(2, TOWN_MAP_W + 2, "HP: %d/%d", gs->hp, gs->max_hp);
-            mvprintw(3, TOWN_MAP_W + 2, "MP: %d/%d", gs->mp, gs->max_mp);
-            mvprintw(4, TOWN_MAP_W + 2, "Gold: %d", gs->gold);
-            mvprintw(5, TOWN_MAP_W + 2, "Chiv: %d (%s)", gs->chivalry, chivalry_title(gs->chivalry));
-            mvprintw(7, TOWN_MAP_W + 2, "Day %d %02d:%02d",
+            R_DRAW_TEXT(2, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "HP: %d/%d",  gs->hp,  gs->max_hp);
+            R_DRAW_TEXT(3, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "MP: %d/%d",  gs->mp,  gs->max_mp);
+            R_DRAW_TEXT(4, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "Gold: %d",  gs->gold);
+            R_DRAW_TEXT(5, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "Chiv: %d (%s)",  gs->chivalry,  chivalry_title(gs->chivalry));
+            R_DRAW_TEXT(7, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE, "Day %d %02d:%02d",
                      gs->day, gs->hour, gs->minute);
-            mvprintw(8, TOWN_MAP_W + 2, "%s", time_of_day_name(gs->hour));
-            mvprintw(10, TOWN_MAP_W + 2, "Bump into NPCs");
-            mvprintw(11, TOWN_MAP_W + 2, "to interact.");
-            mvprintw(12, TOWN_MAP_W + 2, "q = leave town");
-            attroff(COLOR_PAIR(CP_WHITE));
+            R_DRAW_TEXT(8, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "%s",  time_of_day_name(gs->hour));
+            R_DRAW_TEXT(10, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "Bump into NPCs");
+            R_DRAW_TEXT(11, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "to interact.");
+            R_DRAW_TEXT(12, TOWN_MAP_W + 2, CP_WHITE, RATTR_NONE,  "q = leave town");
         }
 
         ui_render_log(&gs->log, TOWN_MAP_H + 1, term_cols, 3);
@@ -10637,9 +10092,7 @@ static void game_render(GameState *gs) {
             int ppx = gs->player_pos.x - cam_x_p;
             int ppy = gs->player_pos.y - cam_y_p;
             if (ppx >= 0 && ppx < map_view_width && ppy >= 0 && ppy < map_view_height) {
-                attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
-                mvaddch(ppy, ppx, 'H');
-                attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+                R_DRAW_CHAR(ppx, ppy, 'H', CP_WHITE_BOLD, RATTR_BOLD);
             }
         }
 
@@ -10655,9 +10108,7 @@ static void game_render(GameState *gs) {
             int cy = gs->cat_pos.y - cam_y_c;
             if (cx >= 0 && cx < map_view_width && cy >= 0 && cy < map_view_height &&
                 (gs->cat_pos.x != gs->player_pos.x || gs->cat_pos.y != gs->player_pos.y)) {
-                attron(COLOR_PAIR(CP_YELLOW) | A_BOLD);
-                mvaddch(cy, cx, 'c');
-                attroff(COLOR_PAIR(CP_YELLOW) | A_BOLD);
+                R_DRAW_CHAR(cx, cy, 'c', CP_YELLOW, RATTR_BOLD);
             }
         }
 
@@ -10703,9 +10154,7 @@ static void game_render(GameState *gs) {
                 int sx = c->pos.x - cam_x;
                 int sy = c->pos.y - cam_y;
                 if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
-                    attron(COLOR_PAIR(c->color_pair));
-                    mvaddch(sy, sx, c->glyph);
-                    attroff(COLOR_PAIR(c->color_pair));
+                    R_DRAW_CHAR(sx, sy, c->glyph, c->color_pair, RATTR_NONE);
                 }
             }
         }
@@ -10728,9 +10177,7 @@ static void game_render(GameState *gs) {
                     CP_BLUE, CP_MAGENTA, CP_WHITE
                 };
                 short rc = rainbow_colors[gs->turn % 7];
-                attron(COLOR_PAIR(rc) | A_BOLD);
-                mvaddch(ry, rx, '=');
-                attroff(COLOR_PAIR(rc) | A_BOLD);
+                R_DRAW_CHAR(rx, ry, '=', rc, RATTR_BOLD);
             }
         }
 
@@ -10769,9 +10216,16 @@ static void game_render(GameState *gs) {
                         int dist_sq = adx * adx + dy * dy;
                         if (dist_sq <= light_r * light_r) continue; /* inside light radius */
 
-                        chtype ch = mvinch(vy, vx);
-                        if ((ch & A_CHARTEXT) == '@') continue;
-                        mvaddch(vy, vx, (ch & ~A_COLOR) | A_DIM | (ch & A_COLOR));
+                        /* Re-draw tile at this position with DIM attribute */
+                        int wx = cam_x + vx;
+                        int wy = cam_y + vy;
+                        if (wx < 0 || wx >= OW_WIDTH || wy < 0 || wy >= OW_HEIGHT) continue;
+                        Tile *dt = &gs->overworld->map[wy][wx];
+                        char dch = dt->glyph;
+                        short dcp = dt->color_pair;
+                        /* Skip player glyph */
+                        if (wx == gs->player_pos.x && wy == gs->player_pos.y) continue;
+                        R_DRAW_CHAR(vx, vy, dch, dcp, RATTR_DIM);
                     }
                 }
             }
@@ -10808,9 +10262,7 @@ static void game_render(GameState *gs) {
                         int sx = it->pos.x - icam_x;
                         int sy = it->pos.y - icam_y;
                         if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
-                            attron(COLOR_PAIR(it->color_pair) | A_BOLD);
-                            mvaddch(sy, sx, it->glyph);
-                            attroff(COLOR_PAIR(it->color_pair) | A_BOLD);
+                            R_DRAW_CHAR(sx, sy, it->glyph, it->color_pair, RATTR_BOLD);
                         }
                     }
                 }
@@ -10835,9 +10287,7 @@ static void game_render(GameState *gs) {
                         int sx = e->pos.x - mcam_x;
                         int sy = e->pos.y - mcam_y;
                         if (sx >= 0 && sx < map_view_width && sy >= 0 && sy < map_view_height) {
-                            attron(COLOR_PAIR(e->color_pair) | A_BOLD);
-                            mvaddch(sy, sx, e->glyph);
-                            attroff(COLOR_PAIR(e->color_pair) | A_BOLD);
+                            R_DRAW_CHAR(sx, sy, e->glyph, e->color_pair, RATTR_BOLD);
                         }
                     }
                 }
@@ -10857,9 +10307,7 @@ static void game_render(GameState *gs) {
                     (gs->cat_pos.x != gs->player_pos.x || gs->cat_pos.y != gs->player_pos.y)) {
                     DungeonLevel *dl_cat = current_dungeon_level(gs);
                     if (dl_cat && dl_cat->tiles[gs->cat_pos.y][gs->cat_pos.x].visible) {
-                        attron(COLOR_PAIR(CP_YELLOW) | A_BOLD);
-                        mvaddch(ccy, ccx, 'c');
-                        attroff(COLOR_PAIR(CP_YELLOW) | A_BOLD);
+                        R_DRAW_CHAR(ccx, ccy, 'c', CP_YELLOW, RATTR_BOLD);
                     }
                 }
             }
@@ -10870,10 +10318,8 @@ static void game_render(GameState *gs) {
     if (show_sidebar) {
         int sidebar_col = map_view_width + 1;
 
-        attron(COLOR_PAIR(CP_GRAY));
         for (int y = 0; y < map_view_height; y++)
-            mvaddch(y, map_view_width, ACS_VLINE);
-        attroff(COLOR_PAIR(CP_GRAY));
+            R_DRAW_CHAR(map_view_width, y, '|', CP_GRAY, RATTR_NONE);
 
         recompute_weight(gs);
         int hud_max_w = gs->max_weight;
@@ -10954,15 +10400,16 @@ static void game_render(GameState *gs) {
     if (log_lines > 0)
         ui_render_log(&gs->log, log_row, term_cols, log_lines);
 
-    ui_refresh();
+    if (!render_skip_refresh)
+        ui_refresh();
 }
 
 void game_run(GameState *gs) {
     /* Flush any stale input before entering loop */
-    flushinp();
-    nodelay(stdscr, TRUE);
-    while (getch() != ERR) {} /* drain buffer */
-    nodelay(stdscr, FALSE);
+    R_FLUSH_INPUT();
+    R_SET_BLOCKING(false);
+    R_FLUSH_INPUT();
+    R_SET_BLOCKING(true);
 
     while (gs->running) {
         game_render(gs);
