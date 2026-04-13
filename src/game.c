@@ -4724,7 +4724,8 @@ static void handle_overworld_input(GameState *gs, int key) {
             int avail_rows_m = term_rows_m - 3;
             int scale_m = (OW_WIDTH + avail_cols_m - 1) / avail_cols_m;
             if (scale_m < 1) scale_m = 1;
-            int row_scale_m = scale_m * 2;
+            /* Terminal chars are ~2x taller than wide; SDL cells are square */
+            int row_scale_m = (g_renderer && g_renderer->has_tiles) ? scale_m : scale_m * 2;
             int view_w_m = avail_cols_m;
             int view_h_m = avail_rows_m;
             int map_view_w_m = view_w_m * scale_m;

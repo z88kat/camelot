@@ -362,43 +362,41 @@ int ui_getkey(void) {
 
 void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
                        const char *locations_info) {
-    if (g_renderer) {
-        g_renderer->render_minimap(g_renderer, map, map_w, map_h,
-                                   player_pos, locations_info);
-        return;
-    }
     int term_rows, term_cols;
-    getmaxyx(stdscr, term_rows, term_cols);
+    if (g_renderer) {
+        R_GET_SIZE(&term_rows, &term_cols);
+    } else {
+        getmaxyx(stdscr, term_rows, term_cols);
+    }
 
-    clear();
+    ui_clear();
 
     /* Reserve rows: 1 for title, 2 for footer, rest for map */
     int avail_rows = term_rows - 3;
     int avail_cols = term_cols - 2;
     if (avail_rows < 5 || avail_cols < 10) {
-        mvprintw(0, 0, "Terminal too small for minimap");
-        refresh();
+        if (g_renderer)
+            R_DRAW_TEXT(0, 0, CP_WHITE, RATTR_NONE, "Terminal too small for minimap");
+        else {
+            mvprintw(0, 0, "Terminal too small for minimap");
+            refresh();
+        }
         return;
     }
 
     bool is_overworld = (map_w > 200);
 
     if (is_overworld) {
-        /* Proportional overworld minimap -- single scale, centred on player, scrollable.
-           Terminal chars are ~2x taller than wide, so 1 map tile = 1 column but
-           we need to skip every other row to keep proportions. Use scale_x for both. */
         int scale = (map_w + avail_cols - 1) / avail_cols;
         if (scale < 1) scale = 1;
+        /* Terminal chars are ~2x taller than wide; SDL cells are square */
+        int row_scale = (g_renderer && g_renderer->has_tiles) ? scale : scale * 2;
 
-        /* Each screen row represents scale*2 map rows (aspect correction) */
-        int row_scale = scale * 2;
+        int view_w = avail_cols;
+        int view_h = avail_rows;
+        int map_view_w = view_w * scale;
+        int map_view_h = view_h * row_scale;
 
-        int view_w = avail_cols;           /* screen columns for map */
-        int view_h = avail_rows;           /* screen rows for map */
-        int map_view_w = view_w * scale;   /* map tiles visible horizontally */
-        int map_view_h = view_h * row_scale; /* map tiles visible vertically */
-
-        /* Centre camera on player */
         int cam_x = player_pos.x - map_view_w / 2;
         int cam_y = player_pos.y - map_view_h / 2;
         if (cam_x < 0) cam_x = 0;
@@ -408,14 +406,18 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
         if (cam_x < 0) cam_x = 0;
         if (cam_y < 0) cam_y = 0;
 
-        /* Store camera for external use (labels, player dot) */
         /* Title */
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         int title_x = (term_cols - 50) / 2;
         if (title_x < 0) title_x = 0;
-        mvprintw(0, title_x,
-                 "-- Map of England -- [arrows] scroll  [any] close");
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        if (g_renderer) {
+            R_DRAW_TEXT(0, title_x, CP_WHITE_BOLD, RATTR_BOLD,
+                        "-- Map of England -- [arrows] scroll  [any] close");
+        } else {
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvprintw(0, title_x,
+                     "-- Map of England -- [arrows] scroll  [any] close");
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        }
 
         /* Render proportional map */
         int off_x = 1;
@@ -431,7 +433,6 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
                 char ch = t->glyph;
                 short cp = t->color_pair;
 
-                /* Check block for location markers */
                 for (int by = cam_y + sy * row_scale;
                      by < cam_y + (sy + 1) * row_scale && by < map_h; by++) {
                     for (int bx = cam_x + sx * scale;
@@ -447,9 +448,13 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
                     }
                 }
 
-                attron(COLOR_PAIR(cp));
-                mvaddch(off_y + sy, off_x + sx, ch);
-                attroff(COLOR_PAIR(cp));
+                if (g_renderer) {
+                    R_DRAW_CHAR(off_x + sx, off_y + sy, ch, cp, RATTR_NONE);
+                } else {
+                    attron(COLOR_PAIR(cp));
+                    mvaddch(off_y + sy, off_x + sx, ch);
+                    attroff(COLOR_PAIR(cp));
+                }
             }
         }
 
@@ -457,21 +462,28 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
         int ppx = (player_pos.x - cam_x) / scale;
         int ppy = (player_pos.y - cam_y) / row_scale;
         if (ppx >= 0 && ppx < view_w && ppy >= 0 && ppy < view_h) {
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
-            mvaddch(off_y + ppy, off_x + ppx, '@');
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+            if (g_renderer) {
+                R_DRAW_CHAR(off_x + ppx, off_y + ppy, '@', CP_YELLOW_BOLD, RATTR_BOLD | RATTR_BLINK);
+            } else {
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+                mvaddch(off_y + ppy, off_x + ppx, '@');
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+            }
         }
 
-        /* Footer */
         if (locations_info) {
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(term_rows - 1, 1, "%.*s", term_cols - 2, locations_info);
-            attroff(COLOR_PAIR(CP_WHITE));
+            if (g_renderer) {
+                R_DRAW_TEXT(term_rows - 1, 1, CP_WHITE, RATTR_NONE, "%.*s", term_cols - 2, locations_info);
+            } else {
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(term_rows - 1, 1, "%.*s", term_cols - 2, locations_info);
+                attroff(COLOR_PAIR(CP_WHITE));
+            }
         }
 
-        refresh();
+        if (!g_renderer) refresh();
     } else {
-        /* Dungeon minimap -- use original scaling (non-proportional is fine for small maps) */
+        /* Dungeon minimap */
         int scale_x = (map_w + avail_cols - 1) / avail_cols;
         int scale_y = (map_h + avail_rows - 1) / avail_rows;
         if (scale_x < 1) scale_x = 1;
@@ -485,10 +497,15 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
         int off_x = (term_cols - mini_w) / 2;
         int off_y = 1 + (avail_rows - mini_h) / 2;
 
-        attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
         const char *title = "-- Dungeon Map -- (press any key to close)";
-        mvprintw(0, (term_cols - (int)strlen(title)) / 2, "%s", title);
-        attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        int tx = (term_cols - (int)strlen(title)) / 2;
+        if (g_renderer) {
+            R_DRAW_TEXT(0, tx, CP_WHITE_BOLD, RATTR_BOLD, "%s", title);
+        } else {
+            attron(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+            mvprintw(0, tx, "%s", title);
+            attroff(COLOR_PAIR(CP_WHITE_BOLD) | A_BOLD);
+        }
 
         for (int sy = 0; sy < mini_h; sy++) {
             for (int sx = 0; sx < mini_w; sx++) {
@@ -499,30 +516,45 @@ void ui_render_minimap(Tile *map, int map_w, int map_h, Vec2 player_pos,
 
                 Tile *t = &map[my * map_w + mx];
                 if (!t->revealed) {
-                    mvaddch(off_y + sy, off_x + sx, ' ');
+                    if (g_renderer)
+                        R_DRAW_CHAR(off_x + sx, off_y + sy, ' ', CP_DEFAULT, RATTR_NONE);
+                    else
+                        mvaddch(off_y + sy, off_x + sx, ' ');
                     continue;
                 }
 
-                attron(COLOR_PAIR(t->color_pair));
-                mvaddch(off_y + sy, off_x + sx, t->glyph);
-                attroff(COLOR_PAIR(t->color_pair));
+                if (g_renderer) {
+                    R_DRAW_CHAR(off_x + sx, off_y + sy, t->glyph, t->color_pair, RATTR_NONE);
+                } else {
+                    attron(COLOR_PAIR(t->color_pair));
+                    mvaddch(off_y + sy, off_x + sx, t->glyph);
+                    attroff(COLOR_PAIR(t->color_pair));
+                }
             }
         }
 
         int px = player_pos.x / scale_x;
         int py = player_pos.y / scale_y;
         if (px >= 0 && px < mini_w && py >= 0 && py < mini_h) {
-            attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
-            mvaddch(off_y + py, off_x + px, '@');
-            attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+            if (g_renderer) {
+                R_DRAW_CHAR(off_x + px, off_y + py, '@', CP_YELLOW_BOLD, RATTR_BOLD | RATTR_BLINK);
+            } else {
+                attron(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+                mvaddch(off_y + py, off_x + px, '@');
+                attroff(COLOR_PAIR(CP_YELLOW_BOLD) | A_BOLD | A_BLINK);
+            }
         }
 
         if (locations_info) {
-            attron(COLOR_PAIR(CP_WHITE));
-            mvprintw(term_rows - 1, 1, "%.*s", term_cols - 2, locations_info);
-            attroff(COLOR_PAIR(CP_WHITE));
+            if (g_renderer) {
+                R_DRAW_TEXT(term_rows - 1, 1, CP_WHITE, RATTR_NONE, "%.*s", term_cols - 2, locations_info);
+            } else {
+                attron(COLOR_PAIR(CP_WHITE));
+                mvprintw(term_rows - 1, 1, "%.*s", term_cols - 2, locations_info);
+                attroff(COLOR_PAIR(CP_WHITE));
+            }
         }
 
-        refresh();
+        if (!g_renderer) refresh();
     }
 }

@@ -68,6 +68,9 @@ typedef struct Renderer {
     void (*draw_tile)(struct Renderer *r, int x, int y,
                       const char *tile_id, short fallback_color, char fallback_ch);
 
+    /* True if this backend supports graphical tiles (SDL). */
+    bool has_tiles;
+
     /* Backend-private data */
     RendererData *data;
 } Renderer;
